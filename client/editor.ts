@@ -1,9 +1,14 @@
 // OpenDoc Browser Editor
-// GitHub OAuth + two-panel markdown editor
+// GitHub OAuth + WYSIWYG Milkdown editor
 // Supports local mode (localhost) and remote mode (GitHub API)
 
-import { initSlashCommands } from './slash-commands'
-import { initCodePicker } from './code-picker'
+import { Editor, rootCtx, defaultValueCtx } from '@milkdown/core'
+import { commonmark } from '@milkdown/preset-commonmark'
+import { history } from '@milkdown/plugin-history'
+import { listener, listenerCtx } from '@milkdown/plugin-listener'
+import { replaceAll } from '@milkdown/utils'
+import { initThemePanel } from './themes'
+import { initFaviconPanel } from './favicon'
 
 const GITHUB_CLIENT_ID = 'PLACEHOLDER_CLIENT_ID';
 const OAUTH_CALLBACK_URL = '/oauth/callback';
@@ -19,6 +24,7 @@ let currentContent = '';
 let originalContent = '';
 let repoAccess: 'write' | 'read' | 'none' = 'none';
 let cachedUsername: string | null = null;
+let milkdownEditor: Editor | null = null;
 
 function getToken(): string | null {
   return localStorage.getItem('github_token');
@@ -69,35 +75,6 @@ function flattenNav(node: NavNode | null): { title: string; filePath: string }[]
   return result;
 }
 
-// --- Simple markdown to HTML (client-side) ---
-function renderMarkdown(md: string): string {
-  let html = md
-    // Code blocks (fenced)
-    .replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) =>
-      `<pre><code>${escapeHtml(code.trimEnd())}</code></pre>`)
-    // Headings
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    // Bold & italic
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Inline code
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    // Blockquotes
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    // Horizontal rules
-    .replace(/^---$/gm, '<hr>')
-    // Line breaks → paragraphs
-    .replace(/\n\n+/g, '</p><p>')
-    // Single line breaks
-    .replace(/\n/g, '<br>');
-
-  return `<p>${html}</p>`;
-}
-
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -112,7 +89,6 @@ async function fetchUserRepos(token: string): Promise<{ full_name: string }[]> {
 }
 
 async function loadPageContent(pagePath: string): Promise<string> {
-  // Try loading from dist
   const mdPath = pagePath.endsWith('.md') ? pagePath : `${pagePath}/index.md`;
   const distPath = `/dist/${mdPath}`;
   try {
@@ -147,7 +123,6 @@ async function getGitHubUsername(token: string): Promise<string> {
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 function showToast(message: string, type: 'success' | 'error' | 'warning', linkUrl?: string): void {
-  // Remove existing toast
   const existing = document.getElementById('od-toast');
   if (existing) existing.remove();
   if (toastTimer) clearTimeout(toastTimer);
@@ -181,7 +156,6 @@ async function getCommitMessage(path: string): Promise<string> {
 
 // --- Save: Direct Commit ---
 async function commitDirectly(path: string, content: string, token: string, repo: string): Promise<{ url?: string }> {
-  // Get current file SHA
   const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -221,13 +195,11 @@ async function openPullRequest(path: string, content: string, token: string, rep
   const username = await getGitHubUsername(token);
   const [, repoName] = repo.split('/');
 
-  // Fork if needed
   await fetch(`https://api.github.com/repos/${repo}/forks`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  // Wait for fork
   const forkRepo = `${username}/${repoName}`;
   let forkReady = false;
   for (let i = 0; i < 10; i++) {
@@ -242,14 +214,12 @@ async function openPullRequest(path: string, content: string, token: string, rep
   const baseBranch = siteConfig.github?.branch || 'main';
   const branch = `opendoc-edit-${Date.now()}`;
 
-  // Get default branch SHA from fork
   const refRes = await fetch(`https://api.github.com/repos/${forkRepo}/git/ref/heads/${baseBranch}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!refRes.ok) throw new Error('Failed to get branch ref from fork');
   const { object: { sha: branchSha } } = await refRes.json();
 
-  // Create branch on fork
   const branchRes = await fetch(`https://api.github.com/repos/${forkRepo}/git/refs`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -257,7 +227,6 @@ async function openPullRequest(path: string, content: string, token: string, rep
   });
   if (!branchRes.ok) throw new Error('Failed to create branch on fork');
 
-  // Get file SHA from fork
   const fileRes = await fetch(`https://api.github.com/repos/${forkRepo}/contents/${path}?ref=${branch}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -267,7 +236,6 @@ async function openPullRequest(path: string, content: string, token: string, rep
     sha = data.sha;
   }
 
-  // Commit to fork branch
   const message = await getCommitMessage(path);
   const commitBody: Record<string, unknown> = {
     message,
@@ -283,7 +251,6 @@ async function openPullRequest(path: string, content: string, token: string, rep
   });
   if (!putRes.ok) throw new Error('Failed to commit to fork');
 
-  // Open PR
   const prRes = await fetch(`https://api.github.com/repos/${repo}/pulls`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -308,10 +275,9 @@ async function handleSave(path: string, content: string, token: string, repo: st
   const dropdown = document.getElementById('save-dropdown');
   if (dropdown) dropdown.hidden = true;
 
-  // Show loading state
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<span class="od-spinner"></span>Saving…';
+    saveBtn.innerHTML = '<span class="od-spinner"></span>Saving\u2026';
   }
 
   try {
@@ -330,11 +296,118 @@ async function handleSave(path: string, content: string, token: string, repo: st
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      // Restore label based on access
       saveBtn.textContent = repoAccess === 'write' ? 'Save' : 'Suggest Edit';
     }
   }
 }
+
+// --- Milkdown Editor ---
+async function createMilkdownEditor(container: HTMLElement, initialMarkdown: string): Promise<Editor> {
+  if (milkdownEditor) {
+    milkdownEditor.destroy();
+  }
+
+  const editor = await Editor.make()
+    .config(ctx => {
+      ctx.set(rootCtx, container);
+      ctx.set(defaultValueCtx, initialMarkdown);
+    })
+    .config(ctx => {
+      ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
+        currentContent = markdown;
+      });
+    })
+    .use(commonmark)
+    .use(history)
+    .use(listener)
+    .create();
+
+  milkdownEditor = editor;
+  currentContent = initialMarkdown;
+  return editor;
+}
+
+async function updateMilkdownContent(editor: Editor, markdown: string): Promise<void> {
+  editor.action(replaceAll(markdown));
+  currentContent = markdown;
+}
+
+// --- Theme panel HTML ---
+function getThemePanelHTML(): string {
+  return `
+    <div class="od-theme-panel">
+      <div class="od-theme-panel-header">
+        <h3>Themes</h3>
+        <button class="od-close-btn" id="close-right">&times;</button>
+      </div>
+      <div class="od-theme-search">
+        <input type="search" placeholder="Search themes..." id="theme-search-input">
+      </div>
+      <div class="od-theme-grid" id="theme-grid"></div>
+      <div class="od-theme-actions" id="theme-actions" style="display:none">
+        <button class="od-btn od-btn-secondary" id="theme-cancel">Cancel</button>
+        <button class="od-btn od-btn-primary" id="theme-save">Save</button>
+      </div>
+      <details class="od-css-customizer">
+        <summary>Customize CSS</summary>
+        <div class="od-css-editor-wrap">
+          <div class="od-css-tabs" id="css-tabs" style="display:none">
+            <button class="od-css-tab active" id="css-tab-light">Light</button>
+            <button class="od-css-tab" id="css-tab-dark">Dark</button>
+          </div>
+          <textarea class="od-css-editor" id="css-editor" spellcheck="false">/* Loading... */</textarea>
+          <div class="od-css-editor-actions">
+            <button class="od-btn od-btn-ghost" id="css-reset">Reset</button>
+            <button class="od-btn od-btn-ghost" id="css-copy">Copy</button>
+            <button class="od-btn od-btn-primary" id="css-save">Save</button>
+          </div>
+        </div>
+      </details>
+      <details class="od-favicon-panel">
+        <summary>Favicon</summary>
+        <div class="od-favicon-content">
+          <div class="od-favicon-drop" id="favicon-drop">
+            <input type="file" id="favicon-upload" accept="image/png,image/svg+xml" hidden>
+            <div class="od-favicon-drop-inner" id="favicon-drop-inner">
+              <p>Drop a 512x512 PNG or SVG</p>
+              <button class="od-btn od-btn-secondary" id="favicon-browse">Browse</button>
+            </div>
+          </div>
+          <div class="od-favicon-preview" id="favicon-preview" style="display:none">
+            <img id="favicon-preview-img" alt="favicon preview">
+            <div class="od-favicon-sizes">
+              <canvas id="preview-16" width="16" height="16"></canvas>
+              <canvas id="preview-32" width="32" height="32"></canvas>
+              <canvas id="preview-180" width="180" height="180"></canvas>
+            </div>
+          </div>
+          <div class="od-favicon-tags" id="favicon-tags" style="display:none">
+            <label>HTML tags</label>
+            <textarea class="od-css-editor" id="favicon-tags-output" readonly></textarea>
+            <div class="od-css-editor-actions">
+              <button class="od-btn od-btn-ghost" id="favicon-copy-tags">Copy tags</button>
+              <button class="od-btn od-btn-primary" id="favicon-download-all">Download all</button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function initEditorThemePanel(): void {
+  const closeBtn = document.getElementById('close-right');
+  closeBtn?.addEventListener('click', () => {
+    const panel = document.getElementById('editor-right-panel');
+    panel?.classList.remove('open');
+  });
+
+  initThemePanel();
+  initFaviconPanel();
+}
+
+// --- Theme toggle button SVG ---
+const themeToggleSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 0 0 0 20 10 10 0 0 1 0-20z"/></svg>`;
 
 // --- UI Rendering ---
 const app = document.getElementById('app')!;
@@ -343,17 +416,14 @@ const app = document.getElementById('app')!;
 async function renderLocalEditor(): Promise<void> {
   const pagePath = getCurrentPagePath();
 
-  // Fetch nav tree for page picker
   let pages: { title: string; filePath: string }[] = [];
   try {
     const navTree = await fetch('/_opendoc/nav.json').then(r => r.json());
     pages = flattenNav(navTree);
   } catch { /* nav not available */ }
 
-  // If no path specified and we have pages, default to first
   const currentFile = pagePath || (pages.length > 0 ? pages[0]!.filePath : 'index.md');
 
-  // Build page picker options
   const pageOptions = pages.map(p =>
     `<option value="${escapeHtml(p.filePath)}"${p.filePath === currentFile ? ' selected' : ''}>${escapeHtml(p.title)}</option>`
   ).join('');
@@ -370,50 +440,39 @@ async function renderLocalEditor(): Promise<void> {
         <input type="text" class="od-commit-msg" id="commit-msg" placeholder="Commit message (optional)">
         <button class="btn btn-primary" id="commit-btn">Commit &amp; Push</button>
       </div>
+      <button class="od-toggle-themes" id="toggle-themes" title="Toggle themes">${themeToggleSvg}</button>
     </div>
-    <div class="editor-panels">
-      <div class="editor-pane">
-        <div class="pane-header">Markdown</div>
-        <textarea id="editor-textarea" spellcheck="false"></textarea>
+    <div class="od-editor-body">
+      <div class="od-wysiwyg-wrap">
+        <div id="od-milkdown"></div>
       </div>
-      <div class="editor-pane">
-        <div class="pane-header">Preview</div>
-        <div id="preview"></div>
-      </div>
+      <aside class="od-editor-right" id="editor-right-panel">
+        ${getThemePanelHTML()}
+      </aside>
     </div>
   `;
 
-  const textarea = document.getElementById('editor-textarea') as HTMLTextAreaElement;
-  const preview = document.getElementById('preview')!;
+  const milkdownEl = document.getElementById('od-milkdown')!;
 
   // Load file content
   async function loadFile(filePath: string): Promise<void> {
+    let content: string;
     try {
-      const content = await localLoadFile(filePath);
-      originalContent = content;
-      currentContent = content;
-      textarea.value = content;
-      preview.innerHTML = renderMarkdown(content);
+      content = await localLoadFile(filePath);
     } catch {
-      const fallback = `# New Page\n\nStart writing here...`;
-      originalContent = fallback;
-      currentContent = fallback;
-      textarea.value = fallback;
-      preview.innerHTML = renderMarkdown(fallback);
+      content = `# New Page\n\nStart writing here...`;
+    }
+    originalContent = content;
+    currentContent = content;
+
+    if (milkdownEditor) {
+      await updateMilkdownContent(milkdownEditor, content);
+    } else {
+      await createMilkdownEditor(milkdownEl, content);
     }
   }
 
   await loadFile(currentFile);
-
-  // Debounced live preview
-  let previewTimeout: ReturnType<typeof setTimeout>;
-  textarea.addEventListener('input', () => {
-    currentContent = textarea.value;
-    clearTimeout(previewTimeout);
-    previewTimeout = setTimeout(() => {
-      preview.innerHTML = renderMarkdown(currentContent);
-    }, 300);
-  });
 
   // Save button
   document.getElementById('save-btn')!.addEventListener('click', async () => {
@@ -447,16 +506,28 @@ async function renderLocalEditor(): Promise<void> {
   });
 
   // Keyboard shortcut: Cmd/Ctrl+S to save
-  textarea.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault();
       document.getElementById('save-btn')!.click();
     }
   });
 
-  // Init slash commands and code picker
-  initSlashCommands(textarea);
-  initCodePicker(textarea);
+  // Theme panel toggle
+  document.getElementById('toggle-themes')?.addEventListener('click', () => {
+    const panel = document.getElementById('editor-right-panel');
+    panel?.classList.toggle('open');
+  });
+
+  // Init theme panel + favicon
+  initEditorThemePanel();
+
+  // Check for OAuth token in hash
+  if (window.location.hash.startsWith('#github_token=')) {
+    const ghToken = window.location.hash.slice('#github_token='.length);
+    if (ghToken) localStorage.setItem('github_token', ghToken);
+    window.history.replaceState({}, '', window.location.pathname + window.location.search);
+  }
 
   // --- Git status & commit ---
   async function updateGitStatus(): Promise<void> {
@@ -485,13 +556,6 @@ async function renderLocalEditor(): Promise<void> {
   }
 
   updateGitStatus();
-
-  // Check for OAuth token in hash
-  if (window.location.hash.startsWith('#github_token=')) {
-    const ghToken = window.location.hash.slice('#github_token='.length);
-    if (ghToken) localStorage.setItem('github_token', ghToken);
-    window.history.replaceState({}, '', window.location.pathname + window.location.search);
-  }
 
   document.getElementById('commit-btn')?.addEventListener('click', async () => {
     const btn = document.getElementById('commit-btn') as HTMLButtonElement;
@@ -602,7 +666,6 @@ async function renderEditor(): Promise<void> {
   const repo = getRepo()!;
   const pagePath = getCurrentPagePath();
 
-  // Check permissions
   repoAccess = await checkRepoAccess(repo, token);
 
   if (repoAccess === 'none') {
@@ -640,7 +703,6 @@ async function renderEditor(): Promise<void> {
   const isWrite = repoAccess === 'write';
   const saveLabel = isWrite ? 'Save' : 'Suggest Edit';
 
-  // Build save button HTML
   const saveBtnHtml = isWrite
     ? `<div class="od-save-btn-group" id="save-btn-group">
         <button class="od-save-primary" id="save-btn">${saveLabel}</button>
@@ -662,41 +724,31 @@ async function renderEditor(): Promise<void> {
       ${saveBtnHtml}
       <button class="btn" id="change-repo-btn">Change Repo</button>
       <button class="btn" id="logout-btn">Logout</button>
+      <button class="od-toggle-themes" id="toggle-themes" title="Toggle themes">${themeToggleSvg}</button>
     </div>
-    <div class="editor-panels">
-      <div class="editor-pane">
-        <div class="pane-header">Markdown</div>
-        <textarea id="editor-textarea" spellcheck="false"></textarea>
+    <div class="od-editor-body">
+      <div class="od-wysiwyg-wrap">
+        <div id="od-milkdown"></div>
       </div>
-      <div class="editor-pane">
-        <div class="pane-header">Preview</div>
-        <div id="preview"></div>
-      </div>
+      <aside class="od-editor-right" id="editor-right-panel">
+        ${getThemePanelHTML()}
+      </aside>
     </div>
   `;
 
-  const textarea = document.getElementById('editor-textarea') as HTMLTextAreaElement;
-  const preview = document.getElementById('preview')!;
+  const milkdownEl = document.getElementById('od-milkdown')!;
 
   // Load content
   const content = await loadPageContent(pagePath);
   originalContent = content;
-  currentContent = content;
-  textarea.value = content;
-  preview.innerHTML = renderMarkdown(content);
+  await createMilkdownEditor(milkdownEl, content);
 
-  // Live preview
-  textarea.addEventListener('input', () => {
-    currentContent = textarea.value;
-    preview.innerHTML = renderMarkdown(currentContent);
-  });
-
-  // Save button — direct commit (write) or fork+PR (read)
+  // Save button
   document.getElementById('save-btn')!.addEventListener('click', () => {
     handleSave(pagePath, currentContent, token, repo, false);
   });
 
-  // PR option from dropdown (write access only)
+  // PR option from dropdown
   document.getElementById('save-as-pr')?.addEventListener('click', () => {
     handleSave(pagePath, currentContent, token, repo, true);
   });
@@ -729,12 +781,17 @@ async function renderEditor(): Promise<void> {
     init();
   });
 
-  // Init slash commands and code picker
-  initSlashCommands(textarea);
-  initCodePicker(textarea);
+  // Theme panel toggle
+  document.getElementById('toggle-themes')?.addEventListener('click', () => {
+    const panel = document.getElementById('editor-right-panel');
+    panel?.classList.toggle('open');
+  });
+
+  // Init theme panel + favicon
+  initEditorThemePanel();
 
   // Keyboard shortcut: Cmd/Ctrl+S to save
-  textarea.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
       e.preventDefault();
       document.getElementById('save-btn')!.click();
@@ -748,7 +805,6 @@ function handleOAuthCallback(): boolean {
   const code = params.get('code');
   if (!code) return false;
 
-  // Exchange code for token via CF Worker
   const callbackUrl = `${OAUTH_CALLBACK_URL}?code=${code}`;
   fetch(callbackUrl)
     .then(res => res.json())
@@ -756,7 +812,6 @@ function handleOAuthCallback(): boolean {
       if (data.access_token) {
         localStorage.setItem('github_token', data.access_token);
       }
-      // Clean URL
       window.history.replaceState({}, '', '/editor');
       init();
     })
@@ -787,19 +842,21 @@ async function loadSiteConfig(): Promise<SiteConfig> {
 
 // --- Init ---
 async function init(): Promise<void> {
-  // Local mode: skip GitHub entirely
+  // Destroy previous editor instance
+  if (milkdownEditor) {
+    milkdownEditor.destroy();
+    milkdownEditor = null;
+  }
+
   if (isLocal) {
     await renderLocalEditor();
     return;
   }
 
-  // Handle OAuth callback
   if (handleOAuthCallback()) return;
 
-  // Load site config
   siteConfig = await loadSiteConfig();
 
-  // If github.repo is configured, pre-select it
   if (siteConfig.github?.repo && !getRepo()) {
     localStorage.setItem('github_repo', siteConfig.github.repo);
   }
@@ -816,7 +873,6 @@ async function init(): Promise<void> {
       const repos = await fetchUserRepos(token);
       renderRepoPicker(repos);
     } catch {
-      // Token might be invalid
       localStorage.removeItem('github_token');
       renderLogin();
     }

@@ -22,9 +22,6 @@
       </div>
     </div>
     <div class="od-header-right">
-      <button class="od-toggle-btn" id="toggle-right" title="Toggle themes" aria-label="Toggle themes panel">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 0 0 0 20 10 10 0 0 1 0-20z"/></svg>
-      </button>
       <button class="od-theme-toggle" id="dark-mode-toggle" title="Toggle dark mode">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       </button>
@@ -53,81 +50,6 @@
       </div>
       {{#if toc}}{{toc}}{{/if}}
     </main>
-
-    <!-- Right sidebar: themes -->
-    <aside class="od-sidebar-right" id="sidebar-right">
-      <div class="od-theme-panel">
-        <div class="od-theme-panel-header">
-          <h3>Themes</h3>
-          <button class="od-close-btn" id="close-right">&times;</button>
-        </div>
-
-        <!-- Search -->
-        <div class="od-theme-search">
-          <input type="search" placeholder="Search themes..." id="theme-search-input">
-        </div>
-
-        <!-- Theme grid -->
-        <div class="od-theme-grid" id="theme-grid">
-          <!-- Populated by client/themes.ts -->
-        </div>
-
-        <!-- Action buttons (shown when a theme is previewing) -->
-        <div class="od-theme-actions" id="theme-actions" style="display:none">
-          <button class="od-btn od-btn-secondary" id="theme-cancel">Cancel</button>
-          <button class="od-btn od-btn-primary" id="theme-save">Save</button>
-        </div>
-
-        <!-- CSS Customizer -->
-        <details class="od-css-customizer">
-          <summary>Customize CSS</summary>
-          <div class="od-css-editor-wrap">
-            <div class="od-css-tabs" id="css-tabs" style="display:none">
-              <button class="od-css-tab active" id="css-tab-light">Light</button>
-              <button class="od-css-tab" id="css-tab-dark">Dark</button>
-            </div>
-            <textarea class="od-css-editor" id="css-editor" spellcheck="false">/* Loading... */</textarea>
-            <div class="od-css-editor-actions">
-              <button class="od-btn od-btn-ghost" id="css-reset">Reset</button>
-              <button class="od-btn od-btn-ghost" id="css-copy">Copy</button>
-              <button class="od-btn od-btn-primary" id="css-save">Save</button>
-            </div>
-          </div>
-        </details>
-
-        <!-- Favicon Generator -->
-        <details class="od-favicon-panel">
-          <summary>Favicon</summary>
-          <div class="od-favicon-content">
-            <div class="od-favicon-drop" id="favicon-drop">
-              <input type="file" id="favicon-upload" accept="image/png,image/svg+xml" hidden>
-              <div class="od-favicon-drop-inner" id="favicon-drop-inner">
-                <p>Drop a 512x512 PNG or SVG</p>
-                <button class="od-btn od-btn-secondary" id="favicon-browse">Browse</button>
-              </div>
-            </div>
-
-            <div class="od-favicon-preview" id="favicon-preview" style="display:none">
-              <img id="favicon-preview-img" alt="favicon preview">
-              <div class="od-favicon-sizes">
-                <canvas id="preview-16" width="16" height="16"></canvas>
-                <canvas id="preview-32" width="32" height="32"></canvas>
-                <canvas id="preview-180" width="180" height="180"></canvas>
-              </div>
-            </div>
-
-            <div class="od-favicon-tags" id="favicon-tags" style="display:none">
-              <label>HTML tags</label>
-              <textarea class="od-css-editor" id="favicon-tags-output" readonly></textarea>
-              <div class="od-css-editor-actions">
-                <button class="od-btn od-btn-ghost" id="favicon-copy-tags">Copy tags</button>
-                <button class="od-btn od-btn-primary" id="favicon-download-all">Download all</button>
-              </div>
-            </div>
-          </div>
-        </details>
-      </div>
-    </aside>
   </div>
 
   <script type="module" src="/_opendoc/app.js"></script>

@@ -1,7 +1,4 @@
-// Client-side navigation, sidebar toggles, dark mode, and theme panel
-
-import { initThemePanel } from './themes'
-import { initFaviconPanel } from './favicon'
+// Client-side navigation, sidebar toggles, and dark mode
 
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('od-layout')
@@ -28,21 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('od-left-open', String(!layout?.classList.contains('left-closed')))
   })
 
-  // === Right sidebar toggle ===
-  document.getElementById('toggle-right')?.addEventListener('click', () => {
-    layout?.classList.toggle('right-open')
-    localStorage.setItem('od-right-open', String(layout?.classList.contains('right-open')))
-  })
-
   // === Restore sidebar state from localStorage ===
   const leftOpen = localStorage.getItem('od-left-open')
   if (leftOpen === 'false') {
     layout?.classList.add('left-closed')
-  }
-
-  const rightOpen = localStorage.getItem('od-right-open')
-  if (rightOpen === 'true') {
-    layout?.classList.add('right-open')
   }
 
   // === Highlight active nav link ===
@@ -65,12 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ;(item as HTMLElement).style.display = text.includes(query) ? '' : 'none'
     }
   })
-
-  // === Init theme panel ===
-  initThemePanel()
-
-  // === Init favicon panel ===
-  initFaviconPanel()
 
   // === TOC active heading tracking ===
   const tocLinks = document.querySelectorAll('.od-toc-list a')
