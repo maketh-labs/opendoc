@@ -1,0 +1,36 @@
+# Getting Started
+
+Get up and running with OpenDoc in under a minute.
+
+## Installation
+
+```bash
+npx opendoc serve
+```
+
+That's it. Point it at any folder with markdown files and you have a docs site.
+
+## Create Your First Page
+
+Every page is an `index.md` inside a folder:
+
+```
+my-docs/
+├── index.md                 ← home page
+├── getting-started/
+│   └── index.md             ← this page
+└── guides/
+    └── index.md             ← /guides
+```
+
+## Build for Production
+
+```bash
+npx opendoc build
+```
+
+This generates a static site in `.opendoc/dist/` that you can deploy anywhere.
+
+## What's Next
+
+Check out the [[Guides]] for more detailed walkthroughs on theming, MCP integration, and advanced features.

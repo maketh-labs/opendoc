@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title>
+  <style>{{styles}}</style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2>OpenDoc</h2>
+      <button id="theme-toggle" title="Toggle dark mode">◑</button>
+    </div>
+    <div class="search-box">
+      <input type="text" placeholder="Search docs..." id="search-input">
+    </div>
+    <nav>
+      {{nav}}
+    </nav>
+  </aside>
+  <main class="content">
+    <article>
+      {{content}}
+    </article>
+    {{backlinks}}
+  </main>
+  {{clientJs}}
+</body>
+</html>

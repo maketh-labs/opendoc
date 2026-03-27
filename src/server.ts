@@ -1,0 +1,165 @@
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { createServer } from 'http';
+import type { ServerResponse } from 'http';
+import { watch } from 'chokidar';
+import { walkDir, getAllPages } from './walker';
+import { render } from './renderer';
+import { buildBacklinks } from './backlinks';
+import { loadTemplate, loadStyles, renderTemplate } from './theme';
+import { startMcpServer } from './mcp';
+import type { NavNode, BacklinksIndex } from './types';
+
+function navToHtml(node: NavNode, currentPath: string = ''): string {
+  if (!node) return '';
+  const active = node.path === currentPath ? ' class="active"' : '';
+  let html = `<li><a href="${node.url}"${active}>${escapeHtml(node.title)}</a>`;
+  if (node.children && node.children.length > 0) {
+    html += '<ul>' + node.children.map(c => navToHtml(c, currentPath)).join('') + '</ul>';
+  }
+  html += '</li>';
+  return html;
+}
+
+function backlinksToHtml(links: string[]): string {
+  if (!links || links.length === 0) return '';
+  const items = links.map(l => {
+    const url = l === '.' ? '/' : `/${l}`;
+    const name = l === '.' ? 'Home' : l.split('/').pop()!.replace(/-/g, ' ');
+    return `<li><a href="${url}">${escapeHtml(name)}</a></li>`;
+  }).join('');
+  return `<div class="backlinks"><h3>Backlinks</h3><ul>${items}</ul></div>`;
+}
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// In-memory page cache
+const cache = new Map<string, string>();
+
+async function buildPage(
+  rootDir: string,
+  page: string,
+  template: string,
+  styles: string,
+  navHtml: string,
+  backlinks: BacklinksIndex,
+): Promise<string> {
+  const indexPath = join(rootDir, page, 'index.md');
+  const markdown = await readFile(indexPath, 'utf-8');
+  const content = await render(markdown);
+  const titleMatch = markdown.match(/^#\s+(.+)$/m);
+  const title = titleMatch ? titleMatch[1]!.trim() : 'OpenDoc';
+
+  const normalized = page === '.' ? '' : page;
+  const pageBacklinks = backlinks[normalized] || [];
+
+  const clientJs = `<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('theme-toggle');
+  if (toggle) {
+    const saved = localStorage.getItem('theme') || 'auto';
+    if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    toggle.addEventListener('click', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    });
+  }
+});
+</script>
+<script>
+// Hot reload
+const es = new EventSource('/__reload');
+es.onmessage = () => location.reload();
+</script>`;
+
+  return renderTemplate(template, {
+    title,
+    content,
+    nav: navHtml,
+    backlinks: backlinksToHtml(pageBacklinks),
+    styles,
+    clientJs,
+  });
+}
+
+export async function startServer(rootDir: string, port: number = 3000) {
+  let template = await loadTemplate();
+  let styles = await loadStyles();
+  let navTree = await walkDir(rootDir);
+  let backlinks = await buildBacklinks(rootDir);
+  let navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
+
+  // SSE clients for hot reload
+  const reloadClients = new Set<ServerResponse>();
+
+  async function rebuildAll(): Promise<void> {
+    navTree = await walkDir(rootDir);
+    backlinks = await buildBacklinks(rootDir);
+    navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
+    cache.clear();
+  }
+
+  // Watch for changes
+  const watcher = watch(join(rootDir, '**/*.md'), {
+    ignored: [/node_modules/, /\.opendoc/, /context\.md$/, /context-mini\.md$/],
+  });
+
+  watcher.on('change', async () => {
+    await rebuildAll();
+    for (const client of reloadClients) {
+      client.write('data: reload\n\n');
+    }
+  });
+
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url!, `http://localhost:${port}`);
+    const pathname = url.pathname;
+
+    // SSE endpoint for hot reload
+    if (pathname === '/__reload') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      reloadClients.add(res);
+      req.on('close', () => reloadClients.delete(res));
+      return;
+    }
+
+    // Resolve page path
+    const pagePath = pathname === '/' ? '.' : pathname.replace(/^\//, '').replace(/\/$/, '');
+
+    // Check if this is a valid page
+    const pages = await getAllPages(rootDir);
+    if (!pages.includes(pagePath)) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end('<h1>404 — Page not found</h1>');
+      return;
+    }
+
+    try {
+      if (!cache.has(pagePath)) {
+        const html = await buildPage(rootDir, pagePath, template, styles, navHtml, backlinks);
+        cache.set(pagePath, html);
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(cache.get(pagePath));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'text/html' });
+      res.end(`<h1>Error</h1><pre>${escapeHtml(String(err))}</pre>`);
+    }
+  });
+
+  server.listen(port, () => {
+    console.log(`OpenDoc dev server running on http://localhost:${port}`);
+  });
+
+  // Start MCP server in parallel
+  await startMcpServer(rootDir);
+
+  return server;
+}
