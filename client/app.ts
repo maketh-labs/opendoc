@@ -71,4 +71,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // === Init favicon panel ===
   initFaviconPanel()
+
+  // === TOC active heading tracking ===
+  const tocLinks = document.querySelectorAll('.od-toc-list a')
+  if (tocLinks.length > 0) {
+    const headingIds = Array.from(tocLinks).map(a =>
+      (a as HTMLAnchorElement).getAttribute('href')?.slice(1) || ''
+    )
+    const headings = headingIds
+      .map(id => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null)
+
+    if (headings.length > 0) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              const id = entry.target.id
+              for (const link of tocLinks) {
+                const href = (link as HTMLAnchorElement).getAttribute('href')
+                link.classList.toggle('active', href === `#${id}`)
+              }
+            }
+          }
+        },
+        { rootMargin: '-80px 0px -60% 0px', threshold: 0 }
+      )
+
+      for (const heading of headings) {
+        observer.observe(heading)
+      }
+    }
+  }
 })

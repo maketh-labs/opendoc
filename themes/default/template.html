@@ -41,10 +41,16 @@
 
     <!-- Main content -->
     <main class="od-content">
-      <article class="od-article">
-        {{content}}
-      </article>
-      {{backlinks}}
+      <div class="od-content-wrap">
+        <article class="od-article">
+          <div class="od-page-header">
+            {{#if icon}}<span class="od-page-icon">{{icon}}</span>{{/if}}
+          </div>
+          {{content}}
+        </article>
+        {{backlinks}}
+      </div>
+      {{#if toc}}{{toc}}{{/if}}
     </main>
 
     <!-- Right sidebar: themes -->

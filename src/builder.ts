@@ -1,16 +1,18 @@
-import { readFile, writeFile, mkdir, copyFile, access } from 'fs/promises';
+import { readFile, writeFile, mkdir, copyFile, access, readdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { walkDir, getAllPages } from './walker';
-import { render } from './renderer';
+import { renderFull } from './renderer';
 import { buildBacklinks } from './backlinks';
 import { compress, compressMini } from './compressor';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
+import { tocToHtml } from './plugins/toc';
 import type { NavNode, BacklinksIndex } from './types';
 
 function navToHtml(node: NavNode, currentPath: string = ''): string {
   if (!node) return '';
   const active = node.path === currentPath ? ' class="active"' : '';
-  let html = `<li><a href="${node.url}"${active}>${escapeHtml(node.title)}</a>`;
+  const iconSpan = node.icon ? `<span class="od-nav-icon">${node.icon}</span> ` : '';
+  let html = `<li><a href="${node.url}"${active}>${iconSpan}${escapeHtml(node.title)}</a>`;
   if (node.children && node.children.length > 0) {
     html += '<ul>' + node.children.map(c => navToHtml(c, currentPath)).join('') + '</ul>';
   }
@@ -50,6 +52,20 @@ async function copyIfExists(src: string, dest: string): Promise<boolean> {
   return false;
 }
 
+async function copyDirRecursive(src: string, dest: string): Promise<void> {
+  await mkdir(dest, { recursive: true });
+  const entries = await readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirRecursive(srcPath, destPath);
+    } else {
+      await copyFile(srcPath, destPath);
+    }
+  }
+}
+
 export async function build(rootDir: string): Promise<void> {
   const distDir = join(rootDir, '.opendoc', 'dist');
   const pages = await getAllPages(rootDir);
@@ -66,15 +82,17 @@ export async function build(rootDir: string): Promise<void> {
   let mdCopied = 0;
   let contextCopied = 0;
   let contextMiniCopied = 0;
+  let assetsCopied = 0;
 
   for (const page of pages) {
     const indexPath = join(rootDir, page, 'index.md');
     const markdown = await readFile(indexPath, 'utf-8');
 
-    // Render HTML
-    const content = await render(markdown);
+    // Render HTML with TOC and frontmatter
+    const { html: content, toc, frontmatter } = await renderFull(markdown);
     const titleMatch = markdown.match(/^#\s+(.+)$/m);
-    const title = titleMatch ? titleMatch[1]!.trim() : 'OpenDoc';
+    const title = (frontmatter.title as string) || (titleMatch ? titleMatch[1]!.trim() : 'OpenDoc');
+    const icon = (frontmatter.icon as string) || '';
 
     // Get backlinks for this page
     const normalized = page === '.' ? '' : page;
@@ -86,6 +104,9 @@ export async function build(rootDir: string): Promise<void> {
       content,
       nav: navHtml,
       backlinks: backlinksToHtml(pageBacklinks),
+      toc: tocToHtml(toc),
+      icon,
+      pageTitle: title,
     });
 
     // Write HTML
@@ -111,6 +132,14 @@ export async function build(rootDir: string): Promise<void> {
     const contextMiniSrc = join(rootDir, page, 'context-mini.md');
     if (await copyIfExists(contextMiniSrc, join(outDir, 'context-mini.md'))) {
       contextMiniCopied++;
+    }
+
+    // Copy assets/ folder if it exists
+    const assetsDir = join(rootDir, page, 'assets');
+    if (await fileExists(assetsDir)) {
+      const assetsOutDir = join(outDir, 'assets');
+      await copyDirRecursive(assetsDir, assetsOutDir);
+      assetsCopied++;
     }
   }
 
@@ -150,6 +179,7 @@ export async function build(rootDir: string): Promise<void> {
   console.log(`  ${mdCopied} pages → index.md (raw source)`);
   console.log(`  ${contextCopied} pages → context.md`);
   console.log(`  ${contextMiniCopied} pages → context-mini.md`);
+  console.log(`  ${assetsCopied} pages → assets/ copied`);
   console.log(`  _opendoc/nav.json`);
   console.log(`  _opendoc/backlinks.json`);
   console.log(`  _opendoc/theme.css`);

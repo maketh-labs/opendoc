@@ -6,13 +6,40 @@ function titleFromFolder(name: string): string {
   return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-async function extractTitle(filePath: string): Promise<string | null> {
+interface PageMeta {
+  title: string | null;
+  icon: string | null;
+}
+
+async function extractMeta(filePath: string): Promise<PageMeta> {
   try {
     const content = await readFile(filePath, 'utf-8');
-    const match = content.match(/^#\s+(.+)$/m);
-    return match ? match[1]!.trim() : null;
+
+    // Parse frontmatter
+    let icon: string | null = null;
+    let fmTitle: string | null = null;
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      for (const line of fmMatch[1]!.split('\n')) {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx === -1) continue;
+        const key = line.slice(0, colonIdx).trim();
+        let value = line.slice(colonIdx + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        if (key === 'icon') icon = value;
+        if (key === 'title') fmTitle = value;
+      }
+    }
+
+    // Extract H1 title
+    const h1Match = content.match(/^#\s+(.+)$/m);
+    const title = fmTitle || (h1Match ? h1Match[1]!.trim() : null);
+
+    return { title, icon };
   } catch {
-    return null;
+    return { title: null, icon: null };
   }
 }
 
@@ -36,9 +63,12 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
   if (!hasIndex) return children.length === 1 ? children[0]! : null;
 
   const indexPath = join(currentDir, 'index.md');
-  const title = (await extractTitle(indexPath)) || titleFromFolder(basename(currentDir) || 'Home');
+  const meta = await extractMeta(indexPath);
+  const title = meta.title || titleFromFolder(basename(currentDir) || 'Home');
 
-  return { title, path: rel || '.', url, children };
+  const node: NavNode = { title, path: rel || '.', url, children };
+  if (meta.icon) node.icon = meta.icon;
+  return node;
 }
 
 export async function getAllPages(rootDir: string, currentDir: string = rootDir): Promise<string[]> {

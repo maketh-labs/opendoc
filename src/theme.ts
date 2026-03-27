@@ -17,12 +17,27 @@ export async function loadStyles(themeName: string = 'default'): Promise<string>
 }
 
 export function renderTemplate(template: string, vars: TemplateVars): string {
-  return template
-    .replace('{{title}}', escapeHtml(vars.title))
-    .replace('{{siteTitle}}', escapeHtml(vars.siteTitle))
-    .replace('{{content}}', vars.content)
-    .replace('{{nav}}', vars.nav)
-    .replace('{{backlinks}}', vars.backlinks);
+  // Handle conditional {{#if icon}} blocks
+  let result = template;
+
+  result = result.replace(/\{\{#if icon\}\}([\s\S]*?)\{\{\/if\}\}/g, (_match, content) => {
+    return vars.icon ? content : '';
+  });
+
+  // Handle conditional {{#if toc}} blocks
+  result = result.replace(/\{\{#if toc\}\}([\s\S]*?)\{\{\/if\}\}/g, (_match, content) => {
+    return vars.toc ? content : '';
+  });
+
+  return result
+    .replace(/\{\{title\}\}/g, escapeHtml(vars.title))
+    .replace(/\{\{siteTitle\}\}/g, escapeHtml(vars.siteTitle))
+    .replace(/\{\{content\}\}/g, vars.content)
+    .replace(/\{\{nav\}\}/g, vars.nav)
+    .replace(/\{\{backlinks\}\}/g, vars.backlinks)
+    .replace(/\{\{toc\}\}/g, vars.toc)
+    .replace(/\{\{icon\}\}/g, vars.icon)
+    .replace(/\{\{pageTitle\}\}/g, escapeHtml(vars.pageTitle));
 }
 
 function escapeHtml(str: string): string {

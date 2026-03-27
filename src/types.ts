@@ -2,6 +2,7 @@ export interface NavNode {
   title: string
   path: string
   url: string
+  icon?: string
   children: NavNode[]
 }
 
@@ -9,6 +10,7 @@ export interface Page {
   url: string
   path: string
   title: string
+  icon?: string
   content: string
   html: string
 }
@@ -32,6 +34,9 @@ export interface TemplateVars {
   content: string
   nav: string
   backlinks: string
+  toc: string
+  icon: string
+  pageTitle: string
 }
 
 export interface SearchResult {

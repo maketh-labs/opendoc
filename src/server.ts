@@ -4,16 +4,18 @@ import { createServer } from 'http';
 import type { ServerResponse } from 'http';
 import { watch } from 'chokidar';
 import { walkDir, getAllPages } from './walker';
-import { render } from './renderer';
+import { renderFull } from './renderer';
 import { buildBacklinks } from './backlinks';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { startMcpServer } from './mcp';
+import { tocToHtml } from './plugins/toc';
 import type { NavNode, BacklinksIndex } from './types';
 
 function navToHtml(node: NavNode, currentPath: string = ''): string {
   if (!node) return '';
   const active = node.path === currentPath ? ' class="active"' : '';
-  let html = `<li><a href="${node.url}"${active}>${escapeHtml(node.title)}</a>`;
+  const iconSpan = node.icon ? `<span class="od-nav-icon">${node.icon}</span> ` : '';
+  let html = `<li><a href="${node.url}"${active}>${iconSpan}${escapeHtml(node.title)}</a>`;
   if (node.children && node.children.length > 0) {
     html += '<ul>' + node.children.map(c => navToHtml(c, currentPath)).join('') + '</ul>';
   }
@@ -47,9 +49,10 @@ async function buildPage(
 ): Promise<string> {
   const indexPath = join(rootDir, page, 'index.md');
   const markdown = await readFile(indexPath, 'utf-8');
-  const content = await render(markdown);
+  const { html: content, toc, frontmatter } = await renderFull(markdown);
   const titleMatch = markdown.match(/^#\s+(.+)$/m);
-  const title = titleMatch ? titleMatch[1]!.trim() : 'OpenDoc';
+  const title = (frontmatter.title as string) || (titleMatch ? titleMatch[1]!.trim() : 'OpenDoc');
+  const icon = (frontmatter.icon as string) || '';
 
   const normalized = page === '.' ? '' : page;
   const pageBacklinks = backlinks[normalized] || [];
@@ -60,6 +63,9 @@ async function buildPage(
     content,
     nav: navHtml,
     backlinks: backlinksToHtml(pageBacklinks),
+    toc: tocToHtml(toc),
+    icon,
+    pageTitle: title,
   });
 }
 
@@ -147,6 +153,26 @@ export async function startServer(rootDir: string, port: number = 3000) {
         const clientCode = await readFile(clientPath, 'utf-8');
         res.writeHead(200, { 'Content-Type': 'application/javascript' });
         res.end(clientCode);
+      } catch {
+        res.writeHead(404);
+        res.end('Not found');
+      }
+      return;
+    }
+
+    // Serve assets from page directories
+    if (pathname.includes('/assets/')) {
+      const filePath = join(rootDir, pathname.replace(/^\//, ''));
+      try {
+        const data = await Bun.file(filePath).arrayBuffer();
+        const ext = pathname.split('.').pop()?.toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+          pdf: 'application/pdf',
+        };
+        res.writeHead(200, { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream' });
+        res.end(Buffer.from(data));
       } catch {
         res.writeHead(404);
         res.end('Not found');
