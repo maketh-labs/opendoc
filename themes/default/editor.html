@@ -32,45 +32,44 @@
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
-        --color-bg: #1a1a2e;
-        --color-surface: #16213e;
-        --color-text: #e0e0e0;
-        --color-muted: #999999;
-        --color-accent: #4da6ff;
-        --color-accent-hover: #80bfff;
-        --color-border: #2a2a4a;
-        --od-color-bg: #0f0f0f;
+        --color-bg: #111111;
+        --color-surface: #1a1a1a;
+        --color-text: #e5e5e5;
+        --color-muted: #9ca3af;
+        --color-accent: #60a5fa;
+        --color-accent-hover: #93c5fd;
+        --color-border: #2a2a2a;
+        --od-color-bg: #111111;
         --od-color-surface: #1a1a1a;
         --od-color-surface-2: #252525;
         --od-color-text: #e5e5e5;
         --od-color-text-muted: #9ca3af;
         --od-color-border: #2a2a2a;
-        --od-color-accent: #818cf8;
-        --od-color-accent-hover: #a5b4fc;
+        --od-color-accent: #60a5fa;
       }
     }
     [data-theme="dark"] {
-      --color-bg: #1a1a2e;
-      --color-surface: #16213e;
-      --color-text: #e0e0e0;
-      --color-muted: #999999;
-      --color-accent: #4da6ff;
-      --color-accent-hover: #80bfff;
-      --color-border: #2a2a4a;
-      --od-color-bg: #0f0f0f;
+      --color-bg: #111111;
+      --color-surface: #1a1a1a;
+      --color-text: #e5e5e5;
+      --color-muted: #9ca3af;
+      --color-accent: #60a5fa;
+      --color-accent-hover: #93c5fd;
+      --color-border: #2a2a2a;
+      --od-color-bg: #111111;
       --od-color-surface: #1a1a1a;
       --od-color-surface-2: #252525;
       --od-color-text: #e5e5e5;
       --od-color-text-muted: #9ca3af;
       --od-color-border: #2a2a2a;
-      --od-color-accent: #818cf8;
-      --od-color-accent-hover: #a5b4fc;
+      --od-color-accent: #60a5fa;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: var(--font-body);
-      color: var(--color-text);
-      background: var(--color-bg);
+      color: var(--od-color-text, #1a1a1a);
+      background: var(--od-color-bg, #ffffff);
+      margin: 0;
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -125,12 +124,19 @@
       flex: 1;
       overflow: hidden;
     }
+    .od-editor-layout {
+      background: var(--od-color-bg);
+      min-height: 100vh;
+    }
     .od-wysiwyg-wrap {
       flex: 1;
       overflow-y: auto;
       display: flex;
       justify-content: center;
-      padding: 2rem 3rem;
+      padding: 2rem 1.5rem;
+      background: var(--od-color-bg);
+      max-width: 720px;
+      margin: 0 auto;
     }
     #od-milkdown {
       width: 100%;
@@ -139,45 +145,60 @@
       outline: none;
     }
 
-    /* Milkdown editor styling */
+    /* Milkdown container */
     .milkdown {
-      font-family: var(--font-body);
+      background: var(--od-color-bg, #ffffff);
+      color: var(--od-color-text, #1a1a1a);
+      font-family: var(--od-font-body, var(--font-body));
       font-size: 15px;
       line-height: 1.75;
-      color: var(--color-text);
+      min-height: 500px;
+      padding: 2rem;
+      border-radius: var(--od-radius, 6px);
+      outline: none;
     }
     .milkdown .editor {
       outline: none;
+      min-height: 400px;
+    }
+    /* Milkdown content styles */
+    .milkdown h1, .milkdown h2, .milkdown h3 {
+      color: var(--od-color-text);
+      font-family: var(--od-font-body, var(--font-body));
     }
     .milkdown h1 { font-size: 2rem; margin-bottom: 1rem; font-weight: 700; }
     .milkdown h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 0.75rem; font-weight: 600; }
     .milkdown h3 { font-size: 1.2rem; margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
     .milkdown h4 { font-size: 1rem; margin-top: 1.25rem; margin-bottom: 0.5rem; font-weight: 600; }
-    .milkdown p { margin-bottom: 1rem; }
-    .milkdown a { color: var(--color-accent); text-decoration: none; }
+    .milkdown p {
+      color: var(--od-color-text);
+      line-height: var(--od-line-height, 1.75);
+      margin-bottom: 1rem;
+    }
+    .milkdown a { color: var(--od-color-accent, var(--color-accent)); text-decoration: none; }
     .milkdown a:hover { text-decoration: underline; }
     .milkdown ul, .milkdown ol { margin-bottom: 1rem; padding-left: 1.5rem; }
     .milkdown li { margin-bottom: 0.25rem; }
     .milkdown code {
-      font-family: var(--font-mono);
-      font-size: 0.875em;
-      background: var(--color-surface);
-      padding: 0.15em 0.35em;
+      background: var(--od-color-surface);
       border-radius: 3px;
+      padding: 0.1em 0.3em;
+      font-family: var(--od-font-mono, var(--font-mono));
+      font-size: 0.875em;
     }
     .milkdown pre {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--border-radius);
+      background: var(--od-color-surface);
+      border: 1px solid var(--od-color-border);
+      border-radius: var(--od-radius);
       padding: 1rem;
       overflow-x: auto;
       margin-bottom: 1rem;
     }
     .milkdown pre code { background: none; padding: 0; font-size: 0.85rem; line-height: 1.5; }
     .milkdown blockquote {
-      border-left: 3px solid var(--color-accent);
+      border-left: 3px solid var(--od-color-accent);
       padding-left: 1rem;
-      color: var(--color-muted);
+      color: var(--od-color-text-muted);
       margin-bottom: 1rem;
     }
     .milkdown table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
@@ -190,7 +211,10 @@
     .milkdown hr { border: none; border-top: 1px solid var(--color-border); margin: 2rem 0; }
     .milkdown img { max-width: 100%; height: auto; border-radius: var(--border-radius); }
 
-    /* ProseMirror selection */
+    /* Cursor and selection */
+    .milkdown .ProseMirror-selectednode {
+      outline: 2px solid var(--od-color-accent);
+    }
     .ProseMirror { outline: none; }
     .ProseMirror-focused { outline: none; }
 
