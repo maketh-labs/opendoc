@@ -146,7 +146,7 @@ async function getGitHubUsername(token: string): Promise<string> {
 // --- Toast ---
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-function showToast(message: string, type: 'success' | 'error', linkUrl?: string): void {
+function showToast(message: string, type: 'success' | 'error' | 'warning', linkUrl?: string): void {
   // Remove existing toast
   const existing = document.getElementById('od-toast');
   if (existing) existing.remove();
@@ -154,7 +154,7 @@ function showToast(message: string, type: 'success' | 'error', linkUrl?: string)
 
   const toast = document.createElement('div');
   toast.id = 'od-toast';
-  toast.className = `od-toast ${type}`;
+  toast.className = `od-toast ${type === 'warning' ? 'warning' : type}`;
   toast.innerHTML = `<span>${escapeHtml(message)}</span>${
     linkUrl ? `<a href="${escapeHtml(linkUrl)}" target="_blank">View →</a>` : ''
   }`;
@@ -364,7 +364,12 @@ async function renderLocalEditor(): Promise<void> {
       <span class="page-path" style="color: var(--color-muted); font-size: 0.8rem;">Local</span>
       ${pages.length > 0 ? `<select id="page-picker" style="padding:0.3rem 0.5rem;border:1px solid var(--color-border);border-radius:var(--border-radius);background:var(--color-bg);color:var(--color-text);font-size:0.8rem;">${pageOptions}</select>` : `<span class="page-path">${escapeHtml(currentFile)}</span>`}
       <span class="spacer"></span>
+      <span class="od-git-status" id="git-status"></span>
       <button class="od-save-primary" id="save-btn" style="border-radius:var(--border-radius)">Save</button>
+      <div class="od-commit-group" id="commit-group">
+        <input type="text" class="od-commit-msg" id="commit-msg" placeholder="Commit message (optional)">
+        <button class="btn btn-primary" id="commit-btn">Commit &amp; Push</button>
+      </div>
     </div>
     <div class="editor-panels">
       <div class="editor-pane">
@@ -423,6 +428,7 @@ async function renderLocalEditor(): Promise<void> {
       await localSaveFile(activeFile, currentContent);
       originalContent = currentContent;
       showToast('Saved', 'success');
+      updateGitStatus();
     } catch (err) {
       showToast((err as Error).message, 'error');
     } finally {
@@ -451,6 +457,81 @@ async function renderLocalEditor(): Promise<void> {
   // Init slash commands and code picker
   initSlashCommands(textarea);
   initCodePicker(textarea);
+
+  // --- Git status & commit ---
+  async function updateGitStatus(): Promise<void> {
+    try {
+      const res = await fetch('/_opendoc/git-status');
+      const status = await res.json();
+      const el = document.getElementById('git-status');
+      if (!el) return;
+
+      if (!status.isRepo) {
+        el.textContent = 'not a git repo';
+        el.className = 'od-git-status od-git-muted';
+        const cg = document.getElementById('commit-group');
+        if (cg) cg.style.display = 'none';
+        return;
+      }
+
+      el.textContent = status.changes > 0
+        ? `${status.changes} changed file${status.changes > 1 ? 's' : ''}`
+        : '\u2713 up to date';
+      el.className = `od-git-status ${status.changes > 0 ? 'od-git-dirty' : 'od-git-clean'}`;
+      if (status.branch) {
+        el.title = `Branch: ${status.branch} | Remote: ${status.remote || 'none'}`;
+      }
+    } catch { /* git status not available */ }
+  }
+
+  updateGitStatus();
+
+  // Check for OAuth token in hash
+  if (window.location.hash.startsWith('#github_token=')) {
+    const ghToken = window.location.hash.slice('#github_token='.length);
+    if (ghToken) localStorage.setItem('github_token', ghToken);
+    window.history.replaceState({}, '', window.location.pathname + window.location.search);
+  }
+
+  document.getElementById('commit-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('commit-btn') as HTMLButtonElement;
+    const msgInput = document.getElementById('commit-msg') as HTMLInputElement;
+
+    btn.disabled = true;
+    btn.textContent = 'Committing...';
+
+    const token = localStorage.getItem('github_token') || undefined;
+
+    try {
+      const res = await fetch('/_opendoc/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: msgInput.value.trim() || undefined,
+          token,
+        }),
+      });
+      const result = await res.json();
+
+      if (result.ok) {
+        showToast(
+          result.pushed
+            ? `\u2713 Committed & pushed (${result.hash})`
+            : `\u2713 Committed locally (${result.hash}) \u2014 push failed or no remote`,
+          result.pushed ? 'success' : 'warning',
+        );
+        msgInput.value = '';
+        updateGitStatus();
+      } else {
+        showToast(`\u2717 ${result.error}`, 'error');
+      }
+    } catch (err) {
+      showToast(`\u2717 ${(err as Error).message}`, 'error');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Commit & Push';
+  });
 }
 
 function renderLogin(): void {

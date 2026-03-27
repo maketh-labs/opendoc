@@ -26,6 +26,8 @@ export interface OpenDocConfig {
   github?: {
     repo?: string              // "owner/repo-name"
     branch?: string            // default "main"
+    clientId?: string          // GitHub OAuth App client ID (safe to expose)
+    clientSecret?: string      // GitHub OAuth App client secret (server-side only)
   }
   mcp?: { port?: number }
   nav?: { order?: string[] }

@@ -11,6 +11,7 @@ import { startMcpServer } from './mcp';
 import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath } from './config';
 import type { NavNode, BacklinksIndex } from './types';
+import simpleGit from 'simple-git';
 
 function navToHtml(node: NavNode, currentPath: string = ''): string {
   if (!node) return '';
@@ -137,10 +138,11 @@ export async function startServer(rootDir: string, port: number = 3000) {
 
     // Serve config.json
     if (pathname === '/_opendoc/config.json') {
+      const { clientSecret: _s, ...publicGithub } = config.github || {};
       const publicConfig = {
         title: config.title,
         editorPath: editorPath ?? '/editor',
-        github: config.github,
+        github: config.github ? publicGithub : undefined,
         theme: config.theme,
       };
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
@@ -196,6 +198,157 @@ export async function startServer(rootDir: string, port: number = 3000) {
         res.end(JSON.stringify({ ok: true }));
         return;
       }
+    }
+
+    // Git status endpoint
+    if (pathname === '/_opendoc/git-status' && req.method === 'GET') {
+      try {
+        const git = simpleGit(rootDir);
+        const isRepo = await git.checkIsRepo();
+        if (!isRepo) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ isRepo: false }));
+          return;
+        }
+        const status = await git.status();
+        const remotes = await git.getRemotes(true);
+        const log = await git.log({ maxCount: 1 });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          isRepo: true,
+          branch: status.current,
+          remote: remotes.find(r => r.name === 'origin')?.refs?.push || null,
+          changes: status.files.length,
+          lastCommit: log.latest ? {
+            hash: log.latest.hash.slice(0, 7),
+            message: log.latest.message,
+            date: log.latest.date,
+          } : null,
+        }));
+      } catch (e) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ isRepo: false, error: String(e) }));
+      }
+      return;
+    }
+
+    // Commit & push endpoint
+    if (pathname === '/_opendoc/commit' && req.method === 'POST') {
+      const body = await new Promise<string>((resolve) => {
+        let data = '';
+        (req as IncomingMessage).on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        (req as IncomingMessage).on('end', () => resolve(data));
+      });
+      const { message, token } = JSON.parse(body) as { message?: string; token?: string };
+
+      try {
+        const git = simpleGit(rootDir);
+        const isRepo = await git.checkIsRepo();
+        if (!isRepo) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Not a git repository. Run git init first.' }));
+          return;
+        }
+
+        const status = await git.status();
+        if (status.files.length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'No changes to commit.' }));
+          return;
+        }
+
+        await git.add('.');
+        const commitMessage = message || `docs: update ${new Date().toISOString()}`;
+        const commitResult = await git.commit(commitMessage);
+
+        let pushed = false;
+        let pushError = '';
+
+        try {
+          if (token) {
+            const remotes = await git.getRemotes(true);
+            const origin = remotes.find(r => r.name === 'origin');
+            if (origin?.refs?.push) {
+              const cleanUrl = origin.refs.push;
+              const authedUrl = cleanUrl.startsWith('https://')
+                ? cleanUrl.replace('https://', `https://${token}@`)
+                : cleanUrl;
+              await git.remote(['set-url', 'origin', authedUrl]);
+              try {
+                await git.push();
+                pushed = true;
+              } finally {
+                await git.remote(['set-url', 'origin', cleanUrl]);
+              }
+            }
+          } else {
+            await git.push();
+            pushed = true;
+          }
+        } catch (e) {
+          pushError = e instanceof Error ? e.message : String(e);
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          ok: true,
+          committed: true,
+          pushed,
+          pushError: pushed ? undefined : pushError,
+          hash: commitResult.commit,
+          message: commitMessage,
+          files: status.files.length,
+        }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+      }
+      return;
+    }
+
+    // GitHub OAuth: redirect to authorize
+    if (pathname === '/_opendoc/auth/github' && req.method === 'GET') {
+      const clientId = process.env.GITHUB_CLIENT_ID || config.github?.clientId;
+      if (!clientId) {
+        res.writeHead(501, { 'Content-Type': 'text/plain' });
+        res.end('GITHUB_CLIENT_ID not configured. See README.');
+        return;
+      }
+      const origin = req.headers.host ? `http://${req.headers.host}` : `http://localhost:${port}`;
+      const redirectUri = `${origin}/_opendoc/auth/callback`;
+      const ghUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo`;
+      res.writeHead(302, { Location: ghUrl });
+      res.end();
+      return;
+    }
+
+    // GitHub OAuth: callback — exchange code for token
+    if (pathname === '/_opendoc/auth/callback' && req.method === 'GET') {
+      const code = url.searchParams.get('code');
+      const clientId = process.env.GITHUB_CLIENT_ID || config.github?.clientId;
+      const clientSecret = process.env.GITHUB_CLIENT_SECRET || config.github?.clientSecret;
+
+      if (!code || !clientId || !clientSecret) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Missing code or credentials');
+        return;
+      }
+
+      try {
+        const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code }),
+        });
+        const { access_token } = await tokenRes.json() as { access_token: string };
+        const editorTarget = editorPath ?? '/editor';
+        res.writeHead(302, { Location: `${editorTarget}#github_token=${access_token}` });
+        res.end();
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(`OAuth error: ${e}`);
+      }
+      return;
     }
 
     // Editor route

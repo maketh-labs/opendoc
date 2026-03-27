@@ -300,6 +300,7 @@
       animation: od-toast-in 0.2s ease-out;
     }
     .od-toast.success { background: #16a34a; }
+    .od-toast.warning { background: #ca8a04; }
     .od-toast.error { background: #dc2626; }
     .od-toast a {
       color: #fff;
@@ -326,6 +327,31 @@
     @keyframes od-spin {
       to { transform: rotate(360deg); }
     }
+
+    /* Commit section */
+    .od-git-status {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--border-radius);
+    }
+    .od-git-dirty { color: #ca8a04; }
+    .od-git-clean { color: #16a34a; }
+    .od-git-muted { color: var(--color-muted); }
+    .od-commit-group {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .od-commit-msg {
+      padding: 0.35rem 0.6rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--border-radius);
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-size: 0.8rem;
+      width: 200px;
+    }
+    .od-commit-msg::placeholder { color: var(--color-muted); }
 
     @media (max-width: 768px) {
       .editor-panels { grid-template-columns: 1fr; }
