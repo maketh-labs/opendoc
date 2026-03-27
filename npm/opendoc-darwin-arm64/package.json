@@ -1,0 +1,10 @@
+{
+  "name": "opendoc-darwin-arm64",
+  "version": "0.1.0",
+  "description": "OpenDoc binary for macOS ARM64",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "main": "bin/opendoc",
+  "bin": { "opendoc": "bin/opendoc" },
+  "files": ["bin/"]
+}

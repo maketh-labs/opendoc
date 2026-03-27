@@ -1,0 +1,10 @@
+{
+  "name": "opendoc-linux-arm64",
+  "version": "0.1.0",
+  "description": "OpenDoc binary for Linux ARM64",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "main": "bin/opendoc",
+  "bin": { "opendoc": "bin/opendoc" },
+  "files": ["bin/"]
+}

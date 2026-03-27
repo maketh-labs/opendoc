@@ -134,7 +134,21 @@ Everything is optional. Drop a `.opendoc/config.json` if you need it:
 
 ---
 
+## Install
+
+```bash
+# With npm/npx
+npx opendoc serve
+
+# With Bun (fastest, no download wait)
+bunx opendoc serve
+```
+
 ## Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/maketh-labs/opendoc&project-name=my-docs&build-command=bunx+opendoc+build&output-directory=.opendoc/dist)
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/maketh-labs/opendoc)
 
 **GitHub Pages:**
 Add `.github/workflows/opendoc.yml`:

@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build all platform binaries
+        run: bun run scripts/build.ts
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: npm/*/bin/
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: npm-bins
+
+      # Copy binaries back to npm/* directories
+      - name: Restore binary paths
+        run: |
+          for pkg in opendoc-darwin-arm64 opendoc-darwin-x64 opendoc-linux-x64 opendoc-linux-arm64 opendoc-win32-x64; do
+            mkdir -p npm/$pkg/bin
+            cp -r npm-bins/$pkg/bin/. npm/$pkg/bin/ 2>/dev/null || true
+            chmod +x npm/$pkg/bin/opendoc 2>/dev/null || true
+          done
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Setup npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      # Publish platform packages first
+      - name: Publish platform packages
+        run: |
+          for pkg in opendoc-darwin-arm64 opendoc-darwin-x64 opendoc-linux-x64 opendoc-linux-arm64 opendoc-win32-x64; do
+            cd npm/$pkg
+            npm publish --access public || true
+            cd ../..
+          done
+
+      # Then publish main package
+      - name: Publish main package
+        run: npm publish --access public
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: release-bins
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-bins/**/*
+          generate_release_notes: true
