@@ -1,10 +1,17 @@
 import { visit } from 'unist-util-visit';
 import type { Root, Text, Link, Parent } from 'mdast';
 
-// Matches [[page name]] or [[page name|display text]]
+// Matches [[page name]] or [[page name|display text]] or [[page#anchor]] or [[page#anchor|text]]
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
-export function wikilinkPlugin() {
+export interface WikilinkOptions {
+  titleMap?: Map<string, string>  // url → page title
+  currentPath?: string            // current page path for broken link warnings
+}
+
+export function wikilinkPlugin(options: WikilinkOptions = {}) {
+  const { titleMap, currentPath } = options;
+
   return (tree: Root): void => {
     visit(tree, 'text', (node: Text, index: number | undefined, parent: Parent | undefined) => {
       if (!parent || index === undefined || !WIKILINK_RE.test(node.value)) return;
@@ -19,15 +26,45 @@ export function wikilinkPlugin() {
           children.push({ type: 'text', value: node.value.slice(lastIndex, match.index) });
         }
 
-        const target = match[1]!.trim();
-        const display = (match[2] || match[1]!).trim();
-        const href = '/' + target.toLowerCase().replace(/\s+/g, '-');
+        const raw = match[1]!.trim();
+        const customText = match[2]?.trim();
+
+        // Parse anchor: [[page#section]] → target="page", anchor="section"
+        const hashIdx = raw.indexOf('#');
+        const target = hashIdx >= 0 ? raw.slice(0, hashIdx) : raw;
+        const anchor = hashIdx >= 0 ? raw.slice(hashIdx) : ''; // includes the #
+
+        const slug = target.toLowerCase().replace(/\s+/g, '-');
+        const href = '/' + slug + anchor;
+
+        // Resolve display text
+        let display: string;
+        if (customText) {
+          display = customText;
+        } else if (titleMap && titleMap.has('/' + slug)) {
+          display = titleMap.get('/' + slug)!;
+        } else {
+          display = target;
+        }
+
+        // Check for broken links
+        const isBroken = titleMap && !titleMap.has('/' + slug);
+
+        const hProperties: Record<string, unknown> = {
+          className: isBroken ? ['wikilink', 'od-broken-link'] : ['wikilink'],
+        };
+        if (isBroken) {
+          hProperties.title = 'Page not found';
+          if (currentPath) {
+            console.warn(`[opendoc] broken link: [[${raw}]] in ${currentPath}`);
+          }
+        }
 
         children.push({
           type: 'link',
           url: href,
           children: [{ type: 'text', value: display }],
-          data: { hProperties: { className: ['wikilink'] } }
+          data: { hProperties }
         });
 
         lastIndex = match.index + match[0].length;

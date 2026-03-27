@@ -1,6 +1,9 @@
 // OpenDoc Browser Editor
 // GitHub OAuth + two-panel markdown editor
 
+import { initSlashCommands } from './slash-commands'
+import { initCodePicker } from './code-picker'
+
 const GITHUB_CLIENT_ID = 'PLACEHOLDER_CLIENT_ID';
 const OAUTH_CALLBACK_URL = '/oauth/callback';
 const MCP_URL = 'http://localhost:3001/mcp';
@@ -260,6 +263,10 @@ async function renderEditor(): Promise<void> {
     localStorage.removeItem('github_repo');
     init();
   });
+
+  // Init slash commands and code picker
+  initSlashCommands(textarea)
+  initCodePicker(textarea)
 
   // Keyboard shortcut: Cmd/Ctrl+S to save
   textarea.addEventListener('keydown', (e) => {

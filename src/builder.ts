@@ -8,6 +8,23 @@ import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { tocToHtml } from './plugins/toc';
 import type { NavNode, BacklinksIndex } from './types';
 
+function parseFrontmatter(markdown: string): Record<string, string> {
+  const match = markdown.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return {};
+  const result: Record<string, string> = {};
+  for (const line of match[1]!.split('\n')) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+    const key = line.slice(0, colonIdx).trim();
+    let value = line.slice(colonIdx + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
 function navToHtml(node: NavNode, currentPath: string = ''): string {
   if (!node) return '';
   const active = node.path === currentPath ? ' class="active"' : '';
@@ -78,6 +95,18 @@ export async function build(rootDir: string): Promise<void> {
 
   console.log(`Building ${pages.length} pages...`);
 
+  // Build titleMap for wikilink resolution: url → page title
+  const titleMap = new Map<string, string>();
+  for (const page of pages) {
+    const indexPath = join(rootDir, page, 'index.md');
+    const markdown = await readFile(indexPath, 'utf-8');
+    const titleMatch = markdown.match(/^#\s+(.+)$/m);
+    const fm = parseFrontmatter(markdown);
+    const title = (fm.title as string) || (titleMatch ? titleMatch[1]!.trim() : page);
+    const url = page === '.' ? '/' : `/${page}`;
+    titleMap.set(url, title);
+  }
+
   const summary: string[] = [];
   let mdCopied = 0;
   let contextCopied = 0;
@@ -89,7 +118,8 @@ export async function build(rootDir: string): Promise<void> {
     const markdown = await readFile(indexPath, 'utf-8');
 
     // Render HTML with TOC and frontmatter
-    const { html: content, toc, frontmatter } = await renderFull(markdown);
+    const currentPath = page === '.' ? 'index.md' : `${page}/index.md`;
+    const { html: content, toc, frontmatter } = await renderFull(markdown, { titleMap, currentPath });
     const titleMatch = markdown.match(/^#\s+(.+)$/m);
     const title = (frontmatter.title as string) || (titleMatch ? titleMatch[1]!.trim() : 'OpenDoc');
     const icon = (frontmatter.icon as string) || '';

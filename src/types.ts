@@ -43,3 +43,8 @@ export interface SearchResult {
   path: string
   snippet: string
 }
+
+export interface WikilinkPluginOptions {
+  titleMap?: Map<string, string>
+  currentPath?: string
+}

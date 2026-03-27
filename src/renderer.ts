@@ -2,10 +2,12 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkFrontmatter from 'remark-frontmatter';
+import remarkMath from 'remark-math';
 import remarkRehype from 'remark-rehype';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
-import { wikilinkPlugin } from './wikilinks';
+import { wikilinkPlugin, type WikilinkOptions } from './wikilinks';
 import { calloutPlugin } from './plugins/callouts';
 import { tocPlugin, extractToc, type TocEntry } from './plugins/toc';
 import { imagePlugin } from './plugins/images';
@@ -21,6 +23,11 @@ export interface RenderResult {
   html: string;
   toc: TocEntry[];
   frontmatter: Frontmatter;
+}
+
+export interface RenderOptions {
+  titleMap?: Map<string, string>;
+  currentPath?: string;
 }
 
 function parseFrontmatter(markdown: string): Frontmatter {
@@ -44,34 +51,47 @@ function parseFrontmatter(markdown: string): Frontmatter {
   return result;
 }
 
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkFrontmatter, ['yaml'])
-  .use(remarkGfm)
-  .use(calloutPlugin)
-  .use(wikilinkPlugin)
-  .use(remarkRehype, { allowDangerousHtml: true })
-  .use(rehypeHighlight, { detect: true })
-  .use(tocPlugin)
-  .use(imagePlugin)
-  .use(rehypeStringify, { allowDangerousHtml: true });
+function createProcessor(wikilinkOpts: WikilinkOptions = {}) {
+  return unified()
+    .use(remarkParse)
+    .use(remarkFrontmatter, ['yaml'])
+    .use(remarkGfm)
+    .use(remarkMath)
+    .use(calloutPlugin)
+    .use(wikilinkPlugin, wikilinkOpts)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeHighlight, { detect: true })
+    .use(rehypeKatex)
+    .use(tocPlugin)
+    .use(imagePlugin)
+    .use(rehypeStringify, { allowDangerousHtml: true });
+}
+
+const defaultProcessor = createProcessor();
 
 export async function render(markdown: string): Promise<string> {
-  const result = await processor.process(markdown);
+  const result = await defaultProcessor.process(markdown);
   return String(result);
 }
 
-export async function renderFull(markdown: string): Promise<RenderResult> {
+export async function renderFull(markdown: string, options: RenderOptions = {}): Promise<RenderResult> {
   const frontmatter = parseFrontmatter(markdown);
+
+  const wikilinkOpts: WikilinkOptions = {
+    titleMap: options.titleMap,
+    currentPath: options.currentPath,
+  };
 
   const parsed = unified()
     .use(remarkParse)
     .use(remarkFrontmatter, ['yaml'])
     .use(remarkGfm)
+    .use(remarkMath)
     .use(calloutPlugin)
-    .use(wikilinkPlugin)
+    .use(wikilinkPlugin, wikilinkOpts)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeHighlight, { detect: true })
+    .use(rehypeKatex)
     .use(tocPlugin)
     .use(imagePlugin);
 
