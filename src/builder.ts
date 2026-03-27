@@ -1,5 +1,5 @@
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { readFile, writeFile, mkdir, copyFile, access } from 'fs/promises';
+import { join, dirname } from 'path';
 import { walkDir, getAllPages } from './walker';
 import { render } from './renderer';
 import { buildBacklinks } from './backlinks';
@@ -32,6 +32,24 @@ function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function copyIfExists(src: string, dest: string): Promise<boolean> {
+  if (await fileExists(src)) {
+    await mkdir(dirname(dest), { recursive: true });
+    await copyFile(src, dest);
+    return true;
+  }
+  return false;
+}
+
 export async function build(rootDir: string): Promise<void> {
   const distDir = join(rootDir, '.opendoc', 'dist');
   const pages = await getAllPages(rootDir);
@@ -43,6 +61,11 @@ export async function build(rootDir: string): Promise<void> {
   const navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
 
   console.log(`Building ${pages.length} pages...`);
+
+  const summary: string[] = [];
+  let mdCopied = 0;
+  let contextCopied = 0;
+  let contextMiniCopied = 0;
 
   for (const page of pages) {
     const indexPath = join(rootDir, page, 'index.md');
@@ -77,7 +100,46 @@ export async function build(rootDir: string): Promise<void> {
     const contextMiniMd = compressMini(markdown);
     await writeFile(join(rootDir, page, 'context.md'), contextMd);
     await writeFile(join(rootDir, page, 'context-mini.md'), contextMiniMd);
+
+    // Copy raw source md to dist
+    await copyFile(indexPath, join(outDir, 'index.md'));
+    mdCopied++;
+
+    // Copy context files to dist
+    const contextSrc = join(rootDir, page, 'context.md');
+    if (await copyIfExists(contextSrc, join(outDir, 'context.md'))) {
+      contextCopied++;
+    }
+    const contextMiniSrc = join(rootDir, page, 'context-mini.md');
+    if (await copyIfExists(contextMiniSrc, join(outDir, 'context-mini.md'))) {
+      contextMiniCopied++;
+    }
   }
 
-  console.log(`Built to ${distDir}`);
+  // Write _opendoc/ metadata files
+  const opendocDir = join(distDir, '_opendoc');
+  await mkdir(opendocDir, { recursive: true });
+
+  await writeFile(join(opendocDir, 'nav.json'), JSON.stringify(navTree, null, 2));
+  await writeFile(join(opendocDir, 'backlinks.json'), JSON.stringify(backlinks, null, 2));
+
+  // Copy editor.html to dist/editor/index.html
+  const editorSrc = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
+  if (await fileExists(editorSrc)) {
+    const editorOutDir = join(distDir, 'editor');
+    await mkdir(editorOutDir, { recursive: true });
+    await copyFile(editorSrc, join(editorOutDir, 'index.html'));
+    summary.push('  editor/index.html');
+  }
+
+  // Print summary
+  console.log(`\nBuild summary:`);
+  console.log(`  ${pages.length} pages → index.html`);
+  console.log(`  ${mdCopied} pages → index.md (raw source)`);
+  console.log(`  ${contextCopied} pages → context.md`);
+  console.log(`  ${contextMiniCopied} pages → context-mini.md`);
+  console.log(`  _opendoc/nav.json`);
+  console.log(`  _opendoc/backlinks.json`);
+  for (const line of summary) console.log(line);
+  console.log(`\nBuilt to ${distDir}`);
 }

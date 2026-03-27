@@ -112,6 +112,37 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
     }
   );
 
+  server.tool(
+    'generate_commit_message',
+    'Generate a conventional commit message for a docs edit',
+    {
+      path: z.string().describe('File path being edited (e.g. "getting-started/index.md")'),
+      before: z.string().optional().describe('Content before edit'),
+      after: z.string().optional().describe('Content after edit'),
+    },
+    async ({ path: filePath, before, after }) => {
+      // Extract section name from path
+      const parts = filePath.replace(/\/index\.md$/, '').replace(/^\//, '').split('/');
+      const section = parts.filter(p => p && p !== 'index.md').join('/') || 'home';
+
+      let description = 'update';
+      if (before != null && after != null) {
+        const beforeLines = before.split('\n').length;
+        const afterLines = after.split('\n').length;
+        if (afterLines > beforeLines + 5) {
+          description = 'expand content';
+        } else if (beforeLines > afterLines + 5) {
+          description = 'trim content';
+        } else if (before !== after) {
+          description = 'revise content';
+        }
+      }
+
+      const message = `docs(${section}): ${description}`;
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ message }) }] };
+    }
+  );
+
   // Set up HTTP server with SSE transport
   const httpServer = createServer();
   const transports = new Map<string, SSEServerTransport>();

@@ -1,5 +1,5 @@
 import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { createServer } from 'http';
 import type { ServerResponse } from 'http';
 import { watch } from 'chokidar';
@@ -117,6 +117,50 @@ export async function startServer(rootDir: string, port: number = 3000) {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, `http://localhost:${port}`);
     const pathname = url.pathname;
+
+    // Editor route
+    if (pathname === '/editor' || pathname === '/editor/') {
+      const editorPath = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
+      try {
+        const editorHtml = await readFile(editorPath, 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(editorHtml);
+      } catch {
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.end('<h1>Editor not found</h1>');
+      }
+      return;
+    }
+
+    // Serve client/editor.ts for the editor
+    if (pathname === '/client/editor.ts') {
+      const clientPath = join(dirname(dirname(import.meta.path)), 'client', 'editor.ts');
+      try {
+        const clientCode = await readFile(clientPath, 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        res.end(clientCode);
+      } catch {
+        res.writeHead(404);
+        res.end('Not found');
+      }
+      return;
+    }
+
+    // Serve dist files (for editor to load page markdown)
+    if (pathname.startsWith('/dist/')) {
+      const distPath = join(rootDir, '.opendoc', pathname.slice(1));
+      try {
+        const content = await readFile(distPath, 'utf-8');
+        const ext = pathname.split('.').pop();
+        const contentType = ext === 'json' ? 'application/json' : 'text/plain';
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(content);
+      } catch {
+        res.writeHead(404);
+        res.end('Not found');
+      }
+      return;
+    }
 
     // SSE endpoint for hot reload
     if (pathname === '/__reload') {
