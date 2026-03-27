@@ -25,7 +25,7 @@ function backlinksToHtml(links: string[]): string {
     const name = l === '.' ? 'Home' : l.split('/').pop()!.replace(/-/g, ' ');
     return `<li><a href="${url}">${escapeHtml(name)}</a></li>`;
   }).join('');
-  return `<div class="backlinks"><h3>Backlinks</h3><ul>${items}</ul></div>`;
+  return `<aside class="od-backlinks"><h4>Referenced by</h4><ul>${items}</ul></aside>`;
 }
 
 function escapeHtml(str: string): string {
@@ -79,15 +79,13 @@ export async function build(rootDir: string): Promise<void> {
     // Get backlinks for this page
     const normalized = page === '.' ? '' : page;
     const pageBacklinks = backlinks[normalized] || [];
-    const backlinksHtml = backlinksToHtml(pageBacklinks);
 
     const html = renderTemplate(template, {
       title,
+      siteTitle: 'OpenDoc',
       content,
       nav: navHtml,
-      backlinks: backlinksHtml,
-      styles,
-      clientJs: '',
+      backlinks: backlinksToHtml(pageBacklinks),
     });
 
     // Write HTML
@@ -116,12 +114,26 @@ export async function build(rootDir: string): Promise<void> {
     }
   }
 
-  // Write _opendoc/ metadata files
+  // Write _opendoc/ metadata and assets
   const opendocDir = join(distDir, '_opendoc');
   await mkdir(opendocDir, { recursive: true });
 
   await writeFile(join(opendocDir, 'nav.json'), JSON.stringify(navTree, null, 2));
   await writeFile(join(opendocDir, 'backlinks.json'), JSON.stringify(backlinks, null, 2));
+
+  // Write theme CSS
+  await writeFile(join(opendocDir, 'theme.css'), styles);
+
+  // Bundle client JS
+  const clientDir = join(dirname(dirname(import.meta.path)), 'client');
+  const buildResult = await Bun.build({
+    entrypoints: [join(clientDir, 'app.ts')],
+    target: 'browser',
+    minify: true,
+  });
+  if (buildResult.outputs[0]) {
+    await writeFile(join(opendocDir, 'app.js'), await buildResult.outputs[0].text());
+  }
 
   // Copy editor.html to dist/editor/index.html
   const editorSrc = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
@@ -140,6 +152,8 @@ export async function build(rootDir: string): Promise<void> {
   console.log(`  ${contextMiniCopied} pages → context-mini.md`);
   console.log(`  _opendoc/nav.json`);
   console.log(`  _opendoc/backlinks.json`);
+  console.log(`  _opendoc/theme.css`);
+  console.log(`  _opendoc/app.js`);
   for (const line of summary) console.log(line);
   console.log(`\nBuilt to ${distDir}`);
 }

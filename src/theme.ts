@@ -16,14 +16,13 @@ export async function loadStyles(themeName: string = 'default'): Promise<string>
   return readFile(stylePath, 'utf-8');
 }
 
-export function renderTemplate(template: string, { title, content, nav, backlinks, styles, clientJs }: TemplateVars): string {
+export function renderTemplate(template: string, vars: TemplateVars): string {
   return template
-    .replace('{{title}}', escapeHtml(title))
-    .replace('{{content}}', content)
-    .replace('{{nav}}', nav)
-    .replace('{{backlinks}}', backlinks)
-    .replace('{{styles}}', styles)
-    .replace('{{clientJs}}', clientJs || '');
+    .replace('{{title}}', escapeHtml(vars.title))
+    .replace('{{siteTitle}}', escapeHtml(vars.siteTitle))
+    .replace('{{content}}', vars.content)
+    .replace('{{nav}}', vars.nav)
+    .replace('{{backlinks}}', vars.backlinks);
 }
 
 function escapeHtml(str: string): string {

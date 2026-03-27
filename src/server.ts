@@ -28,7 +28,7 @@ function backlinksToHtml(links: string[]): string {
     const name = l === '.' ? 'Home' : l.split('/').pop()!.replace(/-/g, ' ');
     return `<li><a href="${url}">${escapeHtml(name)}</a></li>`;
   }).join('');
-  return `<div class="backlinks"><h3>Backlinks</h3><ul>${items}</ul></div>`;
+  return `<aside class="od-backlinks"><h4>Referenced by</h4><ul>${items}</ul></aside>`;
 }
 
 function escapeHtml(str: string): string {
@@ -42,7 +42,6 @@ async function buildPage(
   rootDir: string,
   page: string,
   template: string,
-  styles: string,
   navHtml: string,
   backlinks: BacklinksIndex,
 ): Promise<string> {
@@ -55,33 +54,12 @@ async function buildPage(
   const normalized = page === '.' ? '' : page;
   const pageBacklinks = backlinks[normalized] || [];
 
-  const clientJs = `<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const toggle = document.getElementById('theme-toggle');
-  if (toggle) {
-    const saved = localStorage.getItem('theme') || 'auto';
-    if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-    toggle.addEventListener('click', () => {
-      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-      localStorage.setItem('theme', isDark ? 'light' : 'dark');
-    });
-  }
-});
-</script>
-<script>
-// Hot reload
-const es = new EventSource('/__reload');
-es.onmessage = () => location.reload();
-</script>`;
-
   return renderTemplate(template, {
     title,
+    siteTitle: 'OpenDoc',
     content,
     nav: navHtml,
     backlinks: backlinksToHtml(pageBacklinks),
-    styles,
-    clientJs,
   });
 }
 
@@ -91,6 +69,9 @@ export async function startServer(rootDir: string, port: number = 3000) {
   let navTree = await walkDir(rootDir);
   let backlinks = await buildBacklinks(rootDir);
   let navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
+
+  // Build client JS bundle
+  const clientDir = join(dirname(dirname(import.meta.path)), 'client');
 
   // SSE clients for hot reload
   const reloadClients = new Set<ServerResponse>();
@@ -118,6 +99,33 @@ export async function startServer(rootDir: string, port: number = 3000) {
     const url = new URL(req.url!, `http://localhost:${port}`);
     const pathname = url.pathname;
 
+    // Serve theme CSS
+    if (pathname === '/_opendoc/theme.css') {
+      res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' });
+      res.end(styles);
+      return;
+    }
+
+    // Serve client JS — bundle app.ts + themes.ts on the fly
+    if (pathname === '/_opendoc/app.js') {
+      try {
+        const result = await Bun.build({
+          entrypoints: [join(clientDir, 'app.ts')],
+          target: 'browser',
+          minify: false,
+        });
+        const js = await result.outputs[0]!.text();
+        // Append hot reload script
+        const hotReload = `\n// Hot reload\nconst es = new EventSource('/__reload');\nes.onmessage = () => location.reload();\n`;
+        res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' });
+        res.end(js + hotReload);
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(`Build error: ${err}`);
+      }
+      return;
+    }
+
     // Editor route
     if (pathname === '/editor' || pathname === '/editor/') {
       const editorPath = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
@@ -134,7 +142,7 @@ export async function startServer(rootDir: string, port: number = 3000) {
 
     // Serve client/editor.ts for the editor
     if (pathname === '/client/editor.ts') {
-      const clientPath = join(dirname(dirname(import.meta.path)), 'client', 'editor.ts');
+      const clientPath = join(clientDir, 'editor.ts');
       try {
         const clientCode = await readFile(clientPath, 'utf-8');
         res.writeHead(200, { 'Content-Type': 'application/javascript' });
@@ -187,7 +195,7 @@ export async function startServer(rootDir: string, port: number = 3000) {
 
     try {
       if (!cache.has(pagePath)) {
-        const html = await buildPage(rootDir, pagePath, template, styles, navHtml, backlinks);
+        const html = await buildPage(rootDir, pagePath, template, navHtml, backlinks);
         cache.set(pagePath, html);
       }
       res.writeHead(200, { 'Content-Type': 'text/html' });

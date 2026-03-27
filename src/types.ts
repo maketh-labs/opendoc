@@ -28,11 +28,10 @@ export type ContextTier = "full" | "context" | "context-mini"
 
 export interface TemplateVars {
   title: string
+  siteTitle: string
   content: string
   nav: string
   backlinks: string
-  styles: string
-  clientJs: string
 }
 
 export interface SearchResult {
