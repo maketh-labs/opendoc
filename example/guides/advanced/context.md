@@ -30,6 +30,16 @@ Optional config lives in `.opendoc/config.json`:
   "nav": { "order": ["getting-started", "guides", "api"] }
 }
 ```
+## Math & LaTeX
+
+OpenDoc supports inline and block math via KaTeX.
+
+Inline math: The formula is $E = mc^2$ where $c$ is the speed of light.
+
+Block math:
+
+$$ \int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2} $$
+
 ## Custom Themes
 
 Themes override CSS custom properties.

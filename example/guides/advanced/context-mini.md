@@ -14,6 +14,10 @@ Each page has three tiers, generated at build time: | Tier | File | Description 
 
 Optional config lives in `.opendoc/config.json`: { "title": "My Docs", "theme": "default", "mcp": { "port": 3001 }, "nav": { "order": ["getting-started", "guides", "api"] } }
 
+## Math & LaTeX
+
+OpenDoc supports inline and block math via KaTeX.
+
 ## Custom Themes
 
 Themes override CSS custom properties.

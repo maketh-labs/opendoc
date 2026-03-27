@@ -249,7 +249,11 @@ export async function startServer(rootDir: string, port: number = 3000) {
   });
 
   server.listen(port, () => {
-    console.log(`OpenDoc dev server running on http://localhost:${port}`);
+    const url = `http://localhost:${port}`;
+    console.log(`\n  OpenDoc running at ${url}\n`);
+    // Auto-open browser
+    const open = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+    Bun.spawn([open, url], { stderr: 'ignore' });
   });
 
   // Start MCP server in parallel

@@ -120,14 +120,15 @@ MCP `read_page` accepts a `tier` parameter and returns the appropriate file. All
 ### v2 — Themes
 
 - Theme system based on CSS custom properties
-- Official theme template repo: `github.com/opendoc/theme-template`
+- Official theme template repo: `github.com/opendoc-sh/theme-template`
 - Community themes via GitHub forks, discovered through GitHub API
-- In-app theme gallery with live iframe preview
 - `theme.json` manifest required for gallery listing:
   ```json
   {
     "name": "Theme Name",
     "author": "username",
+    "description": "Clean minimal look",
+    "tags": ["minimal", "dark", "serif"],
     "preview": "preview.png",
     "version": "1.0.0"
   }
@@ -154,6 +155,114 @@ Themes are CSS custom property overrides only. Cannot affect layout or inject sc
   --border-radius: 6px;
 }
 ```
+
+### IDE-Style Layout
+
+The OpenDoc UI is IDE-inspired with collapsible sidebars:
+
+```
+┌──────────────────────────────────────────────────────┐
+│ [≡] OpenDoc          [◁ pages] [themes ▷]            │  ← header bar with sidebar toggles
+├─────────┬────────────────────────────┬───────────────┤
+│  LEFT   │                            │     RIGHT     │
+│ SIDEBAR │        CONTENT             │    SIDEBAR    │
+│         │                            │               │
+│  Nav    │   Page renders here        │  Theme panel  │
+│  Pages  │                            │  CSS editor   │
+│  Tree   │                            │               │
+└─────────┴────────────────────────────┴───────────────┘
+```
+
+Sidebars are toggled by buttons in the header. State persisted in localStorage.
+
+### Right Sidebar — Theme Panel
+
+The right sidebar has three sections:
+
+**1. Theme Gallery**
+- Search input with keyword filtering (searches name, description, tags)
+- Grid of theme cards — name, author, tag chips, mode badge (`light` / `dark` / `both`)
+- Click a card → applies theme live to the page instantly (no reload)
+- "Cancel" button → reverts to previous theme
+- "Save" button → writes theme to `.opendoc/config.json`, locks it in
+- Unauthenticated: shows bundled themes only
+- Authenticated (GitHub): fetches community forks from GitHub API
+
+**2. CSS Customizer**
+- Collapsible section below the gallery: "Customize"
+- Monaco-style code editor (or simple textarea with monospace) showing current CSS variables
+- If theme supports `both` modes: tabs to switch between editing light and dark variables
+- Live: edits apply to the page in real time as you type
+- Reset button → reverts to theme defaults
+- Copy button → copies the CSS block to clipboard
+- Save → same as above, writes to config
+
+**3. Favicon Generator**
+- Collapsible section: "Favicon"
+- Upload a 512×512 PNG or SVG
+- All resizing and format generation happens in the browser via Canvas API — no server
+- Generates:
+  - `favicon.ico` (multi-size: 16, 32, 48px)
+  - `favicon-16x16.png`
+  - `favicon-32x32.png`
+  - `apple-touch-icon.png` (180×180)
+  - `android-chrome-192x192.png`
+  - `android-chrome-512x512.png`
+  - `site.webmanifest`
+  - Full HTML `<head>` meta tag block (copy/paste ready)
+- Files saved to `.opendoc/favicons/` and automatically included in build output
+- Meta tags injected into `template.html` at build time
+
+### Theme Light/Dark Mode
+
+Each theme declares a `mode`:
+
+```typescript
+type ThemeMode = "light" | "dark" | "both"
+
+interface Theme {
+  id: string
+  name: string
+  author: string
+  description: string
+  tags: string[]
+  mode: ThemeMode       // "light" | "dark" | "both"
+  css: string           // light CSS variables (or fixed if mode !== "both")
+  darkCss?: string      // dark CSS variables (only if mode === "both")
+  source?: string
+}
+```
+
+**Mode behavior:**
+- `"both"` — theme has light + dark variable sets; dark mode toggle is shown; system preference respected
+- `"light"` — theme is fixed light; dark mode toggle hidden; `[data-theme="dark"]` never applied
+- `"dark"` — theme is fixed dark; dark mode toggle hidden; always dark
+
+**CSS structure for `"both"` themes:**
+```css
+/* Light mode */
+:root {
+  --od-color-bg: #ffffff;
+  --od-color-text: #1a1a1a;
+  /* ... */
+}
+
+/* Dark mode */
+[data-theme="dark"] {
+  --od-color-bg: #0f0f0f;
+  --od-color-text: #e5e5e5;
+  /* ... */
+}
+```
+
+**Built-in themes and their modes:**
+| Theme | Mode |
+|---|---|
+| `default` | `both` |
+| `clean` | `both` |
+| `prose` | `both` |
+| `dark` | `dark` (fixed) |
+| `mono` | `dark` (fixed) |
 
 ### v2 — MCP Writes
 
@@ -233,6 +342,11 @@ npx opendoc themes         # Browse and apply themes
 {
   "title": "My Docs",
   "theme": "default",
+  "editorPath": "/editor",
+  "github": {
+    "repo": "owner/repo-name",
+    "branch": "main"
+  },
   "mcp": {
     "port": 3001
   },
@@ -242,6 +356,40 @@ npx opendoc themes         # Browse and apply themes
 }
 ```
 
+### `editorPath`
+
+Controls where the editor is mounted. Defaults to `"/editor"` if not set.
+
+```json
+{ "editorPath": "/editor" }      // default — editor at /editor
+{ "editorPath": "/admin/edit" }  // custom path
+{ "editorPath": null }           // editor disabled — route not built, page not served
+```
+
+If `editorPath` is `null` or the key is absent with explicit `null`, the builder skips generating the editor HTML entirely. The site cannot be used as an editor. Useful for public-facing sites where you don't want anyone attempting to use the editor interface.
+
+New projects are initialized with `"editorPath": "/editor"` by default.
+
+### `github`
+
+Tells the editor which repo and branch to target.
+
+```json
+{
+  "github": {
+    "repo": "owner/repo-name",   // required for pre-configured editing
+    "branch": "main"             // optional, defaults to "main"
+  }
+}
+```
+
+**Behavior:**
+- If `github.repo` is set: editor skips the repo picker and goes straight to editing that repo
+- If not set: editor shows a repo picker (lists user's GitHub repos after login)
+- Either way, GitHub permissions are the access control — if the user lacks write access, Save fails gracefully
+
+**Every OpenDoc site is a universal editor.** The same `/editor` URL that serves on `docs.myproject.com` works for editing any repo the logged-in user has access to. `github.repo` just sets the default.
+
 ---
 
 ## Deployment Targets
@@ -250,6 +398,94 @@ npx opendoc themes         # Browse and apply themes
 - **Netlify / Vercel / Cloudflare Pages** — connect repo, build command: `npx opendoc build`
 - **Self-hosted** — any static file server
 - **Local only** — `npx opendoc serve`, never build
+
+---
+
+## Build Output (dist)
+
+`opendoc build` writes everything needed to `.opendoc/dist/`. The dist folder is fully self-contained — no source files needed at runtime.
+
+```
+.opendoc/dist/
+├── getting-started/
+│   ├── index.html          ← rendered page (served to browser)
+│   ├── index.md            ← raw source (served to editor + MCP)
+│   ├── context.md          ← MCP tier 2 (served to agents)
+│   └── context-mini.md     ← MCP tier 3 (served to agents)
+├── assets/                 ← copied as-is
+├── _opendoc/
+│   ├── nav.json            ← pre-built full nav tree
+│   ├── backlinks.json      ← pre-built backlinks index
+│   └── search-index/       ← Pagefind search index
+├── theme.css               ← active theme
+└── app.js                  ← client bundle
+```
+
+**Why copy `.md` files to dist:**
+- Editor pre-populates from `index.md` — no GitHub API call needed for reads
+- MCP server reads from dist when deployed remotely — no source directory needed
+- Faster: static file serve vs runtime processing
+- Everything needed for the full experience ships in one folder
+
+---
+
+## Editor (`/editor`)
+
+A browser-based markdown editor accessible at any OpenDoc URL:
+
+```
+localhost:3000/editor              ← local dev
+docs.myproject.com/editor          ← self-hosted production
+opendoc.sh/editor                  ← hosted service
+```
+
+All three are the same editor. All three commit to the same GitHub repo. The editor doesn't care where it's running — it talks to GitHub directly, not to the local filesystem or server.
+
+### Auth flow
+
+GitHub OAuth via a Cloudflare Worker (~20 lines, free tier):
+
+```
+Browser → CF Worker (exchanges code → token) → GitHub
+Token returned to browser, stored in localStorage
+All subsequent API calls go browser → GitHub directly
+Server never stores tokens
+```
+
+### Save / commit flow
+
+```
+User edits index.md in browser
+User clicks Save
+  → if MCP reachable: call generate_commit_message(path, before, after)
+    → agent reads diff, returns: "docs: update getting started guide"
+  → if MCP not reachable: message = "edit({path}): {ISO timestamp}"
+  →  GitHub Contents API: PUT /repos/{owner}/{repo}/contents/{path}
+     with base64 content + current file SHA
+  → commit created under user's GitHub identity
+  → GitHub Action triggers → site rebuilds → production updated
+```
+
+Save = deployed. No deploy button. No CMS publish workflow.
+
+### The loop
+
+```
+Open /editor (anywhere)
+→ GitHub login → pick repo (or create one)
+→ edit a page → click Save
+→ commit to GitHub → Action triggers → site rebuilt → live
+```
+
+Works from phone, from a team member with no dev setup, from an agent via MCP writes. Repo is the single source of truth. Editor is just a UI for committing to it.
+
+### v2 MCP tool additions
+
+```
+generate_commit_message(path, before, after) → string
+write_page(path, content)                    → commits via GitHub API
+create_page(path, title)                     → scaffolds + commits
+```
 
 ---
 
@@ -268,4 +504,5 @@ npx opendoc themes         # Browse and apply themes
 - MCP server passes Claude/Cursor tool call tests
 - At least 3 built-in themes
 - GitHub Action template included
-- Twitter demo: repo → docs site in 30 seconds
+- Editor opens, authenticates, and commits successfully
+- Twitter demo: repo → docs site → browser edit → live in 60 seconds
