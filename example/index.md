@@ -1,5 +1,5 @@
 ---
-icon: "\uD83D\uDCD6"
+icon: 📖
 ---
 
 # Welcome to OpenDoc

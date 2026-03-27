@@ -1,5 +1,5 @@
 ---
-icon: "\uD83D\uDE80"
+icon: 🚀
 title: Getting Started
 ---
 

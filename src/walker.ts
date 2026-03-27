@@ -6,6 +6,15 @@ function titleFromFolder(name: string): string {
   return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+function decodeUnicodeEscapes(raw: string): string {
+  if (!raw || !raw.includes('\\u')) return raw;
+  try {
+    return JSON.parse(`"${raw}"`);
+  } catch {
+    return raw;
+  }
+}
+
 interface PageMeta {
   title: string | null;
   icon: string | null;
@@ -28,7 +37,7 @@ async function extractMeta(filePath: string): Promise<PageMeta> {
         if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
           value = value.slice(1, -1);
         }
-        if (key === 'icon') icon = value;
+        if (key === 'icon') icon = decodeUnicodeEscapes(value);
         if (key === 'title') fmTitle = value;
       }
     }

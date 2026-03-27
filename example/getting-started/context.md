@@ -1,4 +1,4 @@
---- icon: "\uD83D\uDE80" title: Getting Started ---
+--- icon: 🚀 title: Getting Started ---
 
 # Getting Started
 
