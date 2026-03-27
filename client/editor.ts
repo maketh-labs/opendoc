@@ -302,10 +302,36 @@ function handleOAuthCallback(): boolean {
   return true;
 }
 
+// --- Config ---
+interface SiteConfig {
+  title?: string
+  editorPath?: string
+  github?: { repo?: string; branch?: string }
+  theme?: string
+}
+
+let siteConfig: SiteConfig = {};
+
+async function loadSiteConfig(): Promise<SiteConfig> {
+  try {
+    const res = await fetch('/_opendoc/config.json');
+    if (res.ok) return await res.json();
+  } catch { /* config not available */ }
+  return {};
+}
+
 // --- Init ---
 async function init(): Promise<void> {
   // Handle OAuth callback
   if (handleOAuthCallback()) return;
+
+  // Load site config
+  siteConfig = await loadSiteConfig();
+
+  // If github.repo is configured, pre-select it
+  if (siteConfig.github?.repo && !getRepo()) {
+    localStorage.setItem('github_repo', siteConfig.github.repo);
+  }
 
   const token = getToken();
   if (!token) {

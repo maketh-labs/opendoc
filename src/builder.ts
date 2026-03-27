@@ -6,6 +6,7 @@ import { buildBacklinks } from './backlinks';
 import { compress, compressMini } from './compressor';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { tocToHtml } from './plugins/toc';
+import { ensureConfig, getEditorPath } from './config';
 import type { NavNode, BacklinksIndex } from './types';
 
 function parseFrontmatter(markdown: string): Record<string, string> {
@@ -84,6 +85,8 @@ async function copyDirRecursive(src: string, dest: string): Promise<void> {
 }
 
 export async function build(rootDir: string): Promise<void> {
+  const config = await ensureConfig(rootDir);
+  const editorPath = getEditorPath(config);
   const distDir = join(rootDir, '.opendoc', 'dist');
   const pages = await getAllPages(rootDir);
   const navTree = await walkDir(rootDir);
@@ -194,14 +197,26 @@ export async function build(rootDir: string): Promise<void> {
     await writeFile(join(opendocDir, 'app.js'), await buildResult.outputs[0].text());
   }
 
-  // Copy editor.html to dist/editor/index.html
-  const editorSrc = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
-  if (await fileExists(editorSrc)) {
-    const editorOutDir = join(distDir, 'editor');
-    await mkdir(editorOutDir, { recursive: true });
-    await copyFile(editorSrc, join(editorOutDir, 'index.html'));
-    summary.push('  editor/index.html');
+  // Copy editor.html to dist at configured editorPath
+  if (editorPath !== null) {
+    const editorSrc = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
+    if (await fileExists(editorSrc)) {
+      const editorRelPath = editorPath.replace(/^\//, '');
+      const editorOutDir = join(distDir, editorRelPath);
+      await mkdir(editorOutDir, { recursive: true });
+      await copyFile(editorSrc, join(editorOutDir, 'index.html'));
+      summary.push(`  ${editorRelPath}/index.html`);
+    }
   }
+
+  // Write public config.json to dist/_opendoc/
+  const publicConfig = {
+    title: config.title,
+    editorPath: editorPath ?? '/editor',
+    github: config.github,
+    theme: config.theme,
+  };
+  await writeFile(join(opendocDir, 'config.json'), JSON.stringify(publicConfig, null, 2));
 
   // Print summary
   console.log(`\nBuild summary:`);

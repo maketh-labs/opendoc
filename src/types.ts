@@ -22,6 +22,11 @@ export interface BacklinksIndex {
 export interface OpenDocConfig {
   title?: string
   theme?: string
+  editorPath?: string | null   // default "/editor", null = disabled
+  github?: {
+    repo?: string              // "owner/repo-name"
+    branch?: string            // default "main"
+  }
   mcp?: { port?: number }
   nav?: { order?: string[] }
 }

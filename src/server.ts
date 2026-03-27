@@ -9,6 +9,7 @@ import { buildBacklinks } from './backlinks';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { startMcpServer } from './mcp';
 import { tocToHtml } from './plugins/toc';
+import { ensureConfig, getEditorPath } from './config';
 import type { NavNode, BacklinksIndex } from './types';
 
 function navToHtml(node: NavNode, currentPath: string = ''): string {
@@ -70,6 +71,8 @@ async function buildPage(
 }
 
 export async function startServer(rootDir: string, port: number = 3000) {
+  const config = await ensureConfig(rootDir);
+  const editorPath = getEditorPath(config);
   let template = await loadTemplate();
   let styles = await loadStyles();
   let navTree = await walkDir(rootDir);
@@ -132,11 +135,24 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
+    // Serve config.json
+    if (pathname === '/_opendoc/config.json') {
+      const publicConfig = {
+        title: config.title,
+        editorPath: editorPath ?? '/editor',
+        github: config.github,
+        theme: config.theme,
+      };
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify(publicConfig));
+      return;
+    }
+
     // Editor route
-    if (pathname === '/editor' || pathname === '/editor/') {
-      const editorPath = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
+    if (editorPath !== null && (pathname === editorPath || pathname === editorPath + '/')) {
+      const editorFilePath = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
       try {
-        const editorHtml = await readFile(editorPath, 'utf-8');
+        const editorHtml = await readFile(editorFilePath, 'utf-8');
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(editorHtml);
       } catch {
