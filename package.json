@@ -36,12 +36,10 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@milkdown/core": "^7.19.2",
-    "@milkdown/plugin-history": "^7.19.2",
-    "@milkdown/plugin-listener": "^7.19.2",
-    "@milkdown/preset-commonmark": "^7.19.2",
-    "@milkdown/theme-nord": "^7.19.2",
-    "@milkdown/utils": "^7.19.2",
+    "@blocknote/core": "^0.47.3",
+    "@blocknote/mantine": "^0.47.3",
+    "@mantine/core": "^8.3.18",
+    "@mantine/hooks": "^8.3.18",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "chokidar": "^5.0.0",
     "rehype-highlight": "^7.0.2",

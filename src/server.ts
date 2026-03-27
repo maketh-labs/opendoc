@@ -157,6 +157,66 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
+    // File upload for editor (images, etc.)
+    if (pathname === '/_opendoc/upload' && req.method === 'POST') {
+      const body = await new Promise<Buffer>((resolve) => {
+        const chunks: Buffer[] = [];
+        (req as IncomingMessage).on('data', (chunk: Buffer) => { chunks.push(chunk); });
+        (req as IncomingMessage).on('end', () => resolve(Buffer.concat(chunks)));
+      });
+
+      // Parse multipart form data manually
+      const contentType = req.headers['content-type'] || '';
+      const boundaryMatch = contentType.match(/boundary=(.+)/);
+      if (!boundaryMatch) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Missing boundary');
+        return;
+      }
+
+      const boundary = boundaryMatch[1]!;
+      const parts = body.toString('binary').split(`--${boundary}`);
+      let fileData: Buffer | null = null;
+      let fileName = 'upload';
+      let pagePath = '.';
+
+      for (const part of parts) {
+        if (part.includes('name="file"')) {
+          const filenameMatch = part.match(/filename="([^"]+)"/);
+          if (filenameMatch) fileName = filenameMatch[1]!;
+          const headerEnd = part.indexOf('\r\n\r\n');
+          if (headerEnd !== -1) {
+            const raw = part.slice(headerEnd + 4).replace(/\r\n$/, '');
+            fileData = Buffer.from(raw, 'binary');
+          }
+        } else if (part.includes('name="pagePath"')) {
+          const headerEnd = part.indexOf('\r\n\r\n');
+          if (headerEnd !== -1) {
+            pagePath = part.slice(headerEnd + 4).replace(/\r\n$/, '').trim();
+          }
+        }
+      }
+
+      if (!fileData) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('No file');
+        return;
+      }
+
+      const { mkdir } = await import('fs/promises');
+      const assetsDir = join(rootDir, pagePath === '.' ? '' : pagePath, 'assets');
+      await mkdir(assetsDir, { recursive: true });
+
+      const safeName = `${Date.now()}-${fileName.replace(/[^a-z0-9.-]/gi, '_')}`;
+      const filePath = join(assetsDir, safeName);
+      await Bun.write(filePath, fileData);
+
+      const urlPath = pagePath === '.' ? `/assets/${safeName}` : `/${pagePath}/assets/${safeName}`;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url: urlPath }));
+      return;
+    }
+
     // File API for local editing
     if (pathname === '/_opendoc/file') {
       const filePath = url.searchParams.get('path');

@@ -1,12 +1,9 @@
 // OpenDoc Browser Editor
-// GitHub OAuth + WYSIWYG Milkdown editor
+// GitHub OAuth + WYSIWYG BlockNote editor
 // Supports local mode (localhost) and remote mode (GitHub API)
 
-import { Editor, rootCtx, defaultValueCtx } from '@milkdown/core'
-import { commonmark } from '@milkdown/preset-commonmark'
-import { history } from '@milkdown/plugin-history'
-import { listener, listenerCtx } from '@milkdown/plugin-listener'
-import { replaceAll } from '@milkdown/utils'
+import { BlockNoteEditor } from '@blocknote/core'
+import '@blocknote/core/style.css'
 import { initThemePanel } from './themes'
 import { initFaviconPanel } from './favicon'
 
@@ -24,7 +21,7 @@ let currentContent = '';
 let originalContent = '';
 let repoAccess: 'write' | 'read' | 'none' = 'none';
 let cachedUsername: string | null = null;
-let milkdownEditor: Editor | null = null;
+let blockNoteEditor: BlockNoteEditor | null = null;
 
 function getToken(): string | null {
   return localStorage.getItem('github_token');
@@ -301,34 +298,45 @@ async function handleSave(path: string, content: string, token: string, repo: st
   }
 }
 
-// --- Milkdown Editor ---
-async function createMilkdownEditor(container: HTMLElement, initialMarkdown: string): Promise<Editor> {
-  if (milkdownEditor) {
-    milkdownEditor.destroy();
+// --- BlockNote Editor ---
+function createBlockNoteEditor(container: HTMLElement, initialMarkdown: string): BlockNoteEditor {
+  if (blockNoteEditor) {
+    blockNoteEditor.unmount();
   }
 
-  const editor = await Editor.make()
-    .config(ctx => {
-      ctx.set(rootCtx, container);
-      ctx.set(defaultValueCtx, initialMarkdown);
-    })
-    .config(ctx => {
-      ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
-        currentContent = markdown;
-      });
-    })
-    .use(commonmark)
-    .use(history)
-    .use(listener)
-    .create();
+  const pagePath = getCurrentPagePath();
 
-  milkdownEditor = editor;
+  const editor = BlockNoteEditor.create({
+    uploadFile: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('pagePath', pagePath.replace(/\/[^/]+$/, '') || '.');
+      const res = await fetch('/_opendoc/upload', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      const { url } = await res.json();
+      return url;
+    },
+  });
+
+  editor.mount(container);
+
+  // Load initial content from markdown
+  const blocks = editor.tryParseMarkdownToBlocks(initialMarkdown);
+  editor.replaceBlocks(editor.document, blocks);
+
+  // Listen for content changes
+  editor.onChange(() => {
+    currentContent = editor.blocksToMarkdownLossy(editor.document);
+  });
+
+  blockNoteEditor = editor;
   currentContent = initialMarkdown;
   return editor;
 }
 
-async function updateMilkdownContent(editor: Editor, markdown: string): Promise<void> {
-  editor.action(replaceAll(markdown));
+function updateBlockNoteContent(editor: BlockNoteEditor, markdown: string): void {
+  const blocks = editor.tryParseMarkdownToBlocks(markdown);
+  editor.replaceBlocks(editor.document, blocks);
   currentContent = markdown;
 }
 
@@ -444,7 +452,7 @@ async function renderLocalEditor(): Promise<void> {
     </div>
     <div class="od-editor-body">
       <div class="od-wysiwyg-wrap">
-        <div id="od-milkdown"></div>
+        <div id="od-editor"></div>
       </div>
       <aside class="od-editor-right" id="editor-right-panel">
         ${getThemePanelHTML()}
@@ -452,7 +460,7 @@ async function renderLocalEditor(): Promise<void> {
     </div>
   `;
 
-  const milkdownEl = document.getElementById('od-milkdown')!;
+  const editorEl = document.getElementById('od-editor')!;
 
   // Load file content
   async function loadFile(filePath: string): Promise<void> {
@@ -465,10 +473,10 @@ async function renderLocalEditor(): Promise<void> {
     originalContent = content;
     currentContent = content;
 
-    if (milkdownEditor) {
-      await updateMilkdownContent(milkdownEditor, content);
+    if (blockNoteEditor) {
+      updateBlockNoteContent(blockNoteEditor, content);
     } else {
-      await createMilkdownEditor(milkdownEl, content);
+      createBlockNoteEditor(editorEl, content);
     }
   }
 
@@ -728,7 +736,7 @@ async function renderEditor(): Promise<void> {
     </div>
     <div class="od-editor-body">
       <div class="od-wysiwyg-wrap">
-        <div id="od-milkdown"></div>
+        <div id="od-editor"></div>
       </div>
       <aside class="od-editor-right" id="editor-right-panel">
         ${getThemePanelHTML()}
@@ -736,12 +744,12 @@ async function renderEditor(): Promise<void> {
     </div>
   `;
 
-  const milkdownEl = document.getElementById('od-milkdown')!;
+  const editorEl = document.getElementById('od-editor')!;
 
   // Load content
   const content = await loadPageContent(pagePath);
   originalContent = content;
-  await createMilkdownEditor(milkdownEl, content);
+  createBlockNoteEditor(editorEl, content);
 
   // Save button
   document.getElementById('save-btn')!.addEventListener('click', () => {
@@ -843,9 +851,9 @@ async function loadSiteConfig(): Promise<SiteConfig> {
 // --- Init ---
 async function init(): Promise<void> {
   // Destroy previous editor instance
-  if (milkdownEditor) {
-    milkdownEditor.destroy();
-    milkdownEditor = null;
+  if (blockNoteEditor) {
+    blockNoteEditor.unmount();
+    blockNoteEditor = null;
   }
 
   if (isLocal) {
