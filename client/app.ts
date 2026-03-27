@@ -1,6 +1,7 @@
 // Client-side navigation, sidebar toggles, dark mode, and theme panel
 
 import { initThemePanel } from './themes'
+import { initFaviconPanel } from './favicon'
 
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('od-layout')
@@ -67,4 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // === Init theme panel ===
   initThemePanel()
+
+  // === Init favicon panel ===
+  initFaviconPanel()
 })

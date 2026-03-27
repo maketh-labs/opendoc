@@ -566,6 +566,150 @@ body {
   justify-content: flex-end;
 }
 
+/* Theme card header */
+.od-theme-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+/* Mode badge */
+.od-theme-mode-badge {
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.od-mode-both {
+  background: var(--od-color-accent);
+  color: #fff;
+}
+
+.od-mode-light {
+  background: #fbbf24;
+  color: #1a1a1a;
+}
+
+.od-mode-dark {
+  background: #374151;
+  color: #e5e5e5;
+}
+
+/* CSS Tabs */
+.od-css-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 6px;
+  border: 1px solid var(--od-color-border);
+  border-radius: var(--od-radius);
+  overflow: hidden;
+}
+
+.od-css-tab {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--od-color-surface);
+  color: var(--od-color-text-muted);
+  border: none;
+  cursor: pointer;
+  transition: background var(--od-transition), color var(--od-transition);
+}
+
+.od-css-tab:not(:last-child) {
+  border-right: 1px solid var(--od-color-border);
+}
+
+.od-css-tab.active {
+  background: var(--od-color-accent);
+  color: #fff;
+}
+
+.od-css-tab:hover:not(.active) {
+  background: var(--od-color-surface-2);
+}
+
+/* Favicon panel */
+.od-favicon-panel {
+  border-top: 1px solid var(--od-color-border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.od-favicon-panel summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--od-color-text-muted);
+  padding: 4px 0;
+  user-select: none;
+}
+
+.od-favicon-panel summary:hover {
+  color: var(--od-color-text);
+}
+
+.od-favicon-content {
+  margin-top: 8px;
+}
+
+.od-favicon-drop {
+  border: 2px dashed var(--od-color-border);
+  border-radius: var(--od-radius);
+  padding: 20px;
+  text-align: center;
+  transition: border-color var(--od-transition), background var(--od-transition);
+}
+
+.od-favicon-drop.od-favicon-drag-over {
+  border-color: var(--od-color-accent);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+.od-favicon-drop-inner p {
+  font-size: 0.8rem;
+  color: var(--od-color-text-muted);
+  margin-bottom: 8px;
+}
+
+.od-favicon-preview {
+  margin-top: 12px;
+}
+
+.od-favicon-preview img {
+  max-width: 64px;
+  border-radius: var(--od-radius);
+  border: 1px solid var(--od-color-border);
+}
+
+.od-favicon-sizes {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.od-favicon-sizes canvas {
+  border: 1px solid var(--od-color-border);
+  border-radius: 2px;
+  image-rendering: pixelated;
+}
+
+.od-favicon-tags {
+  margin-top: 12px;
+}
+
+.od-favicon-tags label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--od-color-text-muted);
+  margin-bottom: 4px;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .od-header-center {

@@ -1,12 +1,16 @@
 // Theme management for OpenDoc
 
+type ThemeMode = "light" | "dark" | "both"
+
 interface Theme {
   id: string
   name: string
   author: string
   description: string
   tags: string[]
-  css: string
+  mode: ThemeMode
+  css: string          // light CSS (or fixed CSS if mode !== "both")
+  darkCss?: string     // only present if mode === "both"
   source?: string
 }
 
@@ -16,15 +20,22 @@ const BUILTIN_THEMES: Theme[] = [
     name: "Default",
     author: "OpenDoc",
     description: "Clean and minimal",
-    tags: ["minimal", "light"],
-    css: `/* Default theme — uses base variables */`
+    tags: ["minimal"],
+    mode: "both",
+    css: `:root {
+  /* Default theme — uses base variables */
+}`,
+    darkCss: `[data-theme="dark"] {
+  /* Default dark — uses base dark variables */
+}`
   },
   {
     id: "clean",
     name: "Clean",
     author: "OpenDoc",
     description: "GitBook-inspired clean layout",
-    tags: ["minimal", "light", "popular"],
+    tags: ["minimal", "popular"],
+    mode: "both",
     css: `:root {
   --od-color-bg: #ffffff;
   --od-color-surface: #f7f7f7;
@@ -33,6 +44,43 @@ const BUILTIN_THEMES: Theme[] = [
   --od-color-accent-hover: #4338ca;
   --od-font-body: "Inter", -apple-system, sans-serif;
   --od-content-max: 760px;
+}`,
+    darkCss: `[data-theme="dark"] {
+  --od-color-bg: #111318;
+  --od-color-surface: #1a1d24;
+  --od-color-surface-2: #252830;
+  --od-color-text: #e0e0e0;
+  --od-color-text-muted: #9098a8;
+  --od-color-accent: #818cf8;
+  --od-color-accent-hover: #a5b4fc;
+  --od-color-border: #2d3140;
+}`
+  },
+  {
+    id: "prose",
+    name: "Prose",
+    author: "OpenDoc",
+    description: "Notion-inspired full-width reading layout",
+    tags: ["serif", "full-width"],
+    mode: "both",
+    css: `:root {
+  --od-color-bg: #ffffff;
+  --od-color-surface: #f9f9f9;
+  --od-color-surface-2: #f0f0f0;
+  --od-font-body: "Georgia", "Times New Roman", serif;
+  --od-content-max: 900px;
+  --od-font-size: 17px;
+  --od-line-height: 1.9;
+}`,
+    darkCss: `[data-theme="dark"] {
+  --od-color-bg: #191919;
+  --od-color-surface: #222222;
+  --od-color-surface-2: #2c2c2c;
+  --od-color-text: #d4d4d4;
+  --od-color-text-muted: #9a9a9a;
+  --od-color-accent: #6d9eeb;
+  --od-color-accent-hover: #93b8f0;
+  --od-color-border: #333333;
 }`
   },
   {
@@ -41,7 +89,8 @@ const BUILTIN_THEMES: Theme[] = [
     author: "OpenDoc",
     description: "Dark background, light text",
     tags: ["dark"],
-    css: `:root {
+    mode: "dark",
+    css: `[data-theme="dark"] {
   --od-color-bg: #0d1117;
   --od-color-surface: #161b22;
   --od-color-surface-2: #21262d;
@@ -51,32 +100,6 @@ const BUILTIN_THEMES: Theme[] = [
   --od-color-accent-hover: #79b8ff;
   --od-color-border: #30363d;
   --od-font-body: "Inter", -apple-system, sans-serif;
-}
-[data-theme="dark"] {
-  --od-color-bg: #0d1117;
-  --od-color-surface: #161b22;
-  --od-color-surface-2: #21262d;
-  --od-color-text: #e6edf3;
-  --od-color-text-muted: #8b949e;
-  --od-color-accent: #58a6ff;
-  --od-color-accent-hover: #79b8ff;
-  --od-color-border: #30363d;
-}`
-  },
-  {
-    id: "prose",
-    name: "Prose",
-    author: "OpenDoc",
-    description: "Notion-inspired full-width reading layout",
-    tags: ["minimal", "serif", "full-width"],
-    css: `:root {
-  --od-color-bg: #ffffff;
-  --od-color-surface: #f9f9f9;
-  --od-color-surface-2: #f0f0f0;
-  --od-font-body: "Georgia", "Times New Roman", serif;
-  --od-content-max: 900px;
-  --od-font-size: 17px;
-  --od-line-height: 1.9;
 }`
   },
   {
@@ -85,7 +108,8 @@ const BUILTIN_THEMES: Theme[] = [
     author: "OpenDoc",
     description: "Monospace everything, developer aesthetic",
     tags: ["dark", "mono", "terminal"],
-    css: `:root {
+    mode: "dark",
+    css: `[data-theme="dark"] {
   --od-color-bg: #0a0a0a;
   --od-color-surface: #141414;
   --od-color-surface-2: #1e1e1e;
@@ -97,16 +121,6 @@ const BUILTIN_THEMES: Theme[] = [
   --od-font-body: "JetBrains Mono", "Fira Code", monospace;
   --od-font-mono: "JetBrains Mono", "Fira Code", monospace;
   --od-font-size: 13px;
-}
-[data-theme="dark"] {
-  --od-color-bg: #0a0a0a;
-  --od-color-surface: #141414;
-  --od-color-surface-2: #1e1e1e;
-  --od-color-text: #39ff14;
-  --od-color-text-muted: #22aa0e;
-  --od-color-accent: #39ff14;
-  --od-color-accent-hover: #50ff30;
-  --od-color-border: #1f1f1f;
 }`
   }
 ]
@@ -116,6 +130,7 @@ class ThemeManager {
   private previewTheme: Theme | null = null
   private beforePreviewTheme: Theme | null = null
   private styleEl: HTMLStyleElement
+  private cssEditTab: "light" | "dark" = "light"
 
   constructor() {
     this.styleEl = document.createElement('style')
@@ -129,7 +144,44 @@ class ThemeManager {
 
   apply(theme: Theme): void {
     this.currentTheme = theme
-    this.styleEl.textContent = theme.css
+    this.applyThemeCSS(theme)
+    this.updateDarkModeState(theme)
+  }
+
+  private applyThemeCSS(theme: Theme): void {
+    if (theme.mode === "both") {
+      this.styleEl.textContent = theme.css + '\n' + (theme.darkCss || '')
+    } else if (theme.mode === "dark") {
+      this.styleEl.textContent = theme.css
+    } else {
+      // light only
+      this.styleEl.textContent = theme.css
+    }
+  }
+
+  private updateDarkModeState(theme: Theme): void {
+    const html = document.documentElement
+    const toggle = document.getElementById('dark-mode-toggle')
+
+    if (theme.mode === "dark") {
+      html.setAttribute('data-theme', 'dark')
+      html.setAttribute('data-mode', 'dark')
+      if (toggle) toggle.style.display = 'none'
+    } else if (theme.mode === "light") {
+      html.removeAttribute('data-theme')
+      html.setAttribute('data-mode', 'light')
+      if (toggle) toggle.style.display = 'none'
+    } else {
+      // "both" — restore user preference
+      html.removeAttribute('data-mode')
+      if (toggle) toggle.style.display = ''
+      const saved = localStorage.getItem('theme')
+      if (saved === 'dark') {
+        html.setAttribute('data-theme', 'dark')
+      } else {
+        html.setAttribute('data-theme', 'light')
+      }
+    }
   }
 
   preview(theme: Theme): void {
@@ -137,7 +189,8 @@ class ThemeManager {
       this.beforePreviewTheme = this.currentTheme
     }
     this.previewTheme = theme
-    this.styleEl.textContent = theme.css
+    this.applyThemeCSS(theme)
+    this.updateDarkModeState(theme)
   }
 
   cancelPreview(): void {
@@ -157,12 +210,45 @@ class ThemeManager {
     localStorage.setItem('od-theme', this.currentTheme.id)
   }
 
-  getCustomCSS(): string {
-    return this.styleEl.textContent || ''
+  getActiveTheme(): Theme {
+    return this.previewTheme || this.currentTheme
   }
 
-  applyCustomCSS(css: string): void {
-    this.styleEl.textContent = css
+  getEditableCSS(tab: "light" | "dark"): string {
+    const theme = this.getActiveTheme()
+    if (theme.mode === "both") {
+      return tab === "light" ? theme.css : (theme.darkCss || '')
+    }
+    return theme.css
+  }
+
+  setCssEditTab(tab: "light" | "dark"): void {
+    this.cssEditTab = tab
+  }
+
+  getCssEditTab(): "light" | "dark" {
+    return this.cssEditTab
+  }
+
+  applyCustomCSS(css: string, tab: "light" | "dark"): void {
+    const theme = this.getActiveTheme()
+    if (theme.mode === "both") {
+      if (tab === "light") {
+        this.styleEl.textContent = css + '\n' + (theme.darkCss || '')
+        // Update in-memory theme css
+        ;(theme as any).css = css
+      } else {
+        this.styleEl.textContent = theme.css + '\n' + css
+        ;(theme as any).darkCss = css
+      }
+    } else {
+      this.styleEl.textContent = css
+      ;(theme as any).css = css
+    }
+  }
+
+  getCustomCSS(): string {
+    return this.styleEl.textContent || ''
   }
 
   getCurrentId(): string {
@@ -184,11 +270,23 @@ function filterThemes(themes: Theme[], query: string): Theme[] {
   )
 }
 
+function modeBadge(mode: ThemeMode): string {
+  const labels: Record<ThemeMode, string> = {
+    both: "light + dark",
+    light: "light only",
+    dark: "dark only"
+  }
+  return `<span class="od-theme-mode-badge od-mode-${mode}">${labels[mode]}</span>`
+}
+
 function renderThemeCard(theme: Theme, isActive: boolean): string {
   const activeClass = isActive ? ' active' : ''
   const tags = theme.tags.map(t => `<span class="od-theme-tag">${t}</span>`).join('')
   return `<div class="od-theme-card${activeClass}" data-theme-id="${theme.id}">
-    <div class="od-theme-card-name">${theme.name}</div>
+    <div class="od-theme-card-header">
+      <div class="od-theme-card-name">${theme.name}</div>
+      ${modeBadge(theme.mode)}
+    </div>
     <div class="od-theme-card-author">${theme.author}</div>
     <div class="od-theme-card-tags">${tags}</div>
   </div>`
@@ -205,6 +303,9 @@ export function initThemePanel(): void {
   const cssReset = document.getElementById('css-reset')
   const cssCopy = document.getElementById('css-copy')
   const cssSave = document.getElementById('css-save')
+  const cssTabs = document.getElementById('css-tabs')
+  const cssTabLight = document.getElementById('css-tab-light')
+  const cssTabDark = document.getElementById('css-tab-dark')
 
   if (!grid) return
 
@@ -214,7 +315,6 @@ export function initThemePanel(): void {
     const filtered = filterThemes(BUILTIN_THEMES, query)
     grid!.innerHTML = filtered.map(t => renderThemeCard(t, t.id === manager.getCurrentId())).join('')
 
-    // Wire up card clicks
     grid!.querySelectorAll('.od-theme-card').forEach(card => {
       card.addEventListener('click', () => {
         const id = (card as HTMLElement).dataset.themeId!
@@ -227,13 +327,29 @@ export function initThemePanel(): void {
     })
   }
 
+  function updateCssTabs() {
+    const theme = manager.getActiveTheme()
+    if (cssTabs) {
+      cssTabs.style.display = theme.mode === "both" ? "flex" : "none"
+    }
+    // If theme is not "both", reset tab to default
+    if (theme.mode !== "both") {
+      manager.setCssEditTab("light")
+    }
+    // Update active tab styling
+    const tab = manager.getCssEditTab()
+    cssTabLight?.classList.toggle('active', tab === 'light')
+    cssTabDark?.classList.toggle('active', tab === 'dark')
+  }
+
   function updateUI() {
     renderGrid((searchInput as HTMLInputElement)?.value || '')
     if (actions) {
       actions.style.display = manager.isPreviewing() ? 'flex' : 'none'
     }
+    updateCssTabs()
     if (cssEditor) {
-      cssEditor.value = manager.getCustomCSS()
+      cssEditor.value = manager.getEditableCSS(manager.getCssEditTab())
     }
   }
 
@@ -261,9 +377,26 @@ export function initThemePanel(): void {
     localStorage.setItem('od-right-open', 'false')
   })
 
+  // CSS tab switching
+  cssTabLight?.addEventListener('click', () => {
+    manager.setCssEditTab('light')
+    updateCssTabs()
+    if (cssEditor) {
+      cssEditor.value = manager.getEditableCSS('light')
+    }
+  })
+
+  cssTabDark?.addEventListener('click', () => {
+    manager.setCssEditTab('dark')
+    updateCssTabs()
+    if (cssEditor) {
+      cssEditor.value = manager.getEditableCSS('dark')
+    }
+  })
+
   // CSS editor
   cssEditor?.addEventListener('input', () => {
-    manager.applyCustomCSS(cssEditor.value)
+    manager.applyCustomCSS(cssEditor.value, manager.getCssEditTab())
   })
 
   cssReset?.addEventListener('click', () => {
@@ -285,12 +418,13 @@ export function initThemePanel(): void {
   // Load custom CSS if saved
   const savedCustom = localStorage.getItem('od-custom-css')
   if (savedCustom) {
-    manager.applyCustomCSS(savedCustom)
+    manager.applyCustomCSS(savedCustom, manager.getCssEditTab())
   }
 
   // Initial render
   renderGrid()
+  updateCssTabs()
   if (cssEditor) {
-    cssEditor.value = manager.getCustomCSS()
+    cssEditor.value = manager.getEditableCSS(manager.getCssEditTab())
   }
 }

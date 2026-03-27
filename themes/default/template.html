@@ -75,11 +75,47 @@
         <details class="od-css-customizer">
           <summary>Customize CSS</summary>
           <div class="od-css-editor-wrap">
+            <div class="od-css-tabs" id="css-tabs" style="display:none">
+              <button class="od-css-tab active" id="css-tab-light">Light</button>
+              <button class="od-css-tab" id="css-tab-dark">Dark</button>
+            </div>
             <textarea class="od-css-editor" id="css-editor" spellcheck="false">/* Loading... */</textarea>
             <div class="od-css-editor-actions">
               <button class="od-btn od-btn-ghost" id="css-reset">Reset</button>
               <button class="od-btn od-btn-ghost" id="css-copy">Copy</button>
               <button class="od-btn od-btn-primary" id="css-save">Save</button>
+            </div>
+          </div>
+        </details>
+
+        <!-- Favicon Generator -->
+        <details class="od-favicon-panel">
+          <summary>Favicon</summary>
+          <div class="od-favicon-content">
+            <div class="od-favicon-drop" id="favicon-drop">
+              <input type="file" id="favicon-upload" accept="image/png,image/svg+xml" hidden>
+              <div class="od-favicon-drop-inner" id="favicon-drop-inner">
+                <p>Drop a 512x512 PNG or SVG</p>
+                <button class="od-btn od-btn-secondary" id="favicon-browse">Browse</button>
+              </div>
+            </div>
+
+            <div class="od-favicon-preview" id="favicon-preview" style="display:none">
+              <img id="favicon-preview-img" alt="favicon preview">
+              <div class="od-favicon-sizes">
+                <canvas id="preview-16" width="16" height="16"></canvas>
+                <canvas id="preview-32" width="32" height="32"></canvas>
+                <canvas id="preview-180" width="180" height="180"></canvas>
+              </div>
+            </div>
+
+            <div class="od-favicon-tags" id="favicon-tags" style="display:none">
+              <label>HTML tags</label>
+              <textarea class="od-css-editor" id="favicon-tags-output" readonly></textarea>
+              <div class="od-css-editor-actions">
+                <button class="od-btn od-btn-ghost" id="favicon-copy-tags">Copy tags</button>
+                <button class="od-btn od-btn-primary" id="favicon-download-all">Download all</button>
+              </div>
             </div>
           </div>
         </details>
