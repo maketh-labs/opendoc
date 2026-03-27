@@ -11,6 +11,8 @@ const MCP_URL = 'http://localhost:3001/mcp';
 // --- State ---
 let currentContent = '';
 let originalContent = '';
+let repoAccess: 'write' | 'read' | 'none' = 'none';
+let cachedUsername: string | null = null;
 
 function getToken(): string | null {
   return localStorage.getItem('github_token');
@@ -78,8 +80,66 @@ async function loadPageContent(pagePath: string): Promise<string> {
   return `# New Page\n\nStart writing here...`;
 }
 
-async function save(path: string, content: string, token: string, repo: string): Promise<void> {
-  // 1. Get current file SHA
+// --- Permission Check ---
+async function checkRepoAccess(repo: string, token: string): Promise<'write' | 'read' | 'none'> {
+  const res = await fetch(`https://api.github.com/repos/${repo}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return 'none';
+  const data = await res.json();
+  return data.permissions?.push ? 'write' : 'read';
+}
+
+async function getGitHubUsername(token: string): Promise<string> {
+  if (cachedUsername) return cachedUsername;
+  const res = await fetch('https://api.github.com/user', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to get user info');
+  const data = await res.json();
+  cachedUsername = data.login;
+  return data.login;
+}
+
+// --- Toast ---
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showToast(message: string, type: 'success' | 'error', linkUrl?: string): void {
+  // Remove existing toast
+  const existing = document.getElementById('od-toast');
+  if (existing) existing.remove();
+  if (toastTimer) clearTimeout(toastTimer);
+
+  const toast = document.createElement('div');
+  toast.id = 'od-toast';
+  toast.className = `od-toast ${type}`;
+  toast.innerHTML = `<span>${escapeHtml(message)}</span>${
+    linkUrl ? `<a href="${escapeHtml(linkUrl)}" target="_blank">View →</a>` : ''
+  }`;
+  document.body.appendChild(toast);
+  toastTimer = setTimeout(() => toast.remove(), 5000);
+}
+
+// --- Commit Message ---
+async function getCommitMessage(path: string): Promise<string> {
+  const fallback = `edit(${path}): ${new Date().toISOString()}`;
+  try {
+    const mcp = await fetch(MCP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tool: 'generate_commit_message',
+        params: { path, before: originalContent, after: currentContent },
+      }),
+    });
+    if (mcp.ok) return (await mcp.json()).message;
+  } catch { /* MCP not available */ }
+  return fallback;
+}
+
+// --- Save: Direct Commit ---
+async function commitDirectly(path: string, content: string, token: string, repo: string): Promise<{ url?: string }> {
+  // Get current file SHA
   const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -89,39 +149,148 @@ async function save(path: string, content: string, token: string, repo: string):
     sha = data.sha;
   }
 
-  // 2. Try MCP for commit message
-  let message = `edit(${path}): ${new Date().toISOString()}`;
-  try {
-    const mcp = await fetch(MCP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tool: 'generate_commit_message',
-        params: { path, before: originalContent, after: content },
-      }),
-    });
-    if (mcp.ok) message = (await mcp.json()).message;
-  } catch { /* MCP not available, use default */ }
+  const message = await getCommitMessage(path);
 
-  // 3. Commit via GitHub API
   const body: Record<string, unknown> = {
     message,
     content: btoa(unescape(encodeURIComponent(content))),
   };
   if (sha) body.sha = sha;
 
+  const branch = siteConfig.github?.branch || 'main';
+  body.branch = branch;
+
   const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
   if (!putRes.ok) {
     const err = await putRes.json();
     throw new Error(err.message || 'Failed to save');
+  }
+  const data = await putRes.json();
+  return { url: data.commit?.html_url };
+}
+
+// --- Save: Fork + PR ---
+async function openPullRequest(path: string, content: string, token: string, repo: string): Promise<{ url?: string }> {
+  const username = await getGitHubUsername(token);
+  const [, repoName] = repo.split('/');
+
+  // Fork if needed
+  await fetch(`https://api.github.com/repos/${repo}/forks`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  // Wait for fork
+  const forkRepo = `${username}/${repoName}`;
+  let forkReady = false;
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    const check = await fetch(`https://api.github.com/repos/${forkRepo}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (check.ok) { forkReady = true; break; }
+  }
+  if (!forkReady) throw new Error('Fork not ready after 10s');
+
+  const baseBranch = siteConfig.github?.branch || 'main';
+  const branch = `opendoc-edit-${Date.now()}`;
+
+  // Get default branch SHA from fork
+  const refRes = await fetch(`https://api.github.com/repos/${forkRepo}/git/ref/heads/${baseBranch}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!refRes.ok) throw new Error('Failed to get branch ref from fork');
+  const { object: { sha: branchSha } } = await refRes.json();
+
+  // Create branch on fork
+  const branchRes = await fetch(`https://api.github.com/repos/${forkRepo}/git/refs`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: branchSha }),
+  });
+  if (!branchRes.ok) throw new Error('Failed to create branch on fork');
+
+  // Get file SHA from fork
+  const fileRes = await fetch(`https://api.github.com/repos/${forkRepo}/contents/${path}?ref=${branch}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  let sha: string | undefined;
+  if (fileRes.ok) {
+    const data = await fileRes.json();
+    sha = data.sha;
+  }
+
+  // Commit to fork branch
+  const message = await getCommitMessage(path);
+  const commitBody: Record<string, unknown> = {
+    message,
+    content: btoa(unescape(encodeURIComponent(content))),
+    branch,
+  };
+  if (sha) commitBody.sha = sha;
+
+  const putRes = await fetch(`https://api.github.com/repos/${forkRepo}/contents/${path}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(commitBody),
+  });
+  if (!putRes.ok) throw new Error('Failed to commit to fork');
+
+  // Open PR
+  const prRes = await fetch(`https://api.github.com/repos/${repo}/pulls`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: message,
+      head: `${username}:${branch}`,
+      base: baseBranch,
+      body: `_Opened via [OpenDoc](https://opendoc.sh) editor_`,
+    }),
+  });
+  if (!prRes.ok) {
+    const err = await prRes.json();
+    throw new Error(err.message || 'Failed to create pull request');
+  }
+  const pr = await prRes.json();
+  return { url: pr.html_url };
+}
+
+// --- Unified Save Handler ---
+async function handleSave(path: string, content: string, token: string, repo: string, forcePR: boolean): Promise<void> {
+  const saveBtn = document.getElementById('save-btn') as HTMLButtonElement | null;
+  const dropdown = document.getElementById('save-dropdown');
+  if (dropdown) dropdown.hidden = true;
+
+  // Show loading state
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="od-spinner"></span>Saving…';
+  }
+
+  try {
+    let result: { url?: string };
+    if (repoAccess === 'write' && !forcePR) {
+      result = await commitDirectly(path, content, token, repo);
+      originalContent = content;
+      showToast('Saved', 'success', result.url);
+    } else {
+      result = await openPullRequest(path, content, token, repo);
+      originalContent = content;
+      showToast('Pull request opened', 'success', result.url);
+    }
+  } catch (err) {
+    showToast((err as Error).message, 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      // Restore label based on access
+      saveBtn.textContent = repoAccess === 'write' ? 'Save' : 'Suggest Edit';
+    }
   }
 }
 
@@ -137,7 +306,7 @@ function renderLogin(): void {
       <div class="login-box">
         <h1>OpenDoc Editor</h1>
         <p>Sign in with GitHub to edit documentation.</p>
-        <button class="btn btn-primary" id="login-btn">Login with GitHub</button>
+        <button class="btn btn-primary" id="login-btn">Login to Save</button>
       </div>
     </div>
   `;
@@ -196,14 +365,64 @@ async function renderEditor(): Promise<void> {
   const repo = getRepo()!;
   const pagePath = getCurrentPagePath();
 
+  // Check permissions
+  repoAccess = await checkRepoAccess(repo, token);
+
+  if (repoAccess === 'none') {
+    app.innerHTML = `
+      <div class="editor-header">
+        <span class="logo">OpenDoc Editor</span>
+        <span class="spacer"></span>
+        <button class="btn" id="change-repo-btn">Change Repo</button>
+        <button class="btn" id="logout-btn">Logout</button>
+      </div>
+      <div class="login-screen">
+        <div class="login-box">
+          <h1>No Access</h1>
+          <p>You don't have access to <strong>${escapeHtml(repo)}</strong>.</p>
+          <button class="btn btn-primary" id="pick-another">Choose Another Repo</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('pick-another')!.addEventListener('click', () => {
+      localStorage.removeItem('github_repo');
+      init();
+    });
+    document.getElementById('change-repo-btn')!.addEventListener('click', () => {
+      localStorage.removeItem('github_repo');
+      init();
+    });
+    document.getElementById('logout-btn')!.addEventListener('click', () => {
+      localStorage.removeItem('github_token');
+      localStorage.removeItem('github_repo');
+      init();
+    });
+    return;
+  }
+
+  const isWrite = repoAccess === 'write';
+  const saveLabel = isWrite ? 'Save' : 'Suggest Edit';
+
+  // Build save button HTML
+  const saveBtnHtml = isWrite
+    ? `<div class="od-save-btn-group" id="save-btn-group">
+        <button class="od-save-primary" id="save-btn">${saveLabel}</button>
+        <button class="od-save-dropdown-trigger" id="save-dropdown-trigger" aria-label="More save options">
+          <svg viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="od-save-dropdown" id="save-dropdown" hidden>
+          <button class="od-save-option" id="save-as-pr">Open Pull Request</button>
+        </div>
+      </div>`
+    : `<button class="od-save-primary" id="save-btn" style="border-radius:var(--border-radius)">${saveLabel}</button>`;
+
   app.innerHTML = `
     <div class="editor-header">
       <span class="logo">OpenDoc Editor</span>
       <span class="repo-name">${escapeHtml(repo)}</span>
       <span class="page-path">${escapeHtml(pagePath)}</span>
       <span class="spacer"></span>
-      <span class="status" id="save-status"></span>
-      <button class="btn btn-primary" id="save-btn">Save</button>
+      ${saveBtnHtml}
       <button class="btn" id="change-repo-btn">Change Repo</button>
       <button class="btn" id="logout-btn">Logout</button>
     </div>
@@ -221,16 +440,13 @@ async function renderEditor(): Promise<void> {
 
   const textarea = document.getElementById('editor-textarea') as HTMLTextAreaElement;
   const preview = document.getElementById('preview')!;
-  const status = document.getElementById('save-status')!;
 
   // Load content
-  status.textContent = 'Loading...';
   const content = await loadPageContent(pagePath);
   originalContent = content;
   currentContent = content;
   textarea.value = content;
   preview.innerHTML = renderMarkdown(content);
-  status.textContent = '';
 
   // Live preview
   textarea.addEventListener('input', () => {
@@ -238,16 +454,28 @@ async function renderEditor(): Promise<void> {
     preview.innerHTML = renderMarkdown(currentContent);
   });
 
-  // Save
-  document.getElementById('save-btn')!.addEventListener('click', async () => {
-    status.textContent = 'Saving...';
-    try {
-      await save(pagePath, currentContent, token, repo);
-      originalContent = currentContent;
-      status.textContent = 'Saved!';
-      setTimeout(() => { status.textContent = ''; }, 2000);
-    } catch (err) {
-      status.textContent = `Error: ${(err as Error).message}`;
+  // Save button — direct commit (write) or fork+PR (read)
+  document.getElementById('save-btn')!.addEventListener('click', () => {
+    handleSave(pagePath, currentContent, token, repo, false);
+  });
+
+  // PR option from dropdown (write access only)
+  document.getElementById('save-as-pr')?.addEventListener('click', () => {
+    handleSave(pagePath, currentContent, token, repo, true);
+  });
+
+  // Dropdown toggle
+  document.getElementById('save-dropdown-trigger')?.addEventListener('click', () => {
+    const dropdown = document.getElementById('save-dropdown');
+    if (dropdown) dropdown.hidden = !dropdown.hidden;
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener('click', (e) => {
+    const group = document.getElementById('save-btn-group');
+    const dropdown = document.getElementById('save-dropdown');
+    if (group && dropdown && !group.contains(e.target as Node)) {
+      dropdown.hidden = true;
     }
   });
 
@@ -265,8 +493,8 @@ async function renderEditor(): Promise<void> {
   });
 
   // Init slash commands and code picker
-  initSlashCommands(textarea)
-  initCodePicker(textarea)
+  initSlashCommands(textarea);
+  initCodePicker(textarea);
 
   // Keyboard shortcut: Cmd/Ctrl+S to save
   textarea.addEventListener('keydown', (e) => {
