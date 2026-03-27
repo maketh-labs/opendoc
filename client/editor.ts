@@ -1,5 +1,6 @@
 // OpenDoc Browser Editor
 // GitHub OAuth + two-panel markdown editor
+// Supports local mode (localhost) and remote mode (GitHub API)
 
 import { initSlashCommands } from './slash-commands'
 import { initCodePicker } from './code-picker'
@@ -7,6 +8,11 @@ import { initCodePicker } from './code-picker'
 const GITHUB_CLIENT_ID = 'PLACEHOLDER_CLIENT_ID';
 const OAUTH_CALLBACK_URL = '/oauth/callback';
 const MCP_URL = 'http://localhost:3001/mcp';
+
+// --- Local mode detection ---
+const isLocal = window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1' ||
+                window.location.hostname.endsWith('.local');
 
 // --- State ---
 let currentContent = '';
@@ -25,6 +31,42 @@ function getRepo(): string | null {
 function getCurrentPagePath(): string {
   const params = new URLSearchParams(window.location.search);
   return params.get('path') || 'index.md';
+}
+
+// --- Local file API ---
+async function localLoadFile(filePath: string): Promise<string> {
+  const res = await fetch(`/_opendoc/file?path=${encodeURIComponent(filePath)}`);
+  if (!res.ok) throw new Error(`Failed to load ${filePath}`);
+  return res.text();
+}
+
+async function localSaveFile(filePath: string, content: string): Promise<void> {
+  const res = await fetch(`/_opendoc/file?path=${encodeURIComponent(filePath)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error('Failed to save file');
+}
+
+// --- Nav helpers ---
+interface NavNode {
+  title: string;
+  path: string;
+  url: string;
+  icon?: string;
+  children: NavNode[];
+}
+
+function flattenNav(node: NavNode | null): { title: string; filePath: string }[] {
+  if (!node) return [];
+  const result: { title: string; filePath: string }[] = [];
+  const pagePath = node.path === '.' ? '' : node.path;
+  result.push({ title: node.title, filePath: pagePath ? `${pagePath}/index.md` : 'index.md' });
+  for (const child of node.children || []) {
+    result.push(...flattenNav(child));
+  }
+  return result;
 }
 
 // --- Simple markdown to HTML (client-side) ---
@@ -297,6 +339,120 @@ async function handleSave(path: string, content: string, token: string, repo: st
 // --- UI Rendering ---
 const app = document.getElementById('app')!;
 
+// --- Local Editor ---
+async function renderLocalEditor(): Promise<void> {
+  const pagePath = getCurrentPagePath();
+
+  // Fetch nav tree for page picker
+  let pages: { title: string; filePath: string }[] = [];
+  try {
+    const navTree = await fetch('/_opendoc/nav.json').then(r => r.json());
+    pages = flattenNav(navTree);
+  } catch { /* nav not available */ }
+
+  // If no path specified and we have pages, default to first
+  const currentFile = pagePath || (pages.length > 0 ? pages[0]!.filePath : 'index.md');
+
+  // Build page picker options
+  const pageOptions = pages.map(p =>
+    `<option value="${escapeHtml(p.filePath)}"${p.filePath === currentFile ? ' selected' : ''}>${escapeHtml(p.title)}</option>`
+  ).join('');
+
+  app.innerHTML = `
+    <div class="editor-header">
+      <span class="logo">OpenDoc Editor</span>
+      <span class="page-path" style="color: var(--color-muted); font-size: 0.8rem;">Local</span>
+      ${pages.length > 0 ? `<select id="page-picker" style="padding:0.3rem 0.5rem;border:1px solid var(--color-border);border-radius:var(--border-radius);background:var(--color-bg);color:var(--color-text);font-size:0.8rem;">${pageOptions}</select>` : `<span class="page-path">${escapeHtml(currentFile)}</span>`}
+      <span class="spacer"></span>
+      <button class="od-save-primary" id="save-btn" style="border-radius:var(--border-radius)">Save</button>
+    </div>
+    <div class="editor-panels">
+      <div class="editor-pane">
+        <div class="pane-header">Markdown</div>
+        <textarea id="editor-textarea" spellcheck="false"></textarea>
+      </div>
+      <div class="editor-pane">
+        <div class="pane-header">Preview</div>
+        <div id="preview"></div>
+      </div>
+    </div>
+  `;
+
+  const textarea = document.getElementById('editor-textarea') as HTMLTextAreaElement;
+  const preview = document.getElementById('preview')!;
+
+  // Load file content
+  async function loadFile(filePath: string): Promise<void> {
+    try {
+      const content = await localLoadFile(filePath);
+      originalContent = content;
+      currentContent = content;
+      textarea.value = content;
+      preview.innerHTML = renderMarkdown(content);
+    } catch {
+      const fallback = `# New Page\n\nStart writing here...`;
+      originalContent = fallback;
+      currentContent = fallback;
+      textarea.value = fallback;
+      preview.innerHTML = renderMarkdown(fallback);
+    }
+  }
+
+  await loadFile(currentFile);
+
+  // Debounced live preview
+  let previewTimeout: ReturnType<typeof setTimeout>;
+  textarea.addEventListener('input', () => {
+    currentContent = textarea.value;
+    clearTimeout(previewTimeout);
+    previewTimeout = setTimeout(() => {
+      preview.innerHTML = renderMarkdown(currentContent);
+    }, 300);
+  });
+
+  // Save button
+  document.getElementById('save-btn')!.addEventListener('click', async () => {
+    const saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+    const picker = document.getElementById('page-picker') as HTMLSelectElement | null;
+    const activeFile = picker ? picker.value : currentFile;
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="od-spinner"></span>Saving\u2026';
+
+    try {
+      await localSaveFile(activeFile, currentContent);
+      originalContent = currentContent;
+      showToast('Saved', 'success');
+    } catch (err) {
+      showToast((err as Error).message, 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    }
+  });
+
+  // Page picker
+  document.getElementById('page-picker')?.addEventListener('change', (e) => {
+    const newPath = (e.target as HTMLSelectElement).value;
+    const url = new URL(window.location.href);
+    url.searchParams.set('path', newPath);
+    window.history.pushState({}, '', url.toString());
+    loadFile(newPath);
+  });
+
+  // Keyboard shortcut: Cmd/Ctrl+S to save
+  textarea.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      document.getElementById('save-btn')!.click();
+    }
+  });
+
+  // Init slash commands and code picker
+  initSlashCommands(textarea);
+  initCodePicker(textarea);
+}
+
 function renderLogin(): void {
   app.innerHTML = `
     <div class="editor-header">
@@ -550,6 +706,12 @@ async function loadSiteConfig(): Promise<SiteConfig> {
 
 // --- Init ---
 async function init(): Promise<void> {
+  // Local mode: skip GitHub entirely
+  if (isLocal) {
+    await renderLocalEditor();
+    return;
+  }
+
   // Handle OAuth callback
   if (handleOAuthCallback()) return;
 

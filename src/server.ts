@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { createServer } from 'http';
-import type { ServerResponse } from 'http';
+import type { ServerResponse, IncomingMessage } from 'http';
 import { watch } from 'chokidar';
 import { walkDir, getAllPages } from './walker';
 import { renderFull } from './renderer';
@@ -148,6 +148,56 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
+    // Nav JSON endpoint for editor page picker
+    if (pathname === '/_opendoc/nav.json') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify(navTree));
+      return;
+    }
+
+    // File API for local editing
+    if (pathname === '/_opendoc/file') {
+      const filePath = url.searchParams.get('path');
+      if (!filePath) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('Missing path');
+        return;
+      }
+
+      // Security: ensure path stays within rootDir
+      const fullPath = resolve(rootDir, filePath);
+      if (!fullPath.startsWith(resolve(rootDir) + '/') && fullPath !== resolve(rootDir)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Forbidden');
+        return;
+      }
+
+      if (req.method === 'GET') {
+        try {
+          const content = await Bun.file(fullPath).text();
+          res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end(content);
+        } catch {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not found');
+        }
+        return;
+      }
+
+      if (req.method === 'PUT') {
+        const body = await new Promise<string>((resolve) => {
+          let data = '';
+          (req as IncomingMessage).on('data', (chunk: Buffer) => { data += chunk.toString(); });
+          (req as IncomingMessage).on('end', () => resolve(data));
+        });
+        const { content } = JSON.parse(body);
+        await Bun.write(fullPath, content);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+    }
+
     // Editor route
     if (editorPath !== null && (pathname === editorPath || pathname === editorPath + '/')) {
       const editorFilePath = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html');
@@ -162,16 +212,20 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
-    // Serve client/editor.ts for the editor
+    // Serve client/editor.ts for the editor (bundled)
     if (pathname === '/client/editor.ts') {
-      const clientPath = join(clientDir, 'editor.ts');
       try {
-        const clientCode = await readFile(clientPath, 'utf-8');
-        res.writeHead(200, { 'Content-Type': 'application/javascript' });
-        res.end(clientCode);
-      } catch {
-        res.writeHead(404);
-        res.end('Not found');
+        const result = await Bun.build({
+          entrypoints: [join(clientDir, 'editor.ts')],
+          target: 'browser',
+          minify: false,
+        });
+        const js = await result.outputs[0]!.text();
+        res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' });
+        res.end(js);
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(`Build error: ${err}`);
       }
       return;
     }
