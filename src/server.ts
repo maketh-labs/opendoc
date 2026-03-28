@@ -425,11 +425,11 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
-    // Serve client/editor.ts for the editor (bundled)
-    if (pathname === '/client/editor.ts') {
+    // Serve client/editor.tsx for the editor (bundled)
+    if (pathname === '/client/editor.tsx' || pathname === '/client/editor.ts') {
       try {
         const result = await Bun.build({
-          entrypoints: [join(clientDir, 'editor.ts')],
+          entrypoints: [join(clientDir, 'editor.tsx')],
           target: 'browser',
           minify: false,
         });
