@@ -623,6 +623,58 @@
       }
     }
 
+    /* ===== BlockNote Slash Menu ===== */
+    .od-slash-menu {
+      position: absolute;
+      z-index: 999;
+      background: var(--color-bg, #fff);
+      border: 1px solid var(--color-border, #e5e5e5);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+      min-width: 220px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 4px;
+      font-size: 0.85rem;
+    }
+    [data-theme="dark"] .od-slash-menu {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .od-sm-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 80ms;
+    }
+    .od-sm-item.active,
+    .od-sm-item:hover {
+      background: var(--od-color-surface-2, #ebebeb);
+    }
+    .od-sm-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      background: var(--od-color-surface, #f5f5f5);
+      border: 1px solid var(--color-border, #e5e5e5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .od-sm-text { display: flex; flex-direction: column; min-width: 0; }
+    .od-sm-title { font-weight: 500; white-space: nowrap; }
+    .od-sm-sub {
+      font-size: 0.75rem;
+      color: var(--color-muted, #666);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* ===== Block handle & context menu (Notion-style) ===== */
     .od-block-handle {
       position: fixed;

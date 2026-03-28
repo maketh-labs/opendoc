@@ -7,6 +7,7 @@ import '@blocknote/core/style.css'
 import { initThemePanel } from './themes'
 import { initFaviconPanel } from './favicon'
 import { initSideMenu } from './side-menu'
+import { initBlockNoteSlashMenu } from './blocknote-slash-menu'
 
 const GITHUB_CLIENT_ID = 'PLACEHOLDER_CLIENT_ID';
 const OAUTH_CALLBACK_URL = '/oauth/callback';
@@ -301,6 +302,7 @@ async function handleSave(path: string, content: string, token: string, repo: st
 
 // --- BlockNote Editor ---
 let sideMenuCleanup: (() => void) | null = null;
+let slashMenuCleanup: (() => void) | null = null;
 
 function createBlockNoteEditor(container: HTMLElement, initialMarkdown: string): BlockNoteEditor {
   if (blockNoteEditor) {
@@ -309,6 +311,10 @@ function createBlockNoteEditor(container: HTMLElement, initialMarkdown: string):
   if (sideMenuCleanup) {
     sideMenuCleanup();
     sideMenuCleanup = null;
+  }
+  if (slashMenuCleanup) {
+    slashMenuCleanup();
+    slashMenuCleanup = null;
   }
 
   const pagePath = getCurrentPagePath();
@@ -338,6 +344,9 @@ function createBlockNoteEditor(container: HTMLElement, initialMarkdown: string):
 
   // Notion-style block handle menu
   sideMenuCleanup = initSideMenu(editor, container);
+
+  // BlockNote native slash menu
+  slashMenuCleanup = initBlockNoteSlashMenu(editor);
 
   blockNoteEditor = editor;
   currentContent = initialMarkdown;

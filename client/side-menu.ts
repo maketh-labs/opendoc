@@ -27,6 +27,26 @@ const TURN_INTO: TurnIntoItem[] = [
   { action: 'turn-code',       label: '</>  Code Block',   type: 'codeBlock' },
 ]
 
+function makeEmptyCell() {
+  return {
+    type: 'tableCell' as const,
+    content: [] as any[],
+    props: { colspan: 1, rowspan: 1, backgroundColor: 'default', textColor: 'default', textAlignment: 'left' },
+  }
+}
+
+function makeEmptyTable(rows = 3, cols = 3): any {
+  return {
+    type: 'table',
+    content: {
+      type: 'tableContent',
+      rows: Array.from({ length: rows }, () => ({
+        cells: Array.from({ length: cols }, () => makeEmptyCell()),
+      })),
+    },
+  }
+}
+
 function findBlockOuter(target: EventTarget | null, editorEl: HTMLElement): Element | null {
   let node = target as Element | null
   while (node && node !== editorEl) {
@@ -182,6 +202,10 @@ export function initSideMenu(editor: BlockNoteEditor, editorEl: HTMLElement): ()
       case 'turn-code':
         editor.updateBlock(block, { type: 'codeBlock', props: {} } as any)
         break
+      case 'insert-table': {
+        editor.insertBlocks([makeEmptyTable()], block, 'after')
+        break
+      }
       case 'duplicate': {
         // Deep clone without id so BlockNote assigns a new one
         const { id: _id, ...rest } = block as any
@@ -228,6 +252,9 @@ export function initSideMenu(editor: BlockNoteEditor, editorEl: HTMLElement): ()
     return `
       <div class="od-bm-label">Turn into</div>
       ${items}
+      <div class="od-bm-sep"></div>
+      <div class="od-bm-label">Insert</div>
+      <button class="od-bm-item" data-action="insert-table" role="menuitem">⊞&nbsp; Table (3×3)</button>
       <div class="od-bm-sep"></div>
       <button class="od-bm-item" data-action="move-up" role="menuitem">↑&nbsp; Move Up</button>
       <button class="od-bm-item" data-action="move-down" role="menuitem">↓&nbsp; Move Down</button>
