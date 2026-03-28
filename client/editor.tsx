@@ -4,14 +4,17 @@ import React, {
   createContext, memo,
 } from 'react'
 import { createRoot } from 'react-dom/client'
-import { useCreateBlockNote } from '@blocknote/react'
+import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
+import { BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core'
+import { filterSuggestionItems } from '@blocknote/core/extensions'
 import type { Block } from '@blocknote/core'
 import '@blocknote/core/fonts/inter.css'
 import '@blocknote/mantine/style.css'
 import { initThemePanel } from './themes'
 import { initFaviconPanel } from './favicon'
-import { markdownToBlocks } from './markdown'
+import { markdownToBlocks, blocksToMarkdown } from './markdown'
+import { CalloutBlock, CALLOUT_TYPES, type CalloutType } from './callout-block'
 import {
   checkRepoAccess, fetchUserRepos, fetchFileFromGitHub,
   commitFile, openPullRequest,
@@ -310,6 +313,14 @@ const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () => void }
   )
 })
 
+// ─── Custom Schema ───────────────────────────────────────────────────────────
+export const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    ...defaultBlockSpecs,
+    callout: CalloutBlock(),
+  },
+})
+
 // ─── BlockNote Editor ─────────────────────────────────────────────────────────
 interface BlockEditorProps {
   initialBlocks: Block[]
@@ -323,6 +334,7 @@ interface BlockEditorProps {
 // initialBlocks are resolved *before* this mounts — no flash, no race condition
 function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHeader }: BlockEditorProps) {
   const editor = useCreateBlockNote({
+    schema,
     initialContent: initialBlocks as any,
     uploadFile: async (file: File) => {
       const form = new FormData()
@@ -335,13 +347,34 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
   })
 
   const handleChange = useCallback(() => {
-    onContentChange(editor.blocksToMarkdownLossy(editor.document))
+    onContentChange(blocksToMarkdown(editor.document as any[]))
   }, [editor, onContentChange])
+
+  const getSlashMenuItems = useCallback(async (query: string) => {
+    const defaults = getDefaultReactSlashMenuItems(editor)
+    const calloutItems = Object.entries(CALLOUT_TYPES).map(([key, { icon, label }]) => ({
+      title: label,
+      subtext: `${label} callout`,
+      aliases: [key, "callout", "alert"],
+      group: "Callouts",
+      icon: <span style={{ fontSize: 16 }}>{icon}</span>,
+      onItemClick: () => {
+        editor.insertBlocks(
+          [{ type: "callout" as const, props: { calloutType: key as CalloutType } }],
+          editor.getTextCursorPosition().block,
+          "before"
+        )
+      },
+    }))
+    return filterSuggestionItems([...defaults, ...calloutItems], query)
+  }, [editor])
 
   return (
     <div className="od-editor-content">
       {pageHeader}
-      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} />
+      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false}>
+        <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
+      </BlockNoteView>
     </div>
   )
 }
