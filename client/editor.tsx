@@ -15,6 +15,7 @@ import { initThemePanel } from './themes'
 import { initFaviconPanel } from './favicon'
 import { markdownToBlocks, blocksToMarkdown } from './markdown'
 import { CalloutBlock, CALLOUT_TYPES, type CalloutType } from './callout-block'
+import { BookmarkBlock, bookmarkBlockConfig } from './bookmark-block'
 import {
   checkRepoAccess, fetchUserRepos, fetchFileFromGitHub,
   commitFile, openPullRequest,
@@ -318,6 +319,7 @@ export const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     callout: CalloutBlock(),
+    bookmark: BookmarkBlock(),
   },
 })
 
@@ -346,6 +348,28 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
     },
   })
 
+  useEffect(() => {
+    const container = document.querySelector(".bn-editor")
+    if (!container) return
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData("text/plain")?.trim() || ""
+      if (/^https?:\/\/[^\s]+$/.test(text)) {
+        e.preventDefault()
+        e.stopPropagation()
+        const pos = editor.getTextCursorPosition()
+        editor.insertBlocks(
+          [{ type: "bookmark" as const, props: { url: text, title: "", description: "", favicon: "", domain: "", imageUrl: "" } } as any],
+          pos.block,
+          "before"
+        )
+      }
+    }
+
+    container.addEventListener("paste", handlePaste as EventListener)
+    return () => container.removeEventListener("paste", handlePaste as EventListener)
+  }, [editor])
+
   const handleChange = useCallback(() => {
     onContentChange(blocksToMarkdown(editor.document as any[]))
   }, [editor, onContentChange])
@@ -360,13 +384,30 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
       icon: <span style={{ fontSize: 16 }}>{icon}</span>,
       onItemClick: () => {
         editor.insertBlocks(
-          [{ type: "callout" as const, props: { calloutType: key as CalloutType } }],
+          [{ type: "callout" as const, props: { calloutType: key as CalloutType } } as any],
           editor.getTextCursorPosition().block,
           "before"
         )
       },
     }))
-    return filterSuggestionItems([...defaults, ...calloutItems], query)
+    const bookmarkItem = {
+      title: "Bookmark",
+      subtext: "Embed a link preview card",
+      aliases: ["bookmark", "link", "embed", "url", "preview"],
+      group: "Media",
+      icon: <span style={{ fontSize: 16 }}>🔗</span>,
+      onItemClick: () => {
+        const url = prompt("Paste a URL to bookmark:")
+        if (!url || !/^https?:\/\//.test(url)) return
+        const pos = editor.getTextCursorPosition()
+        editor.insertBlocks(
+          [{ type: "bookmark" as const, props: { url, title: "", description: "", favicon: "", domain: "", imageUrl: "" } } as any],
+          pos.block,
+          "before"
+        )
+      },
+    }
+    return filterSuggestionItems([...defaults, ...calloutItems, bookmarkItem], query)
   }, [editor])
 
   return (

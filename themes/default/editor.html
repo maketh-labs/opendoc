@@ -907,6 +907,95 @@
       text-align: right;
       flex-shrink: 0;
     }
+
+    /* ===== Bookmark / link preview cards ===== */
+    .od-bookmark {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid var(--od-color-border);
+      border-radius: var(--od-radius);
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      cursor: pointer;
+      user-select: none;
+      min-height: 72px;
+      margin: 2px 0;
+    }
+    .od-bookmark:hover {
+      border-color: var(--od-color-text-muted);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .od-bookmark-info {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      min-width: 0;
+    }
+    .od-bookmark-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--od-color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .od-bookmark-desc {
+      font-size: 0.8rem;
+      color: var(--od-color-text-muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .od-bookmark-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: auto;
+      padding-top: 0.25rem;
+    }
+    .od-bookmark-favicon {
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .od-bookmark-domain {
+      font-size: 0.75rem;
+      color: var(--od-color-text-muted);
+    }
+    .od-bookmark-cover {
+      flex-shrink: 0;
+      width: 160px;
+      overflow: hidden;
+    }
+    .od-bookmark-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: 0;
+      border: none;
+    }
+    .od-bookmark-loading {
+      background: var(--od-color-surface);
+    }
+    .od-bookmark-title-skeleton,
+    .od-bookmark-desc-skeleton {
+      background: var(--od-color-border);
+      border-radius: 4px;
+      animation: od-shimmer 1.2s ease-in-out infinite;
+    }
+    .od-bookmark-title-skeleton { height: 16px; width: 60%; }
+    .od-bookmark-desc-skeleton { height: 12px; width: 80%; margin-top: 4px; }
+    @keyframes od-shimmer {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
   </style>
 </head>
 <body>

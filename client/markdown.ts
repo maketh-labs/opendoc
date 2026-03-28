@@ -5,8 +5,10 @@ import { BlockNoteEditor, BlockNoteSchema, defaultBlockSpecs } from '@blocknote/
 import type { Block } from '@blocknote/core'
 import { CalloutBlock, CALLOUT_TYPES, type CalloutType } from './callout-block'
 
+import { BookmarkBlock } from './bookmark-block'
+
 const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, callout: CalloutBlock() },
+  blockSpecs: { ...defaultBlockSpecs, callout: CalloutBlock(), bookmark: BookmarkBlock() },
 })
 
 let _editor: typeof BlockNoteEditor.prototype | null = null
@@ -73,7 +75,25 @@ export async function markdownToBlocks(markdown: string): Promise<Block[]> {
       })
     } else {
       const parsed = await getEditor().tryParseMarkdownToBlocks(part.text)
-      blocks.push(...parsed)
+      // Convert bare-URL paragraphs to bookmark blocks
+      const enriched = parsed.map((block: any) => {
+        if (
+          block.type === "paragraph" &&
+          block.content?.length === 1 &&
+          block.content[0]?.type === "text" &&
+          /^https?:\/\/[^\s]+$/.test((block.content[0].text || "").trim())
+        ) {
+          const url = block.content[0].text.trim()
+          return {
+            type: "bookmark" as const,
+            props: { url, title: "", description: "", favicon: "", domain: "", imageUrl: "" },
+            content: [],
+            children: [],
+          }
+        }
+        return block
+      })
+      blocks.push(...enriched)
     }
   }
 
@@ -85,6 +105,12 @@ export function blocksToMarkdown(blocks: any[]): string {
   const parts: string[] = []
 
   for (const block of blocks) {
+    if (block.type === 'bookmark') {
+      const url = block.props?.url || ""
+      const title = block.props?.title || ""
+      parts.push(title ? `[${title}](${url})` : url)
+      continue
+    }
     if (block.type === 'callout') {
       const tempParagraph = { ...block, type: 'paragraph', props: {} }
       const contentMd = editor.blocksToMarkdownLossy([tempParagraph])
