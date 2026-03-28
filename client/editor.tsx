@@ -14,6 +14,7 @@ import '@blocknote/mantine/style.css'
 import { initThemePanel } from './themes'
 import { initFaviconPanel } from './favicon'
 import { markdownToBlocks, blocksToMarkdown } from './markdown'
+import { createReactBlockSpec } from '@blocknote/react'
 import { CalloutBlock, CALLOUT_TYPES, type CalloutType } from './callout-block'
 import { BookmarkBlock, bookmarkBlockConfig } from './bookmark-block'
 import {
@@ -314,12 +315,79 @@ const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () => void }
   )
 })
 
+// ─── YouTube / Embed Block ──────────────────────────────────────────────────
+
+function getEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    if (u.hostname.includes("youtube.com") || u.hostname === "youtu.be") {
+      let id = u.searchParams.get("v")
+      if (!id) id = u.pathname.replace(/^\//, "").split("?")[0] ?? null
+      if (id) return `https://www.youtube.com/embed/${id}?rel=0`
+    }
+    if (u.hostname.includes("vimeo.com")) {
+      const id = u.pathname.replace(/^\//, "").split("/")[0]
+      if (id) return `https://player.vimeo.com/video/${id}`
+    }
+    if (u.hostname.includes("loom.com")) {
+      const id = u.pathname.replace(/\/share\//, "").split("/")[0]
+      if (id) return `https://www.loom.com/embed/${id}`
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+const YoutubeBlock = createReactBlockSpec(
+    {
+      type: "youtube" as const,
+      propSchema: {
+        url: { default: "" },
+        caption: { default: "" },
+      },
+      content: "none",
+    },
+    {
+      render: ({ block }) => {
+        const embedUrl = getEmbedUrl(block.props.url)
+        if (!embedUrl) {
+          return (
+            <div style={{ padding: "8px 12px", background: "var(--bn-colors-editor-background)", border: "1px solid var(--bn-colors-editor-border)", borderRadius: 6, color: "var(--bn-colors-editor-text)", fontSize: 14 }}>
+              Could not embed: {block.props.url}
+            </div>
+          )
+        }
+        return (
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: 8, overflow: "hidden", background: "#000" }}>
+              <iframe
+                src={embedUrl}
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+                frameBorder="0"
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                title="Embedded video"
+              />
+            </div>
+            {block.props.caption && (
+              <div style={{ textAlign: "center", fontSize: 13, color: "var(--bn-colors-editor-text)", opacity: 0.6 }}>
+                {block.props.caption}
+              </div>
+            )}
+          </div>
+        )
+      },
+    }
+  )
+
 // ─── Custom Schema ───────────────────────────────────────────────────────────
 export const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     callout: CalloutBlock(),
     bookmark: BookmarkBlock(),
+    youtube: YoutubeBlock(),
   },
 })
 
@@ -358,40 +426,50 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
     if (!container) return
 
     const handlePaste = async (e: ClipboardEvent) => {
-      // Handle image files from clipboard (screenshots, copied images)
-      const imageFiles = Array.from(e.clipboardData?.files || []).filter(f =>
-        f.type.startsWith("image/")
+      // Handle image/video files from clipboard (screenshots, copied media)
+      const mediaFiles = Array.from(e.clipboardData?.files || []).filter(f =>
+        f.type.startsWith("image/") || f.type.startsWith("video/")
       )
-      if (imageFiles.length > 0) {
+      if (mediaFiles.length > 0) {
         e.preventDefault()
         e.stopPropagation()
         const pos = editor.getTextCursorPosition()
-        for (const file of imageFiles) {
+        for (const file of mediaFiles) {
           try {
             const url = await uploadFile(file)
+            const blockType = file.type.startsWith("video/") ? "video" : "image"
             editor.insertBlocks(
-              [{ type: "image" as const, props: { url, name: file.name, caption: "" } }],
+              [{ type: blockType as any, props: { url, name: file.name, caption: "" } }],
               pos.block,
               "before"
             )
           } catch (err) {
-            console.error("Image upload failed:", err)
+            console.error("Media upload failed:", err)
           }
         }
         return
       }
 
-      // Handle bare URL paste → bookmark card
+      // Handle bare URL paste → embed or bookmark card
       const text = e.clipboardData?.getData("text/plain")?.trim() || ""
       if (/^https?:\/\/[^\s]+$/.test(text)) {
         e.preventDefault()
         e.stopPropagation()
         const pos = editor.getTextCursorPosition()
-        editor.insertBlocks(
-          [{ type: "bookmark" as const, props: { url: text, title: "", description: "", favicon: "", domain: "", imageUrl: "" } } as any],
-          pos.block,
-          "before"
-        )
+        const embedUrl = getEmbedUrl(text)
+        if (embedUrl) {
+          editor.insertBlocks(
+            [{ type: "youtube" as const, props: { url: text, caption: "" } }],
+            pos.block,
+            "before"
+          )
+        } else {
+          editor.insertBlocks(
+            [{ type: "bookmark" as const, props: { url: text, title: "", description: "", favicon: "", domain: "", imageUrl: "" } } as any],
+            pos.block,
+            "before"
+          )
+        }
       }
     }
 
@@ -406,7 +484,7 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
 
     const handleDragOver = (e: DragEvent) => {
       const hasFiles = Array.from(e.dataTransfer?.items || []).some(
-        item => item.kind === "file" && item.type.startsWith("image/")
+        item => item.kind === "file" && (item.type.startsWith("image/") || item.type.startsWith("video/"))
       )
       if (hasFiles) {
         e.preventDefault()
@@ -423,24 +501,25 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
 
     const handleDrop = async (e: DragEvent) => {
       wrapper.classList.remove("od-drag-over")
-      const imageFiles = Array.from(e.dataTransfer?.files || []).filter(f =>
-        f.type.startsWith("image/")
+      const mediaFiles = Array.from(e.dataTransfer?.files || []).filter(f =>
+        f.type.startsWith("image/") || f.type.startsWith("video/")
       )
-      if (imageFiles.length === 0) return
+      if (mediaFiles.length === 0) return
       e.preventDefault()
       e.stopPropagation()
 
       const pos = editor.getTextCursorPosition()
-      for (const file of imageFiles) {
+      for (const file of mediaFiles) {
         try {
           const url = await uploadFile(file)
+          const blockType = file.type.startsWith("video/") ? "video" : "image"
           editor.insertBlocks(
-            [{ type: "image" as const, props: { url, name: file.name, caption: "" } }],
+            [{ type: blockType as any, props: { url, name: file.name, caption: "" } }],
             pos.block,
             "before"
           )
         } catch (err) {
-          console.error("Image drop upload failed:", err)
+          console.error("Media drop upload failed:", err)
         }
       }
     }
@@ -493,7 +572,24 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
         )
       },
     }
-    return filterSuggestionItems([...defaults, ...calloutItems, bookmarkItem], query)
+    const youtubeItem = {
+      title: "YouTube / Embed",
+      subtext: "Embed a YouTube, Vimeo, or Loom video",
+      onItemClick: () => {
+        const url = window.prompt("Paste a YouTube, Vimeo, or Loom URL:")
+        if (!url) return
+        const pos = editor.getTextCursorPosition()
+        editor.insertBlocks(
+          [{ type: "youtube" as const, props: { url, caption: "" } }],
+          pos.block,
+          "before"
+        )
+      },
+      aliases: ["youtube", "vimeo", "loom", "embed", "video url"],
+      group: "Media",
+      icon: <span style={{ fontSize: 18 }}>&#9654;&#65039;</span>,
+    }
+    return filterSuggestionItems([...defaults, ...calloutItems, bookmarkItem, youtubeItem], query)
   }, [editor])
 
   return (
