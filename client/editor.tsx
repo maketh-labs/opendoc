@@ -56,6 +56,71 @@ function escapeHtml(str: string) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function extractPageMeta(markdown: string): { title: string; icon: string; body: string } {
+  let rest = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trimStart()
+  const fmMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  let icon = ''
+  if (fmMatch?.[1]) {
+    const iconMatch = fmMatch[1].match(/^icon:\s*(.+)$/m)
+    if (iconMatch?.[1]) icon = iconMatch[1].trim()
+  }
+  const h1Match = rest.match(/^#\s+(.+)\n?/)
+  const title = h1Match?.[1] ? h1Match[1].trim() : ''
+  const body = h1Match?.[0] ? rest.slice(h1Match[0].length).trimStart() : rest
+  return { title, icon, body }
+}
+
+function buildMarkdown(title: string, icon: string, body: string): string {
+  let md = ''
+  if (icon) md += `---\nicon: ${icon}\n---\n\n`
+  if (title) md += `# ${title}\n\n`
+  md += body
+  return md
+}
+
+// ─── Page Header ─────────────────────────────────────────────────────────────
+interface PageHeaderProps {
+  title: string
+  icon: string
+  onTitleChange: (t: string) => void
+  onIconChange: (i: string) => void
+}
+
+function PageHeader({ title, icon, onTitleChange, onIconChange }: PageHeaderProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [title])
+
+  return (
+    <div className="od-page-header">
+      {icon && (
+        <button className="od-page-icon" onClick={() => {
+          const newIcon = prompt('Enter emoji icon:', icon)
+          if (newIcon !== null) onIconChange(newIcon.trim())
+        }}>
+          {icon}
+        </button>
+      )}
+      <textarea
+        ref={textareaRef}
+        className="od-page-title"
+        value={title}
+        placeholder="Untitled"
+        onChange={e => onTitleChange(e.target.value)}
+        rows={1}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault() }
+        }}
+      />
+    </div>
+  )
+}
+
 function getStoredToken() { return localStorage.getItem('github_token') }
 function getStoredRepo()  { return localStorage.getItem('github_repo') }
 
@@ -251,11 +316,12 @@ interface BlockEditorProps {
   pagePath: string
   onContentChange: (md: string) => void
   theme: 'light' | 'dark'
+  pageHeader?: React.ReactNode
 }
 
 // key={currentFile} in parent forces full remount on page switch
 // initialBlocks are resolved *before* this mounts — no flash, no race condition
-function BlockEditor({ initialBlocks, pagePath, onContentChange, theme }: BlockEditorProps) {
+function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHeader }: BlockEditorProps) {
   const editor = useCreateBlockNote({
     initialContent: initialBlocks as any,
     uploadFile: async (file: File) => {
@@ -272,7 +338,12 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme }: BlockE
     onContentChange(editor.blocksToMarkdownLossy(editor.document))
   }, [editor, onContentChange])
 
-  return <BlockNoteView editor={editor} theme={theme} onChange={handleChange} />
+  return (
+    <div className="od-editor-content">
+      {pageHeader}
+      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} />
+    </div>
+  )
 }
 
 // ─── Editor Layout Shell ──────────────────────────────────────────────────────
@@ -314,9 +385,12 @@ function LocalEditor() {
   const [currentFile, setCurrentFile] = useState(getCurrentPagePath())
 
   // Content refs — don't re-render the editor on every keystroke
-  const currentContentRef = useRef('')
+  const currentBodyRef = useRef('')
   const originalContentRef = useRef('')
   const [isDirty, setIsDirty] = useState(false)
+
+  const [pageTitle, setPageTitle] = useState('')
+  const [pageIcon, setPageIcon] = useState('')
 
   const [initialBlocks, setInitialBlocks] = useState<Block[] | null>(null)
   const [saving, setSaving] = useState(false)
@@ -347,9 +421,12 @@ function LocalEditor() {
       .catch(() => '# New Page\n\nStart writing here...')
       .then(async text => {
         if (cancelled.current) return
-        const blocks = await markdownToBlocks(text)
+        const { title, icon, body } = extractPageMeta(text)
+        const blocks = await markdownToBlocks(body)
         if (cancelled.current) return
-        currentContentRef.current = text
+        setPageTitle(title)
+        setPageIcon(icon)
+        currentBodyRef.current = body
         originalContentRef.current = text
         setIsDirty(false)
         setInitialBlocks(blocks)
@@ -359,15 +436,20 @@ function LocalEditor() {
   }, [currentFile])
 
   const onContentChange = useCallback((md: string) => {
-    currentContentRef.current = md
-    setIsDirty(md !== originalContentRef.current)
-  }, [])
+    currentBodyRef.current = md
+    setIsDirty(buildMarkdown(pageTitle, pageIcon, md) !== originalContentRef.current)
+  }, [pageTitle, pageIcon])
+
+  const getCurrentMarkdown = useCallback(() => {
+    return buildMarkdown(pageTitle, pageIcon, currentBodyRef.current)
+  }, [pageTitle, pageIcon])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      await localSaveFile(currentFile, currentContentRef.current)
-      originalContentRef.current = currentContentRef.current
+      const content = getCurrentMarkdown()
+      await localSaveFile(currentFile, content)
+      originalContentRef.current = content
       setIsDirty(false)
       showToast('Saved', 'success')
       refreshGit()
@@ -376,7 +458,7 @@ function LocalEditor() {
     } finally {
       setSaving(false)
     }
-  }, [currentFile, refreshGit])
+  }, [currentFile, refreshGit, getCurrentMarkdown])
 
   useKeyboardSave(handleSave)
 
@@ -416,37 +498,48 @@ function LocalEditor() {
     setCurrentFile(filePath)
   }
 
+  const handleTitleChange = useCallback((t: string) => {
+    setPageTitle(t)
+    setIsDirty(buildMarkdown(t, pageIcon, currentBodyRef.current) !== originalContentRef.current)
+  }, [pageIcon])
+
+  const handleIconChange = useCallback((i: string) => {
+    setPageIcon(i)
+    setIsDirty(buildMarkdown(pageTitle, i, currentBodyRef.current) !== originalContentRef.current)
+  }, [pageTitle])
+
   const gitDirty = gitStatus?.isRepo && gitStatus.changes > 0
 
   const header = (
     <div className="editor-header">
-      <span className="logo">OpenDoc Editor</span>
-      <span style={{ color: 'var(--color-muted)', fontSize: '0.8rem' }}>Local</span>
-      {pages.length > 0 && (
-        <select
-          value={currentFile}
-          onChange={e => switchPage(e.target.value)}
-          style={{ padding: '0.3rem 0.5rem', border: '1px solid var(--color-border)', borderRadius: 'var(--border-radius)', background: 'var(--color-bg)', color: 'var(--color-text)', fontSize: '0.8rem' }}
-        >
-          {pages.map(p => <option key={p.filePath} value={p.filePath}>{p.title}</option>)}
-        </select>
-      )}
+      <span className="od-breadcrumb">
+        {pages.length > 0 ? (
+          <select
+            value={currentFile}
+            onChange={e => switchPage(e.target.value)}
+            className="od-breadcrumb-select"
+          >
+            {pages.map(p => <option key={p.filePath} value={p.filePath}>{p.title}</option>)}
+          </select>
+        ) : (
+          <span>{currentFile}</span>
+        )}
+      </span>
       <span className="spacer" />
       {gitStatus?.isRepo && (
         <span
           className={`od-git-status ${gitDirty ? 'od-git-dirty' : 'od-git-clean'}`}
           title={gitStatus.branch ? `Branch: ${gitStatus.branch}` : undefined}
         >
-          {gitDirty ? `${gitStatus.changes} changed` : '✓ up to date'}
+          {gitDirty ? `${gitStatus.changes} changed` : 'Saved'}
         </span>
       )}
       <button
-        className="od-save-primary"
+        className="od-save-primary od-save-standalone"
         onClick={handleSave}
         disabled={saving}
-        style={{ borderRadius: 'var(--border-radius)' }}
       >
-        {saving ? <><span className="od-spinner" />Saving…</> : isDirty ? 'Save *' : 'Save'}
+        {saving ? <><span className="od-spinner" />Saving…</> : isDirty ? 'Save' : 'Saved'}
       </button>
       {gitStatus?.isRepo && (
         <div className="od-commit-group">
@@ -457,7 +550,7 @@ function LocalEditor() {
             value={commitMsg}
             onChange={e => setCommitMsg(e.target.value)}
           />
-          <button className="btn btn-primary" onClick={handleCommit} disabled={committing}>
+          <button className="btn btn-primary btn-sm" onClick={handleCommit} disabled={committing}>
             {committing ? 'Committing…' : 'Commit & Push'}
           </button>
         </div>
@@ -477,6 +570,14 @@ function LocalEditor() {
           pagePath={currentFile}
           onContentChange={onContentChange}
           theme={editorTheme}
+          pageHeader={
+            <PageHeader
+              title={pageTitle}
+              icon={pageIcon}
+              onTitleChange={handleTitleChange}
+              onIconChange={handleIconChange}
+            />
+          }
         />
       ) : (
         <div className="od-editor-loading">Loading…</div>
@@ -496,9 +597,12 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
   const pagePath = getCurrentPagePath()
   const baseBranch = config.github?.branch || 'main'
 
-  const currentContentRef = useRef('')
+  const currentBodyRef = useRef('')
   const originalContentRef = useRef('')
   const [isDirty, setIsDirty] = useState(false)
+
+  const [pageTitle, setPageTitle] = useState('')
+  const [pageIcon, setPageIcon] = useState('')
 
   const [initialBlocks, setInitialBlocks] = useState<Block[] | null>(null)
   const [repoAccess, setRepoAccess] = useState<RepoAccess>('none')
@@ -511,12 +615,14 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
   useEffect(() => {
     checkRepoAccess(repo, token).then(setRepoAccess)
 
-    // Fetch directly from GitHub API — not from stale /dist/ cache
     fetchFileFromGitHub(repo, pagePath, token, baseBranch)
       .then(async text => {
         const md = text || '# New Page\n\nStart writing here...'
-        const blocks = await markdownToBlocks(md)
-        currentContentRef.current = md
+        const { title, icon, body } = extractPageMeta(md)
+        const blocks = await markdownToBlocks(body)
+        setPageTitle(title)
+        setPageIcon(icon)
+        currentBodyRef.current = body
         originalContentRef.current = md
         setInitialBlocks(blocks)
       })
@@ -524,15 +630,19 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
   }, [])
 
   const onContentChange = useCallback((md: string) => {
-    currentContentRef.current = md
-    setIsDirty(md !== originalContentRef.current)
-  }, [])
+    currentBodyRef.current = md
+    setIsDirty(buildMarkdown(pageTitle, pageIcon, md) !== originalContentRef.current)
+  }, [pageTitle, pageIcon])
+
+  const getCurrentMarkdown = useCallback(() => {
+    return buildMarkdown(pageTitle, pageIcon, currentBodyRef.current)
+  }, [pageTitle, pageIcon])
 
   const handleSave = useCallback(async (forcePR = false) => {
     setSaving(true)
     setShowDropdown(false)
     try {
-      const content = currentContentRef.current
+      const content = getCurrentMarkdown()
       const before = originalContentRef.current
       const message = await getCommitMessage(pagePath, before, content)
 
@@ -552,25 +662,37 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
     } finally {
       setSaving(false)
     }
-  }, [repo, pagePath, token, baseBranch, repoAccess])
+  }, [repo, pagePath, token, baseBranch, repoAccess, getCurrentMarkdown])
 
   useKeyboardSave(() => handleSave(false))
+
+  const handleTitleChange = useCallback((t: string) => {
+    setPageTitle(t)
+    setIsDirty(buildMarkdown(t, pageIcon, currentBodyRef.current) !== originalContentRef.current)
+  }, [pageIcon])
+
+  const handleIconChange = useCallback((i: string) => {
+    setPageIcon(i)
+    setIsDirty(buildMarkdown(pageTitle, i, currentBodyRef.current) !== originalContentRef.current)
+  }, [pageTitle])
 
   const isWrite = repoAccess === 'write'
 
   const header = (
     <div className="editor-header">
-      <span className="logo">OpenDoc Editor</span>
-      <span className="repo-name">{repo}</span>
-      <span className="page-path">{pagePath}</span>
+      <span className="od-breadcrumb">
+        <span className="od-breadcrumb-muted">{repo}</span>
+        <span className="od-breadcrumb-sep">/</span>
+        <span>{pagePath}</span>
+      </span>
       <span className="spacer" />
       <div className="od-save-btn-group">
         <button className="od-save-primary" onClick={() => handleSave(false)} disabled={saving}>
           {saving
             ? <><span className="od-spinner" />Saving…</>
             : isDirty
-              ? `${isWrite ? 'Save' : 'Suggest Edit'} *`
-              : isWrite ? 'Save' : 'Suggest Edit'
+              ? `${isWrite ? 'Save' : 'Suggest Edit'}`
+              : isWrite ? 'Saved' : 'Suggest Edit'
           }
         </button>
         {isWrite && (
@@ -586,8 +708,8 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
           </>
         )}
       </div>
-      <button className="btn" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>Change Repo</button>
-      <button className="btn" onClick={() => { localStorage.removeItem('github_token'); localStorage.removeItem('github_repo'); window.location.reload() }}>Logout</button>
+      <button className="btn btn-sm" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>Change Repo</button>
+      <button className="btn btn-sm" onClick={() => { localStorage.removeItem('github_token'); localStorage.removeItem('github_repo'); window.location.reload() }}>Logout</button>
       <button className="od-toggle-themes" onClick={() => setRightOpen(o => !o)} title="Themes">
         <ThemeIcon />
       </button>
@@ -603,6 +725,14 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
           pagePath={pagePath}
           onContentChange={onContentChange}
           theme={editorTheme}
+          pageHeader={
+            <PageHeader
+              title={pageTitle}
+              icon={pageIcon}
+              onTitleChange={handleTitleChange}
+              onIconChange={handleIconChange}
+            />
+          }
         />
       ) : (
         <div className="od-editor-loading">Loading…</div>
