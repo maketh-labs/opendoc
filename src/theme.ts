@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type { TemplateVars } from './types';
+import { escapeHtml } from './utils.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const themesDir = join(__dirname, '..', 'themes');
@@ -40,6 +41,3 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
     .replace(/\{\{pageTitle\}\}/g, escapeHtml(vars.pageTitle));
 }
 
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}

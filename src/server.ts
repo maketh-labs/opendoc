@@ -11,34 +11,10 @@ import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { startMcpServer } from './mcp';
 import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath } from './config';
+import { escapeHtml } from './utils.js';
+import { navToHtml, backlinksToHtml } from './render-utils.js';
 import type { NavNode, BacklinksIndex } from './types';
 import simpleGit from 'simple-git';
-
-function navToHtml(node: NavNode, currentPath: string = ''): string {
-  if (!node) return '';
-  const active = node.path === currentPath ? ' class="active"' : '';
-  const iconSpan = node.icon ? `<span class="od-nav-icon">${node.icon}</span> ` : '';
-  let html = `<li><a href="${node.url}"${active}>${iconSpan}${escapeHtml(node.title)}</a>`;
-  if (node.children && node.children.length > 0) {
-    html += '<ul>' + node.children.map(c => navToHtml(c, currentPath)).join('') + '</ul>';
-  }
-  html += '</li>';
-  return html;
-}
-
-function backlinksToHtml(links: string[]): string {
-  if (!links || links.length === 0) return '';
-  const items = links.map(l => {
-    const url = l === '.' ? '/' : `/${l}`;
-    const name = l === '.' ? 'Home' : l.split('/').pop()!.replace(/-/g, ' ');
-    return `<li><a href="${url}">${escapeHtml(name)}</a></li>`;
-  }).join('');
-  return `<aside class="od-backlinks"><h4>Referenced by</h4><ul>${items}</ul></aside>`;
-}
-
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 // In-memory page cache
 const cache = new Map<string, string>();
@@ -53,10 +29,12 @@ async function buildPage(
   template: string,
   navHtml: string,
   backlinks: BacklinksIndex,
+  titleMap: Map<string, string>,
 ): Promise<string> {
   const indexPath = join(rootDir, page, 'index.md');
   const markdown = await readFile(indexPath, 'utf-8');
-  const { html: content, toc, frontmatter } = await renderFull(markdown);
+  const currentPath = page === '.' ? 'index.md' : `${page}/index.md`;
+  const { html: content, toc, frontmatter } = await renderFull(markdown, { titleMap, currentPath });
   const titleMatch = markdown.match(/^#\s+(.+)$/m);
   const title = (frontmatter.title as string) || (titleMatch ? titleMatch[1]!.trim() : 'OpenDoc');
   const icon = (frontmatter.icon as string) || '';
@@ -84,6 +62,29 @@ export async function startServer(rootDir: string, port: number = 3000) {
   let navTree = await walkDir(rootDir);
   let backlinks = await buildBacklinks(rootDir);
   let navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
+  let titleMap = new Map<string, string>();
+
+  async function buildTitleMap(rootDir: string, pages: string[]): Promise<Map<string, string>> {
+    const { parseFrontmatter } = await import("./utils.js");
+    const map = new Map<string, string>();
+    for (const page of pages) {
+      try {
+        const md = await readFile(join(rootDir, page, "index.md"), "utf-8");
+        const fm = parseFrontmatter(md);
+        const titleMatch = md.match(/^#\s+(.+)$/m);
+        const title = fm["title"] || (titleMatch ? titleMatch[1]!.trim() : page);
+        map.set(page === "." ? "/" : `/${page}`, title);
+      } catch {}
+    }
+    return map;
+  }
+
+  // Init titleMap
+  const initPages = await getAllPages(rootDir);
+  titleMap = await buildTitleMap(rootDir, initPages);
+
+  // Inflight dedup map
+  const pageBuilding = new Map<string, Promise<string>>();
 
   // Build client JS bundle
   const clientDir = join(dirname(dirname(import.meta.path)), 'client');
@@ -95,7 +96,10 @@ export async function startServer(rootDir: string, port: number = 3000) {
     navTree = await walkDir(rootDir);
     backlinks = await buildBacklinks(rootDir);
     navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
+    const pages = await getAllPages(rootDir);
+    titleMap = await buildTitleMap(rootDir, pages);
     cache.clear();
+    pageBuilding.clear();
     editorBundleJs = null;   // invalidate editor bundle on any file change
     editorBundleCss = null;
   }
@@ -518,17 +522,21 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
-    try {
-      if (!cache.has(pagePath)) {
-        const html = await buildPage(rootDir, pagePath, template, navHtml, backlinks);
-        cache.set(pagePath, html);
+    if (!cache.has(pagePath)) {
+      if (!pageBuilding.has(pagePath)) {
+        const p = buildPage(rootDir, pagePath, template, navHtml, backlinks, titleMap)
+          .then(html => { cache.set(pagePath, html); pageBuilding.delete(pagePath); return html; })
+          .catch(err => { pageBuilding.delete(pagePath); throw err; });
+        pageBuilding.set(pagePath, p);
       }
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(cache.get(pagePath));
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'text/html' });
-      res.end(`<h1>Error</h1><pre>${escapeHtml(String(err))}</pre>`);
+      try { await pageBuilding.get(pagePath); } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end(`<h1>Error</h1><pre>${escapeHtml(String(err))}</pre>`);
+        return;
+      }
     }
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(cache.get(pagePath));
   });
 
   server.listen(port, () => {

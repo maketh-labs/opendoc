@@ -22,7 +22,7 @@ import {
 interface SiteConfig {
   title?: string
   editorPath?: string
-  github?: { repo?: string; branch?: string }
+  github?: { repo?: string; branch?: string; clientId?: string }
   theme?: string
 }
 
@@ -31,8 +31,16 @@ interface NavNode {
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const GITHUB_CLIENT_ID = 'PLACEHOLDER_CLIENT_ID'
-const MCP_URL = 'http://localhost:3001/mcp'
+function getMcpUrl(): string {
+  try {
+    const u = new URL(window.location.href)
+    u.port = String(parseInt(u.port || "80") + 1)
+    u.pathname = "/mcp"
+    return u.toString()
+  } catch {
+    return "http://localhost:3001/mcp"
+  }
+}
 
 const isLocal =
   window.location.hostname === 'localhost' ||
@@ -99,7 +107,7 @@ async function localSaveFile(path: string, content: string): Promise<void> {
 async function getCommitMessage(path: string, before: string, after: string): Promise<string> {
   const fallback = `edit(${path}): ${new Date().toISOString()}`
   try {
-    const r = await fetch(MCP_URL, {
+    const r = await fetch(getMcpUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tool: 'generate_commit_message', params: { path, before, after } }),
@@ -133,14 +141,17 @@ function useGitStatus() {
 }
 
 function useDarkMode(): 'light' | 'dark' {
-  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  const mqRef = useRef<MediaQueryList | null>(null)
+  if (!mqRef.current) mqRef.current = window.matchMedia('(prefers-color-scheme: dark)')
+  const mq = mqRef.current
+
   const [theme, setTheme] = useState<'light' | 'dark'>(mq.matches ? 'dark' : 'light')
 
   useEffect(() => {
     const handler = (e: MediaQueryListEvent) => setTheme(e.matches ? 'dark' : 'light')
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
-  }, [])
+  }, [mq])
 
   return theme
 }
@@ -163,7 +174,7 @@ function useKeyboardSave(onSave: () => void) {
 
 // ─── Theme Panel ──────────────────────────────────────────────────────────────
 // memo'd so it never re-renders — keeps vanilla-JS listeners alive
-const ThemePanel = memo(function ThemePanel() {
+const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () => void }) {
   const initRef = useRef(false)
 
   useEffect(() => {
@@ -171,16 +182,13 @@ const ThemePanel = memo(function ThemePanel() {
     initRef.current = true
     initThemePanel()
     initFaviconPanel()
-    document.getElementById('close-right')?.addEventListener('click', () => {
-      document.getElementById('editor-right-panel')?.classList.remove('open')
-    })
   }, [])
 
   return (
     <div className="od-theme-panel">
       <div className="od-theme-panel-header">
         <h3>Themes</h3>
-        <button className="od-close-btn" id="close-right">&times;</button>
+        <button className="od-close-btn" id="close-right" onClick={onClose}>&times;</button>
       </div>
       <div className="od-theme-search">
         <input type="search" placeholder="Search themes..." id="theme-search-input" />
@@ -273,9 +281,10 @@ interface EditorShellProps {
   children: React.ReactNode
   rightOpen: boolean
   onRightToggle: () => void
+  onRightClose: () => void
 }
 
-function EditorShell({ header, children, rightOpen, onRightToggle }: EditorShellProps) {
+function EditorShell({ header, children, rightOpen, onRightClose }: EditorShellProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {header}
@@ -285,7 +294,7 @@ function EditorShell({ header, children, rightOpen, onRightToggle }: EditorShell
           className={`od-editor-right${rightOpen ? ' open' : ''}`}
           id="editor-right-panel"
         >
-          {rightOpen && <ThemePanel />}
+          {rightOpen && <ThemePanel onClose={onRightClose} />}
         </aside>
       </div>
     </div>
@@ -460,7 +469,7 @@ function LocalEditor() {
   )
 
   return (
-    <EditorShell header={header} rightOpen={rightOpen} onRightToggle={() => setRightOpen(o => !o)}>
+    <EditorShell header={header} rightOpen={rightOpen} onRightToggle={() => setRightOpen(o => !o)} onRightClose={() => setRightOpen(false)}>
       {initialBlocks ? (
         <BlockEditor
           key={currentFile}
@@ -586,7 +595,7 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
   )
 
   return (
-    <EditorShell header={header} rightOpen={rightOpen} onRightToggle={() => setRightOpen(o => !o)}>
+    <EditorShell header={header} rightOpen={rightOpen} onRightToggle={() => setRightOpen(o => !o)} onRightClose={() => setRightOpen(false)}>
       {initialBlocks ? (
         <BlockEditor
           key={pagePath}
@@ -603,10 +612,14 @@ function GitHubEditor({ token, repo }: GitHubEditorProps) {
 }
 
 // ─── Auth Screens ─────────────────────────────────────────────────────────────
-function LoginScreen() {
+function LoginScreen({ clientId }: { clientId?: string }) {
   function login() {
+    if (!clientId) {
+      showToast('GitHub OAuth client ID not configured', 'error')
+      return
+    }
     const redirectUri = encodeURIComponent(window.location.origin + '/editor')
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}&scope=repo`
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo`
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -673,7 +686,7 @@ function NoAccess({ repo }: { repo: string }) {
       <div className="login-screen">
         <div className="login-box">
           <h1>No Access</h1>
-          <p>You don't have access to <strong>{escapeHtml(repo)}</strong>.</p>
+          <p>You don't have access to <strong>{repo}</strong>.</p>
           <button className="btn btn-primary" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>
             Choose Another Repo
           </button>
@@ -762,7 +775,7 @@ function App() {
     <SiteConfigContext.Provider value={siteConfig}>
       {view.view === 'loading'     && <div className="login-screen"><div style={{ color: 'var(--color-muted)' }}>Loading…</div></div>}
       {view.view === 'local'       && <LocalEditor />}
-      {view.view === 'login'       && <LoginScreen />}
+      {view.view === 'login'       && <LoginScreen clientId={siteConfig.github?.clientId} />}
       {view.view === 'repoPicker'  && <RepoPicker repos={view.repos} />}
       {view.view === 'noAccess'    && <NoAccess repo={view.repo} />}
       {view.view === 'editor'      && <GitHubEditor token={view.token} repo={view.repo} />}

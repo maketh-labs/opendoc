@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'fs/promises';
 import { join, relative, basename } from 'path';
 import type { NavNode } from './types';
+import { parseFrontmatter } from './utils.js';
 
 function titleFromFolder(name: string): string {
   return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -23,29 +24,11 @@ interface PageMeta {
 async function extractMeta(filePath: string): Promise<PageMeta> {
   try {
     const content = await readFile(filePath, 'utf-8');
-
-    // Parse frontmatter
-    let icon: string | null = null;
-    let fmTitle: string | null = null;
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      for (const line of fmMatch[1]!.split('\n')) {
-        const colonIdx = line.indexOf(':');
-        if (colonIdx === -1) continue;
-        const key = line.slice(0, colonIdx).trim();
-        let value = line.slice(colonIdx + 1).trim();
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-          value = value.slice(1, -1);
-        }
-        if (key === 'icon') icon = decodeUnicodeEscapes(value);
-        if (key === 'title') fmTitle = value;
-      }
-    }
-
-    // Extract H1 title
+    const fm = parseFrontmatter(content);
+    const icon = fm["icon"] ? decodeUnicodeEscapes(fm["icon"]) : null;
+    const fmTitle = fm["title"] ?? null;
     const h1Match = content.match(/^#\s+(.+)$/m);
     const title = fmTitle || (h1Match ? h1Match[1]!.trim() : null);
-
     return { title, icon };
   } catch {
     return { title: null, icon: null };

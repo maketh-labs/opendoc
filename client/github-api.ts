@@ -38,7 +38,9 @@ export async function fetchFileFromGitHub(
   if (!r.ok) throw new Error(`Failed to fetch ${path}: ${r.status}`)
   const data = await r.json()
   // content is base64-encoded with newlines — strip them before decoding
-  return decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))))
+  const b64 = data.content.replace(/\n/g, "")
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
 }
 
 async function getFileSha(

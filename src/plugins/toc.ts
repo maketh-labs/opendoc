@@ -1,6 +1,7 @@
 import { visit } from 'unist-util-visit';
 import type { Plugin } from 'unified';
 import type { Root, Element } from 'hast';
+import { escapeHtml } from '../utils.js';
 
 export interface TocEntry {
   id: string;
@@ -62,10 +63,6 @@ export function tocToHtml(entries: TocEntry[]): string {
     ${items}
   </ul>
 </div>`;
-}
-
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /**

@@ -11,6 +11,7 @@ import { wikilinkPlugin, type WikilinkOptions } from './wikilinks';
 import { calloutPlugin } from './plugins/callouts';
 import { tocPlugin, extractToc, type TocEntry } from './plugins/toc';
 import { imagePlugin } from './plugins/images';
+import { parseFrontmatter as parseFM } from './utils.js';
 import type { Root } from 'hast';
 
 export interface Frontmatter {
@@ -28,27 +29,6 @@ export interface RenderResult {
 export interface RenderOptions {
   titleMap?: Map<string, string>;
   currentPath?: string;
-}
-
-function parseFrontmatter(markdown: string): Frontmatter {
-  const match = markdown.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return {};
-
-  const yaml = match[1]!;
-  const result: Frontmatter = {};
-
-  for (const line of yaml.split('\n')) {
-    const colonIdx = line.indexOf(':');
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    let value = line.slice(colonIdx + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    result[key] = value;
-  }
-
-  return result;
 }
 
 function createProcessor(wikilinkOpts: WikilinkOptions = {}) {
@@ -75,7 +55,7 @@ export async function render(markdown: string): Promise<string> {
 }
 
 export async function renderFull(markdown: string, options: RenderOptions = {}): Promise<RenderResult> {
-  const frontmatter = parseFrontmatter(markdown);
+  const frontmatter = parseFM(markdown) as Frontmatter;
 
   const wikilinkOpts: WikilinkOptions = {
     titleMap: options.titleMap,

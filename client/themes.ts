@@ -131,6 +131,7 @@ class ThemeManager {
   private beforePreviewTheme: Theme | null = null
   private styleEl: HTMLStyleElement
   private cssEditTab: "light" | "dark" = "light"
+  private customCss: { light: string; dark: string } = { light: "", dark: "" }
 
   constructor() {
     this.styleEl = document.createElement('style')
@@ -150,12 +151,9 @@ class ThemeManager {
 
   private applyThemeCSS(theme: Theme): void {
     if (theme.mode === "both") {
-      this.styleEl.textContent = theme.css + '\n' + (theme.darkCss || '')
-    } else if (theme.mode === "dark") {
-      this.styleEl.textContent = theme.css
+      this.styleEl.textContent = (this.customCss.light || theme.css) + "\n" + (this.customCss.dark || theme.darkCss || "")
     } else {
-      // light only
-      this.styleEl.textContent = theme.css
+      this.styleEl.textContent = this.customCss.light || this.customCss.dark || theme.css
     }
   }
 
@@ -215,10 +213,9 @@ class ThemeManager {
   }
 
   getEditableCSS(tab: "light" | "dark"): string {
+    if (this.customCss[tab]) return this.customCss[tab]
     const theme = this.getActiveTheme()
-    if (theme.mode === "both") {
-      return tab === "light" ? theme.css : (theme.darkCss || '')
-    }
+    if (theme.mode === "both") return tab === "light" ? theme.css : (theme.darkCss || "")
     return theme.css
   }
 
@@ -231,20 +228,8 @@ class ThemeManager {
   }
 
   applyCustomCSS(css: string, tab: "light" | "dark"): void {
-    const theme = this.getActiveTheme()
-    if (theme.mode === "both") {
-      if (tab === "light") {
-        this.styleEl.textContent = css + '\n' + (theme.darkCss || '')
-        // Update in-memory theme css
-        ;(theme as any).css = css
-      } else {
-        this.styleEl.textContent = theme.css + '\n' + css
-        ;(theme as any).darkCss = css
-      }
-    } else {
-      this.styleEl.textContent = css
-      ;(theme as any).css = css
-    }
+    this.customCss[tab] = css
+    this.applyThemeCSS(this.getActiveTheme())
   }
 
   getCustomCSS(): string {

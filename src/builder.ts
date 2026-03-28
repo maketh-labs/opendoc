@@ -7,50 +7,9 @@ import { compress, compressMini } from './compressor';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath } from './config';
+import { escapeHtml, parseFrontmatter } from './utils.js';
+import { navToHtml, backlinksToHtml } from './render-utils.js';
 import type { NavNode, BacklinksIndex } from './types';
-
-function parseFrontmatter(markdown: string): Record<string, string> {
-  const match = markdown.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return {};
-  const result: Record<string, string> = {};
-  for (const line of match[1]!.split('\n')) {
-    const colonIdx = line.indexOf(':');
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    let value = line.slice(colonIdx + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    result[key] = value;
-  }
-  return result;
-}
-
-function navToHtml(node: NavNode, currentPath: string = ''): string {
-  if (!node) return '';
-  const active = node.path === currentPath ? ' class="active"' : '';
-  const iconSpan = node.icon ? `<span class="od-nav-icon">${node.icon}</span> ` : '';
-  let html = `<li><a href="${node.url}"${active}>${iconSpan}${escapeHtml(node.title)}</a>`;
-  if (node.children && node.children.length > 0) {
-    html += '<ul>' + node.children.map(c => navToHtml(c, currentPath)).join('') + '</ul>';
-  }
-  html += '</li>';
-  return html;
-}
-
-function backlinksToHtml(links: string[]): string {
-  if (!links || links.length === 0) return '';
-  const items = links.map(l => {
-    const url = l === '.' ? '/' : `/${l}`;
-    const name = l === '.' ? 'Home' : l.split('/').pop()!.replace(/-/g, ' ');
-    return `<li><a href="${url}">${escapeHtml(name)}</a></li>`;
-  }).join('');
-  return `<aside class="od-backlinks"><h4>Referenced by</h4><ul>${items}</ul></aside>`;
-}
-
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -210,10 +169,11 @@ export async function build(rootDir: string): Promise<void> {
   }
 
   // Write public config.json to dist/_opendoc/
+  const { clientSecret: _secret, ...safeGithub } = config.github ?? {};
   const publicConfig = {
     title: config.title,
     editorPath: editorPath ?? '/editor',
-    github: config.github,
+    github: config.github ? safeGithub : undefined,
     theme: config.theme,
   };
   await writeFile(join(opendocDir, 'config.json'), JSON.stringify(publicConfig, null, 2));
