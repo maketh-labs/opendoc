@@ -1,5 +1,6 @@
-import { readFile } from 'fs/promises';
+import { readFile, writeFile, unlink } from 'fs/promises';
 import { join, dirname, resolve } from 'path';
+import { tmpdir } from 'os';
 import { createServer } from 'http';
 import type { ServerResponse, IncomingMessage } from 'http';
 import { watch } from 'chokidar';
@@ -41,6 +42,10 @@ function escapeHtml(str: string): string {
 
 // In-memory page cache
 const cache = new Map<string, string>();
+
+// Editor bundle cache — built once, invalidated on file changes
+let editorBundleJs: string | null = null;
+let editorBundleCss: string | null = null;
 
 async function buildPage(
   rootDir: string,
@@ -91,6 +96,8 @@ export async function startServer(rootDir: string, port: number = 3000) {
     backlinks = await buildBacklinks(rootDir);
     navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
     cache.clear();
+    editorBundleJs = null;   // invalidate editor bundle on any file change
+    editorBundleCss = null;
   }
 
   // Watch for changes
@@ -157,63 +164,47 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
-    // File upload for editor (images, etc.)
+    // File upload for editor — use Bun's built-in formData parser (no manual multipart)
     if (pathname === '/_opendoc/upload' && req.method === 'POST') {
-      const body = await new Promise<Buffer>((resolve) => {
-        const chunks: Buffer[] = [];
-        (req as IncomingMessage).on('data', (chunk: Buffer) => { chunks.push(chunk); });
-        (req as IncomingMessage).on('end', () => resolve(Buffer.concat(chunks)));
-      });
+      try {
+        // Bun exposes formData() on Request; wrap the IncomingMessage into a Request
+        const rawBody = await new Promise<Buffer>((resolve) => {
+          const chunks: Buffer[] = [];
+          (req as IncomingMessage).on('data', (c: Buffer) => chunks.push(c));
+          (req as IncomingMessage).on('end', () => resolve(Buffer.concat(chunks)));
+        });
+        const bunReq = new Request('http://localhost/_opendoc/upload', {
+          method: 'POST',
+          headers: Object.fromEntries(
+            Object.entries(req.headers).filter(([, v]) => v !== undefined) as [string, string][]
+          ),
+          body: rawBody.buffer as ArrayBuffer,
+        });
+        const form = await bunReq.formData();
+        const file = form.get('file') as File | null;
+        const pagePath = (form.get('pagePath') as string | null) ?? '.';
 
-      // Parse multipart form data manually
-      const contentType = req.headers['content-type'] || '';
-      const boundaryMatch = contentType.match(/boundary=(.+)/);
-      if (!boundaryMatch) {
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
-        res.end('Missing boundary');
-        return;
-      }
-
-      const boundary = boundaryMatch[1]!;
-      const parts = body.toString('binary').split(`--${boundary}`);
-      let fileData: Buffer | null = null;
-      let fileName = 'upload';
-      let pagePath = '.';
-
-      for (const part of parts) {
-        if (part.includes('name="file"')) {
-          const filenameMatch = part.match(/filename="([^"]+)"/);
-          if (filenameMatch) fileName = filenameMatch[1]!;
-          const headerEnd = part.indexOf('\r\n\r\n');
-          if (headerEnd !== -1) {
-            const raw = part.slice(headerEnd + 4).replace(/\r\n$/, '');
-            fileData = Buffer.from(raw, 'binary');
-          }
-        } else if (part.includes('name="pagePath"')) {
-          const headerEnd = part.indexOf('\r\n\r\n');
-          if (headerEnd !== -1) {
-            pagePath = part.slice(headerEnd + 4).replace(/\r\n$/, '').trim();
-          }
+        if (!file) {
+          res.writeHead(400, { 'Content-Type': 'text/plain' });
+          res.end('No file provided');
+          return;
         }
+
+        const { mkdir } = await import('fs/promises');
+        const assetsDir = join(rootDir, pagePath === '.' ? '' : pagePath, 'assets');
+        await mkdir(assetsDir, { recursive: true });
+
+        const safeName = `${Date.now()}-${file.name.replace(/[^a-z0-9.-]/gi, '_')}`;
+        const filePath = join(assetsDir, safeName);
+        await Bun.write(filePath, await file.arrayBuffer());
+
+        const urlPath = pagePath === '.' ? `/assets/${safeName}` : `/${pagePath}/assets/${safeName}`;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ url: urlPath }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: String(e) }));
       }
-
-      if (!fileData) {
-        res.writeHead(400, { 'Content-Type': 'text/plain' });
-        res.end('No file');
-        return;
-      }
-
-      const { mkdir } = await import('fs/promises');
-      const assetsDir = join(rootDir, pagePath === '.' ? '' : pagePath, 'assets');
-      await mkdir(assetsDir, { recursive: true });
-
-      const safeName = `${Date.now()}-${fileName.replace(/[^a-z0-9.-]/gi, '_')}`;
-      const filePath = join(assetsDir, safeName);
-      await Bun.write(filePath, fileData);
-
-      const urlPath = pagePath === '.' ? `/assets/${safeName}` : `/${pagePath}/assets/${safeName}`;
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ url: urlPath }));
       return;
     }
 
@@ -326,20 +317,29 @@ export async function startServer(rootDir: string, port: number = 3000) {
 
         try {
           if (token) {
+            // Use a temporary git credentials file — token never touches .git/config
+            // or the remote URL permanently
             const remotes = await git.getRemotes(true);
             const origin = remotes.find(r => r.name === 'origin');
-            if (origin?.refs?.push) {
-              const cleanUrl = origin.refs.push;
-              const authedUrl = cleanUrl.startsWith('https://')
-                ? cleanUrl.replace('https://', `https://${token}@`)
-                : cleanUrl;
-              await git.remote(['set-url', 'origin', authedUrl]);
+            const remoteUrl = origin?.refs?.push;
+
+            if (remoteUrl?.startsWith('https://')) {
+              const credContent = `url=${remoteUrl.replace('https://', `https://x-token:${token}@`)}\n`;
+              const tmpCred = join(tmpdir(), `.opendoc-creds-${Date.now()}`);
+              await writeFile(tmpCred, credContent, { mode: 0o600 });
               try {
+                await git.addConfig('credential.helper', `store --file=${tmpCred}`, false, 'local');
                 await git.push();
                 pushed = true;
               } finally {
-                await git.remote(['set-url', 'origin', cleanUrl]);
+                // Always clean up — credential file and local config entry
+                await unlink(tmpCred).catch(() => {});
+                await git.raw(['config', '--local', '--unset', 'credential.helper']).catch(() => {});
               }
+            } else {
+              // SSH remote or no remote — push without credential injection
+              await git.push();
+              pushed = true;
             }
           } else {
             await git.push();
@@ -425,21 +425,37 @@ export async function startServer(rootDir: string, port: number = 3000) {
       return;
     }
 
-    // Serve client/editor.tsx for the editor (bundled)
+    // Serve editor bundle — built once on first request, cached until file changes
     if (pathname === '/client/editor.tsx' || pathname === '/client/editor.ts') {
       try {
-        const result = await Bun.build({
-          entrypoints: [join(clientDir, 'editor.tsx')],
-          target: 'browser',
-          minify: false,
-        });
-        const js = await result.outputs[0]!.text();
+        if (!editorBundleJs) {
+          const result = await Bun.build({
+            entrypoints: [join(clientDir, 'editor.tsx')],
+            target: 'browser',
+            minify: false,
+          });
+          if (!result.success) throw new Error(result.logs.join('\n'));
+          for (const out of result.outputs) {
+            if (out.kind === 'entry-point') editorBundleJs = await out.text();
+            else if (out.path.endsWith('.css')) editorBundleCss = await out.text();
+          }
+        }
         res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' });
-        res.end(js);
+        res.end(editorBundleJs!);
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'text/plain' });
         res.end(`Build error: ${err}`);
       }
+      return;
+    }
+
+    // Serve editor CSS (extracted from bundle)
+    if (pathname === '/client/editor.css') {
+      if (!editorBundleCss) {
+        res.writeHead(404); res.end('CSS not yet built — load editor.tsx first'); return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' });
+      res.end(editorBundleCss);
       return;
     }
 
