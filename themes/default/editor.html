@@ -279,6 +279,14 @@
       margin: 2rem 0;
     }
 
+    /* Drag-over highlight for image drops */
+    .od-drag-over .bn-editor {
+      outline: 2px dashed var(--od-color-accent, #6366f1);
+      outline-offset: -4px;
+      border-radius: var(--od-radius);
+      background: color-mix(in srgb, var(--od-color-accent, #6366f1) 4%, transparent);
+    }
+
     /* Editor right panel (theme panel) */
     .od-editor-right {
       width: 0;

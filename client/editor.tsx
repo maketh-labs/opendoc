@@ -335,24 +335,53 @@ interface BlockEditorProps {
 // key={currentFile} in parent forces full remount on page switch
 // initialBlocks are resolved *before* this mounts — no flash, no race condition
 function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHeader }: BlockEditorProps) {
+  const editorWrapperRef = useRef<HTMLDivElement>(null)
+
+  const uploadFile = useCallback(async (file: File): Promise<string> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('pagePath', pagePath.replace(/\/[^/]+$/, '') || '.')
+    const r = await fetch('/_opendoc/upload', { method: 'POST', body: form })
+    if (!r.ok) throw new Error('Upload failed')
+    return (await r.json()).url as string
+  }, [pagePath])
+
   const editor = useCreateBlockNote({
     schema,
     initialContent: initialBlocks as any,
-    uploadFile: async (file: File) => {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('pagePath', pagePath.replace(/\/[^/]+$/, '') || '.')
-      const r = await fetch('/_opendoc/upload', { method: 'POST', body: form })
-      if (!r.ok) throw new Error('Upload failed')
-      return (await r.json()).url as string
-    },
+    uploadFile,
   })
 
+  // Paste handler: image files from clipboard + bare URL → bookmark
   useEffect(() => {
     const container = document.querySelector(".bn-editor")
     if (!container) return
 
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      // Handle image files from clipboard (screenshots, copied images)
+      const imageFiles = Array.from(e.clipboardData?.files || []).filter(f =>
+        f.type.startsWith("image/")
+      )
+      if (imageFiles.length > 0) {
+        e.preventDefault()
+        e.stopPropagation()
+        const pos = editor.getTextCursorPosition()
+        for (const file of imageFiles) {
+          try {
+            const url = await uploadFile(file)
+            editor.insertBlocks(
+              [{ type: "image" as const, props: { url, name: file.name, caption: "" } }],
+              pos.block,
+              "before"
+            )
+          } catch (err) {
+            console.error("Image upload failed:", err)
+          }
+        }
+        return
+      }
+
+      // Handle bare URL paste → bookmark card
       const text = e.clipboardData?.getData("text/plain")?.trim() || ""
       if (/^https?:\/\/[^\s]+$/.test(text)) {
         e.preventDefault()
@@ -366,9 +395,66 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
       }
     }
 
-    container.addEventListener("paste", handlePaste as EventListener)
-    return () => container.removeEventListener("paste", handlePaste as EventListener)
-  }, [editor])
+    container.addEventListener("paste", handlePaste as unknown as EventListener)
+    return () => container.removeEventListener("paste", handlePaste as unknown as EventListener)
+  }, [editor, uploadFile])
+
+  // Drag & drop image files onto editor
+  useEffect(() => {
+    const wrapper = editorWrapperRef.current
+    if (!wrapper) return
+
+    const handleDragOver = (e: DragEvent) => {
+      const hasFiles = Array.from(e.dataTransfer?.items || []).some(
+        item => item.kind === "file" && item.type.startsWith("image/")
+      )
+      if (hasFiles) {
+        e.preventDefault()
+        e.dataTransfer!.dropEffect = "copy"
+        wrapper.classList.add("od-drag-over")
+      }
+    }
+
+    const handleDragLeave = (e: DragEvent) => {
+      if (!wrapper.contains(e.relatedTarget as Node)) {
+        wrapper.classList.remove("od-drag-over")
+      }
+    }
+
+    const handleDrop = async (e: DragEvent) => {
+      wrapper.classList.remove("od-drag-over")
+      const imageFiles = Array.from(e.dataTransfer?.files || []).filter(f =>
+        f.type.startsWith("image/")
+      )
+      if (imageFiles.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+
+      const pos = editor.getTextCursorPosition()
+      for (const file of imageFiles) {
+        try {
+          const url = await uploadFile(file)
+          editor.insertBlocks(
+            [{ type: "image" as const, props: { url, name: file.name, caption: "" } }],
+            pos.block,
+            "before"
+          )
+        } catch (err) {
+          console.error("Image drop upload failed:", err)
+        }
+      }
+    }
+
+    wrapper.addEventListener("dragover", handleDragOver)
+    wrapper.addEventListener("dragleave", handleDragLeave)
+    wrapper.addEventListener("drop", handleDrop)
+
+    return () => {
+      wrapper.removeEventListener("dragover", handleDragOver)
+      wrapper.removeEventListener("dragleave", handleDragLeave)
+      wrapper.removeEventListener("drop", handleDrop)
+    }
+  }, [editor, uploadFile])
 
   const handleChange = useCallback(() => {
     onContentChange(blocksToMarkdown(editor.document as any[]))
@@ -411,7 +497,7 @@ function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHead
   }, [editor])
 
   return (
-    <div className="od-editor-content">
+    <div className="od-editor-content" ref={editorWrapperRef}>
       {pageHeader}
       <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false}>
         <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
