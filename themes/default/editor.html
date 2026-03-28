@@ -28,7 +28,10 @@
       --od-color-text: #1a1a1a;
       --od-color-bg: #ffffff;
       --od-radius: 6px;
+      --od-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --od-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --od-font-size: 15px;
+      --od-line-height: 1.75;
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
@@ -174,6 +177,104 @@
     }
     .ProseMirror { outline: none; }
     .ProseMirror-focused { outline: none; }
+
+    /* ===== WYSIWYG: mirror style.css .od-article typography ===== */
+    .bn-editor {
+      font-family: var(--od-font-body);
+      font-size: var(--od-font-size);
+      line-height: var(--od-line-height);
+      color: var(--od-color-text);
+    }
+
+    /* Headings */
+    .bn-block-content[data-content-type="heading"][data-level="1"] {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    .bn-block-content[data-content-type="heading"][data-level="2"] {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    .bn-block-content[data-content-type="heading"][data-level="3"] {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .bn-block-content[data-content-type="heading"][data-level="4"] {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    /* Links */
+    .bn-editor a {
+      color: var(--od-color-accent);
+      text-decoration: none;
+    }
+    .bn-editor a:hover { text-decoration: underline; }
+
+    /* Inline code */
+    .bn-editor .bn-inline-content code {
+      font-family: var(--od-font-mono);
+      font-size: 0.875em;
+      background: var(--od-color-surface);
+      padding: 0.15em 0.35em;
+      border-radius: 3px;
+    }
+
+    /* Code block */
+    .bn-block-content[data-content-type="codeBlock"] {
+      background: var(--od-color-surface);
+      border: 1px solid var(--od-color-border);
+      border-radius: var(--od-radius);
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .bn-block-content[data-content-type="codeBlock"] * {
+      font-family: var(--od-font-mono);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    /* Blockquote */
+    .bn-block-content[data-content-type="quote"],
+    .bn-block-content[data-content-type="blockquote"] {
+      border-left: 3px solid var(--od-color-accent);
+      padding-left: 1rem;
+      color: var(--od-color-text-muted);
+    }
+
+    /* Lists */
+    .bn-block-content[data-content-type="bulletListItem"],
+    .bn-block-content[data-content-type="numberedListItem"],
+    .bn-block-content[data-content-type="checkListItem"] {
+      margin-bottom: 0.25rem;
+    }
+
+    /* Images */
+    .bn-editor img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--od-radius);
+      border: 1px solid var(--od-color-border);
+    }
+
+    /* Tables */
+    .bn-editor table { width: 100%; border-collapse: collapse; }
+    .bn-editor th, .bn-editor td {
+      border: 1px solid var(--od-color-border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    .bn-editor th {
+      background: var(--od-color-surface);
+      font-weight: 600;
+    }
+
+    /* HR */
+    .bn-editor hr {
+      border: none;
+      border-top: 1px solid var(--od-color-border);
+      margin: 2rem 0;
+    }
 
     /* Editor right panel (theme panel) */
     .od-editor-right {
@@ -520,6 +621,97 @@
         z-index: 50;
         background: var(--color-bg);
       }
+    }
+
+    /* ===== Block handle & context menu (Notion-style) ===== */
+    .od-block-handle {
+      position: fixed;
+      z-index: 60;
+      width: 22px;
+      height: 22px;
+      padding: 3px;
+      border: none;
+      border-radius: 4px;
+      background: none;
+      color: var(--color-muted);
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 120ms, color 120ms, opacity 120ms;
+      opacity: 0.4;
+    }
+    .od-block-handle:hover {
+      background: var(--od-color-surface-2, #ebebeb);
+      color: var(--color-text);
+      opacity: 1;
+    }
+    .od-block-handle:active { cursor: grabbing; }
+
+    /* Show handle as blocks are hovered */
+    .bn-block-outer:hover > .od-block-handle,
+    .bn-block-outer:focus-within > .od-block-handle {
+      opacity: 1;
+    }
+
+    .od-block-menu {
+      position: fixed;
+      z-index: 999;
+      background: var(--color-bg, #fff);
+      border: 1px solid var(--color-border, #e5e5e5);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+      min-width: 196px;
+      padding: 4px;
+      font-size: 0.85rem;
+    }
+    [data-theme="dark"] .od-block-menu {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .od-bm-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--color-muted);
+      padding: 6px 10px 3px;
+      user-select: none;
+    }
+    .od-bm-item {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      padding: 6px 10px;
+      gap: 6px;
+      border: none;
+      background: none;
+      color: var(--color-text);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      text-align: left;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .od-bm-item:hover {
+      background: var(--od-color-surface-2, #ebebeb);
+    }
+    .od-bm-item.active {
+      color: var(--od-color-accent, #2563eb);
+      font-weight: 500;
+    }
+    .od-bm-item.active::after {
+      content: "✓";
+      margin-left: auto;
+      font-size: 0.75rem;
+    }
+    .od-bm-item.danger { color: #dc2626; }
+    .od-bm-item.danger:hover { background: rgba(220,38,38,0.1); }
+    .od-bm-sep {
+      height: 1px;
+      background: var(--color-border, #e5e5e5);
+      margin: 4px 0;
     }
   </style>
 </head>

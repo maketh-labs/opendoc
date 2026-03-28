@@ -6,6 +6,7 @@ import { BlockNoteEditor } from '@blocknote/core'
 import '@blocknote/core/style.css'
 import { initThemePanel } from './themes'
 import { initFaviconPanel } from './favicon'
+import { initSideMenu } from './side-menu'
 
 const GITHUB_CLIENT_ID = 'PLACEHOLDER_CLIENT_ID';
 const OAUTH_CALLBACK_URL = '/oauth/callback';
@@ -299,9 +300,15 @@ async function handleSave(path: string, content: string, token: string, repo: st
 }
 
 // --- BlockNote Editor ---
+let sideMenuCleanup: (() => void) | null = null;
+
 function createBlockNoteEditor(container: HTMLElement, initialMarkdown: string): BlockNoteEditor {
   if (blockNoteEditor) {
     blockNoteEditor.unmount();
+  }
+  if (sideMenuCleanup) {
+    sideMenuCleanup();
+    sideMenuCleanup = null;
   }
 
   const pagePath = getCurrentPagePath();
@@ -328,6 +335,9 @@ function createBlockNoteEditor(container: HTMLElement, initialMarkdown: string):
   editor.onChange(() => {
     currentContent = editor.blocksToMarkdownLossy(editor.document);
   });
+
+  // Notion-style block handle menu
+  sideMenuCleanup = initSideMenu(editor, container);
 
   blockNoteEditor = editor;
   currentContent = initialMarkdown;
