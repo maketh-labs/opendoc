@@ -6,7 +6,6 @@ export interface EditorShellProps {
   nav?: React.ReactNode
   children: React.ReactNode
   rightOpen: boolean
-  onRightToggle: () => void
   onRightClose: () => void
 }
 

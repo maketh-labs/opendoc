@@ -273,7 +273,6 @@ export function LocalEditor() {
         />
       ) : undefined}
       rightOpen={rightOpen}
-      onRightToggle={() => setRightOpen(o => !o)}
       onRightClose={() => setRightOpen(false)}
     >
       {initialBlocks ? (

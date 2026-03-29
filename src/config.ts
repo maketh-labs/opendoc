@@ -1,16 +1,6 @@
 import { join } from 'path';
 import type { OpenDocConfig } from './types';
 
-export async function loadConfig(rootDir: string): Promise<OpenDocConfig> {
-  const configPath = join(rootDir, '.opendoc', 'config.json');
-  try {
-    const file = Bun.file(configPath);
-    return await file.json();
-  } catch {
-    return {};
-  }
-}
-
 export async function ensureConfig(rootDir: string): Promise<OpenDocConfig> {
   const configPath = join(rootDir, '.opendoc', 'config.json');
   const file = Bun.file(configPath);

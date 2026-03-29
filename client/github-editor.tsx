@@ -145,7 +145,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
   )
 
   return (
-    <EditorShell header={header} rightOpen={rightOpen} onRightToggle={() => setRightOpen(o => !o)} onRightClose={() => setRightOpen(false)}>
+    <EditorShell header={header} rightOpen={rightOpen} onRightClose={() => setRightOpen(false)}>
       {initialBlocks ? (
         <BlockEditor
           key={pagePath}

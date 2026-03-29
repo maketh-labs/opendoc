@@ -6,15 +6,6 @@ export interface NavNode {
   children: NavNode[]
 }
 
-export interface Page {
-  url: string
-  path: string
-  title: string
-  icon?: string
-  content: string
-  html: string
-}
-
 export interface BacklinksIndex {
   [targetUrl: string]: string[]
 }
@@ -51,7 +42,3 @@ export interface SearchResult {
   snippet: string
 }
 
-export interface WikilinkPluginOptions {
-  titleMap?: Map<string, string>
-  currentPath?: string
-}
