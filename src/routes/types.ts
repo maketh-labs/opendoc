@@ -1,10 +1,10 @@
 import type { ServerResponse, IncomingMessage } from 'http'
-import type { NavNode, BacklinksIndex } from '../types'
+import type { NavNode, OpenDocConfig } from '../types'
 
 export interface RouteContext {
   rootDir: string
   projectRoot: string
-  config: any
+  config: OpenDocConfig
   editorPath: string | null
   clientDir: string
   port: number
