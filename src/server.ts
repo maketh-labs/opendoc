@@ -1,8 +1,8 @@
 import { readFile } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join, dirname, extname } from 'path';
+import { watch as fsWatch } from 'fs';
 import { createServer } from 'http';
 import type { ServerResponse } from 'http';
-import { watch } from 'chokidar';
 import { walkDir, getAllPages } from './walker';
 import { renderFull } from './renderer';
 import { buildBacklinks } from './backlinks';
@@ -120,11 +120,7 @@ export async function startServer(rootDir: string, port: number = 3000) {
     editorBundleCss = null;
   }
 
-  // Watch for changes
-  const watcher = watch(join(rootDir, '**/*.md'), {
-    ignored: [/node_modules/, /\.opendoc/, /context\.md$/, /context-mini\.md$/],
-  });
-
+  // Watch for markdown file changes using native fs.watch (chokidar v5 is broken with Bun)
   let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
   function scheduleRebuild() {
     if (rebuildTimer) clearTimeout(rebuildTimer);
@@ -133,9 +129,18 @@ export async function startServer(rootDir: string, port: number = 3000) {
       for (const client of reloadClients) client.write('data: reload\n\n');
     }, 80);
   }
-  watcher.on('change', scheduleRebuild);
-  watcher.on('add', scheduleRebuild);
-  watcher.on('unlink', scheduleRebuild);
+
+  try {
+    fsWatch(rootDir, { recursive: true }, (_, filename) => {
+      if (!filename) return;
+      if (extname(filename) !== '.md') return;
+      if (filename.includes('node_modules') || filename.includes('.opendoc')) return;
+      if (filename.endsWith('context.md') || filename.endsWith('context-mini.md')) return;
+      scheduleRebuild();
+    });
+  } catch (err) {
+    console.warn('File watcher unavailable:', err);
+  }
 
   // Build route context — shared state for all handlers
   const routeContext: RouteContext = {
