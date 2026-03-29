@@ -23,6 +23,14 @@ export function parseFrontmatter(markdown: string): Record<string, string> {
   return result
 }
 
+/** Convert a page name to a URL-safe slug */
+export function slugify(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-');
+}
+
+/** Regex matching [[page]] or [[page|display]] wikilink syntax */
+export const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+
 /** Extract title from markdown: frontmatter title > first h1 > fallback */
 export function extractTitle(markdown: string, fallback: string): string {
   const fm = parseFrontmatter(markdown);

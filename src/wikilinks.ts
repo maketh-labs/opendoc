@@ -1,8 +1,6 @@
 import { visit } from 'unist-util-visit';
 import type { Root, Text, Link, Parent } from 'mdast';
-
-// Matches [[page name]] or [[page name|display text]] or [[page#anchor]] or [[page#anchor|text]]
-const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+import { WIKILINK_RE, slugify } from './utils.js';
 
 export interface WikilinkOptions {
   titleMap?: Map<string, string>  // url → page title
@@ -34,7 +32,7 @@ export function wikilinkPlugin(options: WikilinkOptions = {}) {
         const target = hashIdx >= 0 ? raw.slice(0, hashIdx) : raw;
         const anchor = hashIdx >= 0 ? raw.slice(hashIdx) : ''; // includes the #
 
-        const slug = target.toLowerCase().replace(/\s+/g, '-');
+        const slug = slugify(target);
         const href = '/' + slug + anchor;
 
         // Resolve display text

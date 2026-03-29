@@ -1,9 +1,9 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { getAllPages } from './walker';
+import { WIKILINK_RE, slugify } from './utils.js';
 import type { BacklinksIndex } from './types';
 
-const WIKILINK_RE = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
 const MD_LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
 
 export async function buildBacklinks(rootDir: string): Promise<BacklinksIndex> {
@@ -24,7 +24,7 @@ export async function buildBacklinks(rootDir: string): Promise<BacklinksIndex> {
     // Extract wikilinks
     let match: RegExpExecArray | null;
     while ((match = WIKILINK_RE.exec(content)) !== null) {
-      targets.add(match[1]!.trim().toLowerCase().replace(/\s+/g, '-'));
+      targets.add(slugify(match[1]!.trim()));
     }
     WIKILINK_RE.lastIndex = 0;
 
