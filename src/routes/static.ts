@@ -1,5 +1,5 @@
 import { readFile } from 'fs/promises'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import type { RouteHandler } from './types'
 
 export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
@@ -78,7 +78,11 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
 
   // Serve assets from page directories
   if (pathname.includes('/assets/')) {
-    const filePath = join(ctx.rootDir, pathname.replace(/^\//, ''))
+    const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
+    if (!filePath.startsWith(resolve(ctx.rootDir) + '/')) {
+      res.writeHead(403); res.end('Forbidden')
+      return true
+    }
     try {
       const data = await Bun.file(filePath).arrayBuffer()
       const ext = pathname.split('.').pop()?.toLowerCase()
