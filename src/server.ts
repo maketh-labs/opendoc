@@ -28,6 +28,7 @@ const cache = new Map<string, string>();
 // Editor bundle cache — built once, invalidated on file changes
 let editorBundleJs: string | null = null;
 let editorBundleCss: string | null = null;
+let editorBuildPromise: Promise<void> | null = null;
 
 async function buildPage(
   rootDir: string,
@@ -118,6 +119,7 @@ export async function startServer(rootDir: string, port: number = 3000) {
     pageBuilding.clear();
     editorBundleJs = null;
     editorBundleCss = null;
+    editorBuildPromise = null;
   }
 
   // Watch for changes
@@ -149,6 +151,8 @@ export async function startServer(rootDir: string, port: number = 3000) {
     setEditorBundleJs: (js: string) => { editorBundleJs = js },
     getEditorBundleCss: () => editorBundleCss,
     setEditorBundleCss: (css: string) => { editorBundleCss = css },
+    getEditorBuildPromise: () => editorBuildPromise,
+    setEditorBuildPromise: (p: Promise<void> | null) => { editorBuildPromise = p },
     getStyles: () => styles,
     getNavTree: () => navTree,
     reloadClients,

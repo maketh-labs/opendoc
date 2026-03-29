@@ -12,6 +12,8 @@ export interface RouteContext {
   setEditorBundleJs: (js: string) => void
   getEditorBundleCss: () => string | null
   setEditorBundleCss: (css: string) => void
+  getEditorBuildPromise: () => Promise<void> | null
+  setEditorBuildPromise: (p: Promise<void> | null) => void
   getStyles: () => string
   getNavTree: () => NavNode | null
   reloadClients: Set<ServerResponse>
