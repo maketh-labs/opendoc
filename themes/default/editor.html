@@ -156,7 +156,8 @@
 
     /* BlockNote theme overrides */
     .bn-container {
-      --bn-colors-editor-background: var(--od-color-bg, #ffffff);
+      /* transparent so editor bg = od-wysiwyg-wrap bg, not a nested box */
+      --bn-colors-editor-background: transparent;
       --bn-colors-editor-text: var(--od-color-text, #1a1a1a);
       --bn-colors-menu-background: var(--od-color-surface, #f5f5f5);
       --bn-colors-menu-text: var(--od-color-text, #1a1a1a);
@@ -167,9 +168,21 @@
       --bn-border-radius: var(--od-radius, 6px);
       --bn-font-family: var(--od-font-body, var(--font-body));
     }
+    /* bn-editor must be transparent — its background comes from od-wysiwyg-wrap.
+       This prevents BlockNote's border-radius + bg from creating a visible box
+       and stops Mantine's side-menu hover from affecting the perceived page bg. */
     .bn-editor {
+      background-color: transparent !important;
       color: var(--od-color-text, #1a1a1a);
       font-family: var(--od-font-body, var(--font-body));
+    }
+    /* Per-block hover highlight — only the hovered block row, nothing wider */
+    .bn-block-outer:hover > .bn-block {
+      background: rgba(0, 0, 0, 0.03);
+      border-radius: 4px;
+    }
+    [data-theme="dark"] .bn-block-outer:hover > .bn-block {
+      background: rgba(255, 255, 255, 0.06);
     }
     .bn-block-content[data-content-type=codeBlock] {
       font-family: var(--od-font-mono, var(--font-mono));

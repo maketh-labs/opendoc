@@ -216,7 +216,7 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
   return (
     <div className="od-editor-content" ref={editorWrapperRef}>
       {pageHeader}
-      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false}>
+      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false} sideMenu={false}>
         <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
       </BlockNoteView>
     </div>
