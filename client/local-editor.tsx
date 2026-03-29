@@ -17,6 +17,15 @@ import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui/select'
 
+function updateNavNodeTitle(node: NavNode, filePath: string, newTitle: string): NavNode {
+  const nodePath = node.path === '.' ? '' : node.path
+  const nodeFile = nodePath ? `${nodePath}/index.md` : 'index.md'
+  if (nodeFile === filePath) {
+    return { ...node, title: newTitle }
+  }
+  return { ...node, children: node.children.map(c => updateNavNodeTitle(c, filePath, newTitle)) }
+}
+
 function LocalEditorHeader({
   pages, currentFile, switchPage, gitStatus, gitDirty,
   saving, isDirty, commitMsg, setCommitMsg,
@@ -237,7 +246,10 @@ export function LocalEditor() {
   const handleTitleChange = useCallback((t: string) => {
     setPageTitle(t)
     setIsDirty(buildMarkdown(t, pageIcon, currentBodyRef.current) !== originalContentRef.current)
-  }, [pageIcon])
+    // Update sidebar nav title immediately
+    setNavTree(prev => prev ? updateNavNodeTitle(prev, currentFile, t) : prev)
+    setPages(prev => prev.map(p => p.filePath === currentFile ? { ...p, title: t } : p))
+  }, [pageIcon, currentFile])
 
   const handleIconChange = useCallback((i: string) => {
     setPageIcon(i)
