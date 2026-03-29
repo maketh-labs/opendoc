@@ -14,7 +14,7 @@ const schema = BlockNoteSchema.create({
 let _editor: typeof BlockNoteEditor.prototype | null = null
 
 function getEditor() {
-  if (!_editor) _editor = BlockNoteEditor.create({ schema }) as any
+  if (!_editor) _editor = BlockNoteEditor.create({ schema, tables: { headers: true } }) as any
   return _editor!
 }
 

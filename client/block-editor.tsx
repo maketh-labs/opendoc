@@ -151,6 +151,7 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
     schema,
     initialContent: initialBlocks as any,
     uploadFile,
+    tables: { headers: true },
   })
 
   usePasteHandler(editor, uploadFile)
