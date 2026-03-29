@@ -1,0 +1,12 @@
+import { chromium } from "playwright";
+const browser = await chromium.launch({ args: ['--no-sandbox'] });
+const page = await browser.newPage();
+const errors: string[] = [];
+page.on("console", msg => { if (msg.type() === "error") errors.push(msg.text()) });
+page.on("pageerror", err => errors.push("PAGE ERROR: " + err.message));
+await page.goto("http://localhost:3000/editor", { waitUntil: "load", timeout: 10000 });
+await page.waitForTimeout(3000);
+console.log("ERRORS:", errors.length ? errors.slice(0, 20).join("\n") : "none");
+const body = await page.evaluate(() => document.body.innerHTML.slice(0, 500));
+console.log("BODY:", body);
+await browser.close();

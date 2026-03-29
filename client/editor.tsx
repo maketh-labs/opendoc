@@ -20,8 +20,8 @@ import {
   checkRepoAccess, fetchUserRepos,
 } from './github-api'
 
-// ─── Shiki dual-theme setup ─────────────────────────────────────────────────
-{
+// ─── Shiki dual-theme setup (runs once at mount time, not at module eval) ────
+function initShiki() {
   const PARSER_KEY = Symbol.for("blocknote.shikiParser")
   const HIGHLIGHTER_KEY = Symbol.for("blocknote.shikiHighlighterPromise")
   const g = globalThis as any
@@ -42,10 +42,8 @@ import {
 
   const style = document.createElement('style')
   style.textContent = `
-    /* Shiki dual-theme: light mode (default) */
     .bn-container .shiki { color: var(--shiki-light) !important; }
     .bn-container [data-node-type="codeBlock"] pre { color: var(--shiki-light); background-color: var(--shiki-light-bg); }
-    /* Shiki dual-theme: dark mode */
     .bn-container[data-color-scheme="dark"] .shiki { color: var(--shiki-dark) !important; }
     .bn-container[data-color-scheme="dark"] [data-node-type="codeBlock"] pre { color: var(--shiki-dark); background-color: var(--shiki-dark-bg); }
   `
@@ -151,4 +149,5 @@ function App() {
 }
 
 // ─── Mount ────────────────────────────────────────────────────────────────────
+initShiki()
 createRoot(document.getElementById('app')!).render(<App />)
