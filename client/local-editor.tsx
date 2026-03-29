@@ -282,7 +282,6 @@ export function LocalEditor() {
           onNavigate={switchPage}
           onNewPage={handleNewPage}
           collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(c => !c)}
         />
       ) : undefined}
       rightOpen={rightOpen}

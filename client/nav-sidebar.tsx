@@ -7,38 +7,31 @@ export interface NavSidebarProps {
   onNavigate: (filePath: string) => void
   onNewPage: (parentPath: string) => void
   collapsed: boolean
-  onToggle: () => void
 }
 
-export function NavSidebar({ nav, currentFile, onNavigate, onNewPage, collapsed, onToggle }: NavSidebarProps) {
+export function NavSidebar({ nav, currentFile, onNavigate, onNewPage, collapsed }: NavSidebarProps) {
   return (
     <aside className={`od-sidebar-left${collapsed ? ' od-sidebar-collapsed' : ''}`}>
-      <div className="od-sidebar-header">
-        <span className="od-sidebar-title">{nav.title || 'Pages'}</span>
-        <button className="od-sidebar-toggle" onClick={onToggle} title={collapsed ? 'Expand' : 'Collapse'}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {collapsed
-              ? <><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></>
-              : <><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></>
-            }
-          </svg>
-        </button>
-      </div>
       {!collapsed && (
-        <nav className="od-nav">
-          <ul>
-            {nav.children.map(child => (
-              <NavItem
-                key={child.path}
-                node={child}
-                currentFile={currentFile}
-                onNavigate={onNavigate}
-                onNewPage={onNewPage}
-                depth={0}
-              />
-            ))}
-          </ul>
-        </nav>
+        <>
+          <div className="od-sidebar-header">
+            <span className="od-sidebar-title">{nav.title || 'Pages'}</span>
+          </div>
+          <nav className="od-nav">
+            <ul>
+              {nav.children.map(child => (
+                <NavItem
+                  key={child.path}
+                  node={child}
+                  currentFile={currentFile}
+                  onNavigate={onNavigate}
+                  onNewPage={onNewPage}
+                  depth={0}
+                />
+              ))}
+            </ul>
+          </nav>
+        </>
       )}
     </aside>
   )
