@@ -6,7 +6,7 @@ import { buildBacklinks } from './backlinks';
 import { compress, compressMini } from './compressor';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { tocToHtml } from './plugins/toc';
-import { ensureConfig, getEditorPath } from './config';
+import { ensureConfig, getEditorPath, buildPublicConfig } from './config';
 import { escapeHtml, extractTitle, buildTitleMap } from './utils.js';
 import { navToHtml, backlinksToHtml } from './render-utils.js';
 import type { NavNode, BacklinksIndex } from './types';
@@ -159,14 +159,7 @@ export async function build(rootDir: string): Promise<void> {
   }
 
   // Write public config.json to dist/_opendoc/
-  const { clientSecret: _secret, ...safeGithub } = config.github ?? {};
-  const publicConfig = {
-    title: config.title,
-    editorPath: editorPath ?? '/editor',
-    github: config.github ? safeGithub : undefined,
-    theme: config.theme,
-  };
-  await writeFile(join(opendocDir, 'config.json'), JSON.stringify(publicConfig, null, 2));
+  await writeFile(join(opendocDir, 'config.json'), JSON.stringify(buildPublicConfig(config, editorPath), null, 2));
 
   // Print summary
   console.log(`\nBuild summary:`);

@@ -24,3 +24,14 @@ export function getEditorPath(config: OpenDocConfig): string | null {
   if (config.editorPath === null) return null;
   return config.editorPath ?? '/editor';
 }
+
+/** Build a public-safe config object (strips clientSecret) */
+export function buildPublicConfig(config: OpenDocConfig, editorPath: string | null) {
+  const { clientSecret: _, ...publicGithub } = config.github ?? {};
+  return {
+    title: config.title,
+    editorPath: editorPath ?? '/editor',
+    github: config.github ? publicGithub : undefined,
+    theme: config.theme,
+  };
+}
