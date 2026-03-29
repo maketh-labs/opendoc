@@ -3,17 +3,19 @@ import { ThemePanel } from './theme-panel'
 
 export interface EditorShellProps {
   header: React.ReactNode
+  nav?: React.ReactNode
   children: React.ReactNode
   rightOpen: boolean
   onRightToggle: () => void
   onRightClose: () => void
 }
 
-export function EditorShell({ header, children, rightOpen, onRightClose }: EditorShellProps) {
+export function EditorShell({ header, nav, children, rightOpen, onRightClose }: EditorShellProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {header}
       <div className="od-editor-body">
+        {nav}
         <div className="od-wysiwyg-wrap">{children}</div>
         <aside
           className={`od-editor-right${rightOpen ? ' open' : ''}`}

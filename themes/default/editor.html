@@ -140,19 +140,16 @@
       flex: 1;
       overflow-y: auto;
       display: flex;
-      justify-content: center;
-      padding: 4rem 1.5rem;
+      padding: 4rem 2rem;
       background: var(--od-color-bg);
     }
     .od-editor-content {
       width: 100%;
-      max-width: var(--od-content-max);
       display: flex;
       flex-direction: column;
     }
     #od-editor {
       width: 100%;
-      max-width: var(--od-content-max);
       min-height: calc(100vh - 100px);
       outline: none;
     }
@@ -1008,6 +1005,139 @@
     /* Shiki dual-theme: map CSS vars to color based on BlockNote's color scheme attribute */
     .bn-container .shiki span { color: var(--shiki-light); }
     .bn-container[data-color-scheme="dark"] .shiki span { color: var(--shiki-dark); }
+
+    /* ===== BlockNote side menu alignment fix ===== */
+    .bn-side-menu { align-items: center !important; }
+
+    /* ===== Nav Sidebar ===== */
+    .od-sidebar-left {
+      width: 260px;
+      min-width: 260px;
+      background: var(--od-color-surface);
+      border-right: 1px solid var(--od-color-border);
+      overflow-y: auto;
+      flex-shrink: 0;
+      transition: width var(--od-transition), min-width var(--od-transition);
+      display: flex;
+      flex-direction: column;
+    }
+    .od-sidebar-collapsed {
+      width: 0;
+      min-width: 0;
+      overflow: hidden;
+      border-right-color: transparent;
+    }
+    .od-sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--od-color-border);
+      flex-shrink: 0;
+    }
+    .od-sidebar-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--od-color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .od-sidebar-toggle {
+      background: none;
+      border: none;
+      color: var(--od-color-text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+    }
+    .od-sidebar-toggle:hover {
+      background: var(--od-color-surface-2);
+      color: var(--od-color-text);
+    }
+    .od-nav { padding: 8px 0; overflow-y: auto; flex: 1; }
+    .od-nav ul { list-style: none; padding: 0; margin: 0; }
+    .od-nav ul ul { padding-left: 12px; margin-left: 8px; border-left: 1px solid var(--od-color-border); }
+    .od-nav-item {
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      position: relative;
+    }
+    .od-nav-item a {
+      flex: 1;
+      display: block;
+      padding: 5px 8px;
+      color: var(--od-color-text-muted);
+      text-decoration: none;
+      font-size: 0.84rem;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .od-nav-item a:hover {
+      color: var(--od-color-text);
+      background: var(--od-color-surface-2);
+    }
+    .od-nav-item a.active {
+      color: var(--od-color-accent);
+      background: var(--od-color-bg);
+      font-weight: 500;
+    }
+    .od-nav-icon { margin-right: 0.25em; }
+    .od-nav-chevron {
+      background: none;
+      border: none;
+      color: var(--od-color-text-muted);
+      cursor: pointer;
+      padding: 2px;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .od-nav-chevron:hover { background: var(--od-color-surface-2); }
+    .od-nav-chevron-spacer { width: 16px; flex-shrink: 0; }
+    .od-nav-add {
+      opacity: 0;
+      background: none;
+      border: none;
+      color: var(--od-color-text-muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: opacity 100ms;
+    }
+    .od-nav-item:hover .od-nav-add { opacity: 1; }
+    .od-nav-add:hover { background: var(--od-color-surface-2); color: var(--od-color-accent); }
+
+    /* ===== Emoji picker ===== */
+    .od-page-icon-wrap { position: relative; }
+    .od-emoji-picker {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      z-index: 100;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 768px) {
+      .od-sidebar-left {
+        position: fixed;
+        top: 40px;
+        left: 0;
+        bottom: 0;
+        z-index: 40;
+        transform: translateX(0);
+      }
+      .od-sidebar-collapsed { transform: translateX(-100%); }
+    }
   </style>
 </head>
 <body>

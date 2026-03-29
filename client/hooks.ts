@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+export type DarkModeHook = { theme: 'light' | 'dark'; toggle: () => void }
 
 export interface GitStatus {
   isRepo: boolean
@@ -22,20 +23,31 @@ export function useGitStatus() {
   return { status, refresh }
 }
 
-export function useDarkMode(): 'light' | 'dark' {
+export function useDarkMode(): { theme: 'light' | 'dark'; toggle: () => void } {
   const mqRef = useRef<MediaQueryList | null>(null)
   if (!mqRef.current) mqRef.current = window.matchMedia('(prefers-color-scheme: dark)')
   const mq = mqRef.current
 
-  const [theme, setTheme] = useState<'light' | 'dark'>(mq.matches ? 'dark' : 'light')
+  const [manual, setManual] = useState<'light' | 'dark' | null>(null)
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(mq.matches ? 'dark' : 'light')
 
   useEffect(() => {
-    const handler = (e: MediaQueryListEvent) => setTheme(e.matches ? 'dark' : 'light')
+    const handler = (e: MediaQueryListEvent) => setSystemTheme(e.matches ? 'dark' : 'light')
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [mq])
 
-  return theme
+  const theme = manual ?? systemTheme
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+
+  const toggle = useCallback(() => {
+    setManual(prev => (prev ?? systemTheme) === 'dark' ? 'light' : 'dark')
+  }, [systemTheme])
+
+  return { theme, toggle }
 }
 
 export function useKeyboardSave(onSave: () => void) {

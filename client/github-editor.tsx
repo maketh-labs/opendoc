@@ -38,7 +38,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [rightOpen, setRightOpen] = useState(false)
 
-  const editorTheme = useDarkMode()
+  const { theme: editorTheme } = useDarkMode()
 
   useEffect(() => {
     checkRepoAccess(repo, token).then(setRepoAccess)
