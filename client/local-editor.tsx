@@ -216,9 +216,7 @@ export function LocalEditor() {
     setCurrentFile(filePath)
   }
 
-  const handleNewPage = useCallback(async (parentPath: string) => {
-    const name = prompt('Page name:')
-    if (!name) return
+  const handleCreatePage = useCallback(async (parentPath: string, name: string) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
     const filePath = parentPath ? `${parentPath}/${slug}/index.md` : `${slug}/index.md`
     const content = `# ${name}\n\nStart writing here...\n`
@@ -268,7 +266,7 @@ export function LocalEditor() {
           nav={navTree}
           currentFile={currentFile}
           onNavigate={switchPage}
-          onNewPage={handleNewPage}
+          onCreatePage={handleCreatePage}
           collapsed={sidebarCollapsed}
         />
       ) : undefined}
