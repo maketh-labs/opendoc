@@ -58,57 +58,21 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // Shared editor build — runs once, all concurrent requests wait on the same promise
-  async function ensureEditorBundle(): Promise<void> {
-    if (ctx.getEditorBundleJs() && ctx.getEditorBundleCss()) return
-    if (!ctx.getEditorBuildPromise()) {
-      const p = (async () => {
-        // Tailwind must run before Bun.build so globals.gen.css exists
-        Bun.spawnSync(
-          ['bunx', 'tailwindcss', '-i', join(ctx.clientDir, 'globals.css'), '-o', join(ctx.clientDir, 'globals.gen.css'), '--minify'],
-          { cwd: ctx.projectRoot },
-        )
-        const result = await Bun.build({
-          entrypoints: [join(ctx.clientDir, 'editor.tsx')],
-          target: 'browser',
-          minify: false,
-        })
-        if (!result.success) throw new Error(result.logs.join('\n'))
-        for (const out of result.outputs) {
-          if (out.kind === 'entry-point') ctx.setEditorBundleJs(await out.text())
-          else if (out.path.endsWith('.css')) ctx.setEditorBundleCss(await out.text())
-        }
-      })()
-      ctx.setEditorBuildPromise(p)
-      // Clear the promise slot once settled so future invalidations work
-      p.finally(() => ctx.setEditorBuildPromise(null))
-    }
-    await ctx.getEditorBuildPromise()!
-  }
-
-  // Serve editor bundle JS
+  // Serve editor bundle JS — built at startup, always ready
   if (pathname === '/client/editor.tsx' || pathname === '/client/editor.ts') {
-    try {
-      await ensureEditorBundle()
-      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
-      res.end(ctx.getEditorBundleJs()!)
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' })
-      res.end(`Build error: ${err}`)
-    }
+    const js = ctx.getEditorBundleJs()
+    if (!js) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Editor bundle not ready'); return true }
+    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
+    res.end(js)
     return true
   }
 
-  // Serve editor CSS
+  // Serve editor CSS — built at startup, always ready
   if (pathname === '/client/editor.css') {
-    try {
-      await ensureEditorBundle()
-      res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
-      res.end(ctx.getEditorBundleCss() ?? '')
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' })
-      res.end(`Build error: ${err}`)
-    }
+    const css = ctx.getEditorBundleCss()
+    if (!css) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Editor CSS not ready'); return true }
+    res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
+    res.end(css)
     return true
   }
 
