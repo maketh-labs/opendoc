@@ -153,7 +153,22 @@ export async function startServer(rootDir: string, port: number = 3000) {
 
     // Fallback: serve pages from the doc root
     const pathname = url.pathname;
-    const pagePath = pathname === '/' ? '.' : pathname.replace(/^\//, '').replace(/\/$/, '');
+
+    // Root redirects to first page
+    if (pathname === '/') {
+      const pages = await getAllPages(rootDir);
+      const first = pages[0];
+      if (first) {
+        res.writeHead(302, { Location: `/${first}` });
+        res.end();
+      } else {
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.end('<h1>No pages found</h1>');
+      }
+      return;
+    }
+
+    const pagePath = pathname.replace(/^\//, '').replace(/\/$/, '');
 
     const pages = await getAllPages(rootDir);
     if (!pages.includes(pagePath)) {

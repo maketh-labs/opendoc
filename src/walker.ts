@@ -73,7 +73,7 @@ export async function getAllPages(rootDir: string, currentDir: string = rootDir)
 
   if (entries.some(e => e.isFile() && e.name === 'index.md')) {
     const rel = relative(rootDir, currentDir);
-    pages.push(rel || '.');
+    if (rel) pages.push(rel); // skip root — root index.md is not a navigable page
   }
 
   for (const entry of entries) {
