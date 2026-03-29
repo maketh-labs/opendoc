@@ -4,17 +4,36 @@ import { cn } from './ui/cn'
 import { Button } from './ui/button'
 import { ScrollArea } from './ui/scroll-area'
 import type { NavNode } from './editor-utils'
+import { saveOrder, movePageApi, fetchOrder } from './editor-utils'
 
 export interface NavSidebarProps {
   nav: NavNode
   currentFile: string
   onNavigate: (filePath: string) => void
   onCreatePage: (parentPath: string, name: string) => Promise<void>
+  onRefreshNav: () => Promise<void>
   collapsed: boolean
 }
 
-export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, collapsed }: NavSidebarProps) {
+type DropZone = { type: 'between'; parentPath: string; index: number } | { type: 'onto'; targetPath: string } | null
+
+// Get the folder name (basename) from a NavNode path
+function folderName(nodePath: string): string {
+  const parts = nodePath.split('/')
+  return parts[parts.length - 1] || nodePath
+}
+
+// Get the parent directory path from a NavNode path
+function parentDir(nodePath: string): string {
+  const parts = nodePath.split('/')
+  if (parts.length <= 1) return '.'
+  return parts.slice(0, -1).join('/')
+}
+
+export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefreshNav, collapsed }: NavSidebarProps) {
   const [creatingAt, setCreatingAt] = useState<string | null>(null)
+  const [draggedPath, setDraggedPath] = useState<string | null>(null)
+  const [dropZone, setDropZone] = useState<DropZone>(null)
 
   const handleStartCreate = useCallback((parentPath: string) => {
     setCreatingAt(parentPath)
@@ -28,6 +47,87 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, collaps
   const handleCancelCreate = useCallback(() => {
     setCreatingAt(null)
   }, [])
+
+  const handleDragStart = useCallback((nodePath: string) => {
+    setDraggedPath(nodePath)
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedPath(null)
+    setDropZone(null)
+  }, [])
+
+  const handleDrop = useCallback(async (zone: DropZone) => {
+    if (!draggedPath || !zone) return
+    setDraggedPath(null)
+    setDropZone(null)
+
+    const draggedFolder = folderName(draggedPath)
+    const sourceParent = parentDir(draggedPath)
+
+    if (zone.type === 'between') {
+      const targetParent = zone.parentPath
+
+      if (sourceParent === targetParent) {
+        // Same-level reorder
+        const currentOrder = await fetchOrder(targetParent)
+        // Get siblings from nav tree
+        const siblings = targetParent === '.'
+          ? nav.children.map(c => folderName(c.path))
+          : findNode(nav, targetParent)?.children.map(c => folderName(c.path)) ?? []
+
+        // Use currentOrder as base, fallback to nav order for unlisted
+        const ordered = currentOrder.length > 0 ? [...currentOrder] : [...siblings]
+        // Ensure all siblings are in the list
+        for (const s of siblings) {
+          if (!ordered.includes(s)) ordered.push(s)
+        }
+
+        const fromIdx = ordered.indexOf(draggedFolder)
+        if (fromIdx !== -1) ordered.splice(fromIdx, 1)
+        // Insert at target index, adjust if needed
+        let insertIdx = zone.index
+        if (fromIdx !== -1 && fromIdx < insertIdx) insertIdx--
+        ordered.splice(insertIdx, 0, draggedFolder)
+
+        await saveOrder(targetParent, ordered)
+      } else {
+        // Cross-level move: move folder then update both orders
+        const newPath = targetParent === '.' ? draggedFolder : `${targetParent}/${draggedFolder}`
+        await movePageApi(draggedPath, newPath)
+
+        // Remove from source order
+        const srcOrder = await fetchOrder(sourceParent)
+        const filtered = srcOrder.filter(n => n !== draggedFolder)
+        await saveOrder(sourceParent, filtered)
+
+        // Add to destination order at correct position
+        const destOrder = await fetchOrder(targetParent)
+        destOrder.splice(zone.index, 0, draggedFolder)
+        await saveOrder(targetParent, destOrder)
+      }
+      await onRefreshNav()
+    } else if (zone.type === 'onto') {
+      // Move into target as child
+      if (draggedPath === zone.targetPath) return
+      // Don't allow dropping into own descendants
+      if (zone.targetPath.startsWith(draggedPath + '/')) return
+
+      const newPath = `${zone.targetPath}/${draggedFolder}`
+      await movePageApi(draggedPath, newPath)
+
+      // Remove from source order
+      const srcOrder = await fetchOrder(sourceParent)
+      await saveOrder(sourceParent, srcOrder.filter(n => n !== draggedFolder))
+
+      // Add to destination order
+      const destOrder = await fetchOrder(zone.targetPath)
+      destOrder.push(draggedFolder)
+      await saveOrder(zone.targetPath, destOrder)
+
+      await onRefreshNav()
+    }
+  }, [draggedPath, nav, onRefreshNav])
 
   return (
     <aside className={`od-sidebar-left${collapsed ? ' od-sidebar-collapsed' : ''}`}>
@@ -55,7 +155,7 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, collaps
                     depth={0}
                   />
                 )}
-                {nav.children.map(child => (
+                {nav.children.map((child, idx) => (
                   <NavItem
                     key={child.path}
                     node={child}
@@ -66,6 +166,15 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, collaps
                     onCancelCreate={handleCancelCreate}
                     creatingAt={creatingAt}
                     depth={0}
+                    draggedPath={draggedPath}
+                    dropZone={dropZone}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDropZoneChange={setDropZone}
+                    onDrop={handleDrop}
+                    parentPath="."
+                    index={idx}
+                    isLast={idx === nav.children.length - 1}
                   />
                 ))}
               </ul>
@@ -75,6 +184,15 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, collaps
       )}
     </aside>
   )
+}
+
+function findNode(root: NavNode, path: string): NavNode | null {
+  if (root.path === path || (root.path === '.' && path === '.')) return root
+  for (const child of root.children) {
+    const found = findNode(child, path)
+    if (found) return found
+  }
+  return null
 }
 
 function InlineNewPageInput({ onConfirm, onCancel, depth }: {
@@ -134,15 +252,33 @@ interface NavItemProps {
   onCancelCreate: () => void
   creatingAt: string | null
   depth: number
+  draggedPath: string | null
+  dropZone: DropZone
+  onDragStart: (path: string) => void
+  onDragEnd: () => void
+  onDropZoneChange: (zone: DropZone) => void
+  onDrop: (zone: DropZone) => void
+  parentPath: string
+  index: number
+  isLast: boolean
 }
 
-function NavItem({ node, currentFile, onNavigate, onStartCreate, onConfirmCreate, onCancelCreate, creatingAt, depth }: NavItemProps) {
+function NavItem({
+  node, currentFile, onNavigate, onStartCreate, onConfirmCreate, onCancelCreate,
+  creatingAt, depth, draggedPath, dropZone, onDragStart, onDragEnd, onDropZoneChange, onDrop,
+  parentPath, index, isLast,
+}: NavItemProps) {
   const [expanded, setExpanded] = useState(true)
+  const itemRef = useRef<HTMLDivElement>(null)
   const filePath = nodeToFilePath(node)
   const isActive = currentFile === filePath
-  const parentPath = node.path === '.' ? '' : node.path
+  const nodePath = node.path === '.' ? '' : node.path
   const hasChildren = node.children.length > 0
-  const isCreatingHere = creatingAt === parentPath
+  const isCreatingHere = creatingAt === nodePath
+  const isDragged = draggedPath === node.path
+  const isDropOnto = dropZone?.type === 'onto' && dropZone.targetPath === node.path
+  const isDropBefore = dropZone?.type === 'between' && dropZone.parentPath === parentPath && dropZone.index === index
+  const isDropAfter = isLast && dropZone?.type === 'between' && dropZone.parentPath === parentPath && dropZone.index === index + 1
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -151,13 +287,77 @@ function NavItem({ node, currentFile, onNavigate, onStartCreate, onConfirmCreate
 
   const handleNewPage = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    onStartCreate(parentPath)
+    onStartCreate(nodePath)
     if (!expanded) setExpanded(true)
-  }, [parentPath, onStartCreate, expanded])
+  }, [nodePath, onStartCreate, expanded])
+
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', node.path)
+    onDragStart(node.path)
+  }, [node.path, onDragStart])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!draggedPath || draggedPath === node.path) return
+    // Don't allow dropping into own descendants
+    if (node.path.startsWith(draggedPath + '/')) return
+
+    e.dataTransfer.dropEffect = 'move'
+    const rect = itemRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const y = e.clientY - rect.top
+    const height = rect.height
+    const quarter = height / 4
+
+    if (y < quarter) {
+      // Top quarter → drop before
+      onDropZoneChange({ type: 'between', parentPath, index })
+    } else if (y > height - quarter) {
+      // Bottom quarter → drop after (or before next)
+      onDropZoneChange({ type: 'between', parentPath, index: index + 1 })
+    } else {
+      // Middle → drop onto (make child)
+      onDropZoneChange({ type: 'onto', targetPath: node.path })
+    }
+  }, [draggedPath, node.path, parentPath, index, onDropZoneChange])
+
+  const handleDropEvent = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onDrop(dropZone)
+  }, [dropZone, onDrop])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if leaving this element entirely (not entering a child)
+    if (!itemRef.current?.contains(e.relatedTarget as Node)) {
+      // Don't clear — parent will handle
+    }
+  }, [])
 
   return (
-    <li className="list-none">
-      <div className={cn('group relative flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer', isActive && 'bg-accent text-accent-foreground font-medium')}>
+    <li className="list-none relative">
+      {/* Drop-before indicator */}
+      {isDropBefore && (
+        <div className="absolute left-2 right-2 top-0 h-0.5 bg-blue-500 rounded z-10" />
+      )}
+      <div
+        ref={itemRef}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={handleDragOver}
+        onDrop={handleDropEvent}
+        onDragLeave={handleDragLeave}
+        className={cn(
+          'group relative flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer',
+          isActive && 'bg-accent text-accent-foreground font-medium',
+          isDragged && 'opacity-40',
+          isDropOnto && 'ring-2 ring-blue-500 bg-blue-500/10 rounded-md',
+        )}
+      >
         {hasChildren || isCreatingHere ? (
           <button
             className="flex items-center justify-center h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
@@ -194,12 +394,12 @@ function NavItem({ node, currentFile, onNavigate, onStartCreate, onConfirmCreate
         <ul className="pl-3 ml-2 border-l list-none">
           {isCreatingHere && (
             <InlineNewPageInput
-              onConfirm={(name) => onConfirmCreate(parentPath, name)}
+              onConfirm={(name) => onConfirmCreate(nodePath, name)}
               onCancel={onCancelCreate}
               depth={depth + 1}
             />
           )}
-          {node.children.map(child => (
+          {node.children.map((child, idx) => (
             <NavItem
               key={child.path}
               node={child}
@@ -210,9 +410,22 @@ function NavItem({ node, currentFile, onNavigate, onStartCreate, onConfirmCreate
               onCancelCreate={onCancelCreate}
               creatingAt={creatingAt}
               depth={depth + 1}
+              draggedPath={draggedPath}
+              dropZone={dropZone}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDropZoneChange={onDropZoneChange}
+              onDrop={onDrop}
+              parentPath={node.path}
+              index={idx}
+              isLast={idx === node.children.length - 1}
             />
           ))}
         </ul>
+      )}
+      {/* Drop-after indicator (only on last item) */}
+      {isDropAfter && (
+        <div className="absolute left-2 right-2 bottom-0 h-0.5 bg-blue-500 rounded z-10" />
       )}
     </li>
   )

@@ -8,6 +8,7 @@ import { BlockEditor } from './block-editor'
 import {
   showToast, extractPageMeta, buildMarkdown,
   getCurrentPagePath, flattenNav, localLoadFile, localSaveFile,
+  fetchOrder, saveOrder,
   type NavNode,
 } from './editor-utils'
 import { markdownToBlocks } from './markdown'
@@ -233,6 +234,12 @@ export function LocalEditor() {
     const content = `# ${name}\n\nStart writing here...\n`
     try {
       await localSaveFile(filePath, content)
+      // Append to order.json for this directory
+      const orderDir = parentPath || '.'
+      const currentOrder = await fetchOrder(orderDir)
+      if (!currentOrder.includes(slug)) {
+        await saveOrder(orderDir, [...currentOrder, slug])
+      }
       showToast(`Created ${name}`, 'success')
       await refreshNav()
       switchPage(filePath)
@@ -277,6 +284,7 @@ export function LocalEditor() {
           currentFile={currentFile}
           onNavigate={switchPage}
           onCreatePage={handleCreatePage}
+          onRefreshNav={refreshNav}
           collapsed={sidebarCollapsed}
         />
       ) : undefined}

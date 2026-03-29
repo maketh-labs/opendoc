@@ -99,6 +99,29 @@ export async function localSaveFile(path: string, content: string): Promise<void
   if (!r.ok) throw new Error('Failed to save file')
 }
 
+export async function fetchOrder(dir: string): Promise<string[]> {
+  const r = await fetch(`/_opendoc/order?dir=${encodeURIComponent(dir)}`)
+  if (!r.ok) return []
+  return r.json()
+}
+
+export async function saveOrder(dir: string, order: string[]): Promise<void> {
+  await fetch('/_opendoc/order?dir=' + encodeURIComponent(dir), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dir, order }),
+  })
+}
+
+export async function movePageApi(from: string, to: string): Promise<void> {
+  const r = await fetch('/_opendoc/move', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  })
+  if (!r.ok) throw new Error('Failed to move page')
+}
+
 export async function getCommitMessage(path: string, before: string, after: string): Promise<string> {
   const fallback = `edit(${path}): ${new Date().toISOString()}`
   try {
