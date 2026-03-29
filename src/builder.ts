@@ -7,7 +7,7 @@ import { compress, compressMini } from './compressor';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath } from './config';
-import { escapeHtml, parseFrontmatter } from './utils.js';
+import { escapeHtml, extractTitle, buildTitleMap } from './utils.js';
 import { navToHtml, backlinksToHtml } from './render-utils.js';
 import type { NavNode, BacklinksIndex } from './types';
 
@@ -58,16 +58,7 @@ export async function build(rootDir: string): Promise<void> {
   console.log(`Building ${pages.length} pages...`);
 
   // Build titleMap for wikilink resolution: url → page title
-  const titleMap = new Map<string, string>();
-  for (const page of pages) {
-    const indexPath = join(rootDir, page, 'index.md');
-    const markdown = await readFile(indexPath, 'utf-8');
-    const titleMatch = markdown.match(/^#\s+(.+)$/m);
-    const fm = parseFrontmatter(markdown);
-    const title = (fm.title as string) || (titleMatch ? titleMatch[1]!.trim() : page);
-    const url = page === '.' ? '/' : `/${page}`;
-    titleMap.set(url, title);
-  }
+  const titleMap = await buildTitleMap(rootDir, pages);
 
   const summary: string[] = [];
   let mdCopied = 0;
@@ -82,8 +73,7 @@ export async function build(rootDir: string): Promise<void> {
     // Render HTML with TOC and frontmatter
     const currentPath = page === '.' ? 'index.md' : `${page}/index.md`;
     const { html: content, toc, frontmatter } = await renderFull(markdown, { titleMap, currentPath });
-    const titleMatch = markdown.match(/^#\s+(.+)$/m);
-    const title = (frontmatter.title as string) || (titleMatch ? titleMatch[1]!.trim() : 'OpenDoc');
+    const title = extractTitle(markdown, 'OpenDoc');
     const icon = (frontmatter.icon as string) || '';
 
     // Get backlinks for this page

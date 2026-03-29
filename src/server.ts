@@ -10,7 +10,7 @@ import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { startMcpServer } from './mcp';
 import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath } from './config';
-import { escapeHtml } from './utils.js';
+import { escapeHtml, extractTitle, buildTitleMap } from './utils.js';
 import { navToHtml, backlinksToHtml } from './render-utils.js';
 import type { NavNode, BacklinksIndex } from './types';
 import type { RouteContext, RouteHandler } from './routes/types';
@@ -41,8 +41,7 @@ async function buildPage(
   const markdown = await readFile(indexPath, 'utf-8');
   const currentPath = page === '.' ? 'index.md' : `${page}/index.md`;
   const { html: content, toc, frontmatter } = await renderFull(markdown, { titleMap, currentPath });
-  const titleMatch = markdown.match(/^#\s+(.+)$/m);
-  const title = (frontmatter.title as string) || (titleMatch ? titleMatch[1]!.trim() : 'OpenDoc');
+  const title = extractTitle(markdown, 'OpenDoc');
   const icon = (frontmatter.icon as string) || '';
 
   const normalized = page === '.' ? '' : page;
@@ -58,21 +57,6 @@ async function buildPage(
     icon,
     pageTitle: title,
   });
-}
-
-async function buildTitleMap(rootDir: string, pages: string[]): Promise<Map<string, string>> {
-  const { parseFrontmatter } = await import("./utils.js");
-  const map = new Map<string, string>();
-  for (const page of pages) {
-    try {
-      const md = await readFile(join(rootDir, page, "index.md"), "utf-8");
-      const fm = parseFrontmatter(md);
-      const titleMatch = md.match(/^#\s+(.+)$/m);
-      const title = fm["title"] || (titleMatch ? titleMatch[1]!.trim() : page);
-      map.set(page === "." ? "/" : `/${page}`, title);
-    } catch {}
-  }
-  return map;
 }
 
 // Ordered list of route handlers — first match wins
