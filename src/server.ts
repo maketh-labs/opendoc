@@ -12,7 +12,7 @@ import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath } from './config';
 import { escapeHtml, extractTitle, buildTitleMap } from './utils.js';
 import { navToHtml, backlinksToHtml } from './render-utils.js';
-import type { NavNode, BacklinksIndex } from './types';
+import type { BacklinksIndex } from './types';
 import type { RouteContext, RouteHandler } from './routes/types';
 import { handleStatic } from './routes/static';
 import { handleFileApi } from './routes/file-api';

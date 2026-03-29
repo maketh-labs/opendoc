@@ -1,5 +1,4 @@
 import { resolve } from 'path'
-import type { IncomingMessage } from 'http'
 import type { RouteHandler } from './types'
 
 export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
@@ -34,8 +33,8 @@ export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
   if (req.method === 'PUT') {
     const body = await new Promise<string>((resolve) => {
       let data = ''
-      ;(req as IncomingMessage).on('data', (chunk: Buffer) => { data += chunk.toString() })
-      ;(req as IncomingMessage).on('end', () => resolve(data))
+      req.on('data', (chunk: Buffer) => { data += chunk.toString() })
+      req.on('end', () => resolve(data))
     })
     const { content } = JSON.parse(body)
     await Bun.write(fullPath, content)

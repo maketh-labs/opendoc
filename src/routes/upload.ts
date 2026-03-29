@@ -1,5 +1,4 @@
 import { join } from 'path'
-import type { IncomingMessage } from 'http'
 import type { RouteHandler } from './types'
 
 export const handleUpload: RouteHandler = async (req, res, url, ctx) => {
@@ -8,8 +7,8 @@ export const handleUpload: RouteHandler = async (req, res, url, ctx) => {
   try {
     const rawBody = await new Promise<Buffer>((resolve) => {
       const chunks: Buffer[] = []
-      ;(req as IncomingMessage).on('data', (c: Buffer) => chunks.push(c))
-      ;(req as IncomingMessage).on('end', () => resolve(Buffer.concat(chunks)))
+      req.on('data', (c: Buffer) => chunks.push(c))
+      req.on('end', () => resolve(Buffer.concat(chunks)))
     })
     const bunReq = new Request('http://localhost/_opendoc/upload', {
       method: 'POST',

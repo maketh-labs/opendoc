@@ -7,9 +7,9 @@ import { compress, compressMini } from './compressor';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath, buildPublicConfig } from './config';
-import { escapeHtml, extractTitle, buildTitleMap } from './utils.js';
+import { extractTitle, buildTitleMap } from './utils.js';
 import { navToHtml, backlinksToHtml } from './render-utils.js';
-import type { NavNode, BacklinksIndex } from './types';
+import type { BacklinksIndex } from './types';
 
 async function fileExists(path: string): Promise<boolean> {
   try {
