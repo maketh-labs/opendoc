@@ -1004,6 +1004,10 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
+
+    /* Shiki dual-theme: map CSS vars to color based on BlockNote's color scheme attribute */
+    .bn-container .shiki span { color: var(--shiki-light); }
+    .bn-container[data-color-scheme="dark"] .shiki span { color: var(--shiki-dark); }
   </style>
 </head>
 <body>

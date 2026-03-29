@@ -3,7 +3,6 @@ import React, { useState, useEffect, createContext, useContext } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from '@blocknote/core'
 import { codeBlockOptions } from '@blocknote/code-block'
-import { createParser as createShikiParser } from 'prosemirror-highlight/shiki'
 import '@blocknote/core/fonts/inter.css'
 import '@blocknote/mantine/style.css'
 import { CalloutBlock } from './callout-block'
@@ -19,36 +18,6 @@ import {
 import {
   checkRepoAccess, fetchUserRepos,
 } from './github-api'
-
-// ─── Shiki dual-theme setup (runs once at mount time, not at module eval) ────
-function initShiki() {
-  const PARSER_KEY = Symbol.for("blocknote.shikiParser")
-  const HIGHLIGHTER_KEY = Symbol.for("blocknote.shikiHighlighterPromise")
-  const g = globalThis as any
-
-  if (!g[PARSER_KEY]) {
-    const parserPromise = createShikiParser({
-      themes: { light: "github-light", dark: "github-dark" },
-      langs: [
-        "javascript", "typescript", "python", "bash", "json", "yaml", "html",
-        "css", "markdown", "sql", "go", "rust", "java", "c", "cpp", "ruby",
-        "php", "swift", "kotlin", "toml", "diff", "docker", "graphql",
-        "jsx", "tsx",
-      ],
-    })
-    g[PARSER_KEY] = parserPromise
-    g[HIGHLIGHTER_KEY] = parserPromise
-  }
-
-  const style = document.createElement('style')
-  style.textContent = `
-    .bn-container .shiki { color: var(--shiki-light) !important; }
-    .bn-container [data-node-type="codeBlock"] pre { color: var(--shiki-light); background-color: var(--shiki-light-bg); }
-    .bn-container[data-color-scheme="dark"] .shiki { color: var(--shiki-dark) !important; }
-    .bn-container[data-color-scheme="dark"] [data-node-type="codeBlock"] pre { color: var(--shiki-dark); background-color: var(--shiki-dark-bg); }
-  `
-  document.head.appendChild(style)
-}
 
 // ─── Custom Schema ───────────────────────────────────────────────────────────
 export const schema = BlockNoteSchema.create({
@@ -149,5 +118,4 @@ function App() {
 }
 
 // ─── Mount ────────────────────────────────────────────────────────────────────
-initShiki()
 createRoot(document.getElementById('app')!).render(<App />)
