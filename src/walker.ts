@@ -3,6 +3,39 @@ import { join, relative, basename } from 'path';
 import type { NavNode } from './types';
 import { parseFrontmatter } from './utils.js';
 
+async function readOrder(dir: string): Promise<string[] | null> {
+  try {
+    const raw = await readFile(join(dir, 'order.json'), 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function sortByOrder(children: NavNode[], order: string[] | null): NavNode[] {
+  if (!order) {
+    children.sort((a, b) => a.title.localeCompare(b.title));
+    return children;
+  }
+  const orderMap = new Map(order.map((name, i) => [name, i]));
+  const ordered: NavNode[] = [];
+  const unordered: NavNode[] = [];
+  for (const child of children) {
+    // child.path is relative from root; get the folder basename
+    const folderName = basename(child.path);
+    if (orderMap.has(folderName)) {
+      ordered.push(child);
+    } else {
+      unordered.push(child);
+    }
+  }
+  ordered.sort((a, b) => orderMap.get(basename(a.path))! - orderMap.get(basename(b.path))!);
+  unordered.sort((a, b) => a.title.localeCompare(b.title));
+  return [...ordered, ...unordered];
+}
+
 function titleFromFolder(name: string): string {
   return name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -49,12 +82,13 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
     if (child) children.push(child);
   }
 
-  children.sort((a, b) => a.title.localeCompare(b.title));
+  const order = await readOrder(currentDir);
+  const sortedChildren = sortByOrder(children, order);
 
-  if (!hasIndex && children.length === 0) return null;
+  if (!hasIndex && sortedChildren.length === 0) return null;
   if (!hasIndex) {
-    if (children.length === 1) return children[0]!;
-    if (children.length > 1) return { title: titleFromFolder(basename(currentDir) || 'Home'), path: rel || '.', url, children };
+    if (sortedChildren.length === 1) return sortedChildren[0]!;
+    if (sortedChildren.length > 1) return { title: titleFromFolder(basename(currentDir) || 'Home'), path: rel || '.', url, children: sortedChildren };
     return null;
   }
 
@@ -62,7 +96,7 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
   const meta = await extractMeta(indexPath);
   const title = meta.title || titleFromFolder(basename(currentDir) || 'Home');
 
-  const node: NavNode = { title, path: rel || '.', url, children };
+  const node: NavNode = { title, path: rel || '.', url, children: sortedChildren };
   if (meta.icon) node.icon = meta.icon;
   return node;
 }

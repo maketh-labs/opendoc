@@ -15,7 +15,7 @@ import { navToHtml, backlinksToHtml } from './render-utils.js';
 import type { BacklinksIndex } from './types';
 import type { RouteContext, RouteHandler } from './routes/types';
 import { handleStatic } from './routes/static';
-import { handleFileApi } from './routes/file-api';
+import { handleFileApi, handleOrderApi, handleMoveApi } from './routes/file-api';
 import { handleUpload } from './routes/upload';
 import { handleGitStatus, handleCommit } from './routes/git';
 import { handleOAuthRedirect, handleOAuthCallback } from './routes/oauth';
@@ -64,6 +64,8 @@ const routeHandlers: RouteHandler[] = [
   handleNav,
   handleStatic,
   handleFileApi,
+  handleOrderApi,
+  handleMoveApi,
   handleUpload,
   handleGitStatus,
   handleCommit,
@@ -117,9 +119,12 @@ export async function startServer(rootDir: string, port: number = 3000) {
   try {
     fsWatch(rootDir, { recursive: true }, (_, filename) => {
       if (!filename) return;
-      if (extname(filename) !== '.md') return;
       if (filename.includes('node_modules') || filename.includes('.opendoc')) return;
-      if (filename.endsWith('context.md') || filename.endsWith('context-mini.md')) return;
+      // Rebuild on .md changes and order.json changes
+      const isMarkdown = extname(filename) === '.md';
+      const isOrder = filename.endsWith('order.json');
+      if (!isMarkdown && !isOrder) return;
+      if (isMarkdown && (filename.endsWith('context.md') || filename.endsWith('context-mini.md'))) return;
       scheduleRebuild();
     });
   } catch (err) {
