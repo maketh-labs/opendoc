@@ -34,7 +34,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 
 # Generated Tailwind CSS
-client/globals.gen.css
+
 
 # Platform binaries (built by CI)
 npm/*/bin/opendoc
