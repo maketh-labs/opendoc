@@ -54,9 +54,22 @@ function extractCallouts(markdown: string): Array<
   return parts
 }
 
+// Convert [[wiki links]] to markdown links for BlockNote, preserving round-trip
+// We encode them as /wl/Page%20Name so BlockNote treats them as valid links
+function preProcessWikiLinks(md: string): string {
+  return md.replace(/\[\[([^\]|#]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]/g, (_, page, anchor, label) => {
+    const display = label || page
+    const encodedPage = encodeURIComponent(page.trim())
+    const anchorPart = anchor ? '%23' + encodeURIComponent(anchor) : ''
+    const href = `/wl/${encodedPage}${anchorPart}`
+    return `[${display}](${href})`
+  })
+}
+
 export async function markdownToBlocks(markdown: string): Promise<Block[]> {
   const stripped = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')
-  const parts = extractCallouts(stripped)
+  const withLinks = preProcessWikiLinks(stripped)
+  const parts = extractCallouts(withLinks)
   const blocks: any[] = []
 
   for (const part of parts) {
@@ -150,5 +163,13 @@ export function blocksToMarkdown(blocks: any[]): string {
     }
   }
 
-  return parts.join('\n\n')
+  const result = parts.join('\n\n')
+  // Convert /wl/... hrefs back to [[wiki link]] syntax
+  return result.replace(/\[([^\]]+)\]\(\/wl\/([^)]+)\)/g, (_, label, encodedTarget) => {
+    const decoded = decodeURIComponent(encodedTarget.replace('%23', '#'))
+    const [page, anchor] = decoded.split('#')
+    const anchorPart = anchor ? `#${anchor}` : ''
+    if (label === page) return `[[${page}${anchorPart}]]`
+    return `[[${page}${anchorPart}|${label}]]`
+  })
 }

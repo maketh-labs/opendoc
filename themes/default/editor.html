@@ -435,6 +435,17 @@
       border-radius: var(--border-radius);
     }
 
+    /* Autosave status indicator */
+    .od-autosave-status {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--border-radius);
+      white-space: nowrap;
+    }
+    .od-autosave-status.saved  { color: #16a34a; }
+    .od-autosave-status.dirty  { color: var(--color-muted); }
+    .od-autosave-status.saving { color: var(--color-muted); }
+
     /* Standalone save button (no dropdown split) */
     .od-save-standalone {
       border-radius: var(--border-radius) !important;
@@ -852,7 +863,7 @@
       gap: 0.75rem;
       padding: 0.75rem 1rem;
       border-radius: var(--od-radius, 6px);
-      border: 1px solid;
+      border-left: 4px solid;
       margin: 2px 0;
     }
     .od-callout-icon {

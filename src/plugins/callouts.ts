@@ -3,13 +3,13 @@ import type { Plugin } from 'unified';
 import type { Root, Blockquote, Paragraph, Text } from 'mdast';
 
 const CALLOUT_TYPES: Record<string, { icon: string; color: string }> = {
-  NOTE: { icon: '\u2139\uFE0F', color: 'blue' },
-  TIP: { icon: '\uD83D\uDCA1', color: 'green' },
-  WARNING: { icon: '\u26A0\uFE0F', color: 'yellow' },
-  DANGER: { icon: '\uD83D\uDEAB', color: 'red' },
-  INFO: { icon: '\uD83D\uDCCC', color: 'purple' },
-  CAUTION: { icon: '\u26A0\uFE0F', color: 'yellow' },
-  IMPORTANT: { icon: '\uD83D\uDCCC', color: 'purple' },
+  NOTE: { icon: '📝', color: 'note' },
+  TIP: { icon: '💡', color: 'tip' },
+  WARNING: { icon: '⚠️', color: 'warning' },
+  DANGER: { icon: '🔥', color: 'danger' },
+  INFO: { icon: 'ℹ️', color: 'info' },
+  CAUTION: { icon: '🔥', color: 'caution' },
+  IMPORTANT: { icon: '❗', color: 'important' },
 };
 
 const CALLOUT_REGEX = /^\[!(\w+)\]\s*/;

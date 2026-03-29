@@ -30,7 +30,7 @@ const MoonIcon = () => (
 
 function LocalEditorHeader({
   pages, currentFile, switchPage, gitStatus, gitDirty,
-  saving, isDirty, handleSave, commitMsg, setCommitMsg,
+  saving, isDirty, commitMsg, setCommitMsg,
   committing, handleCommit, setRightOpen,
   sidebarCollapsed, onToggleSidebar, darkMode,
 }: {
@@ -41,7 +41,6 @@ function LocalEditorHeader({
   gitDirty: boolean | undefined | 0
   saving: boolean
   isDirty: boolean
-  handleSave: () => void
   commitMsg: string
   setCommitMsg: (m: string) => void
   committing: boolean
@@ -72,21 +71,18 @@ function LocalEditorHeader({
         )}
       </span>
       <span className="spacer" />
+      {/* Autosave status indicator */}
+      <span className={`od-autosave-status ${saving ? 'saving' : isDirty ? 'dirty' : 'saved'}`}>
+        {saving ? <><span className="od-spinner" />Saving…</> : isDirty ? 'Unsaved' : '✓ Saved'}
+      </span>
       {gitStatus?.isRepo && (
         <span
           className={`od-git-status ${gitDirty ? 'od-git-dirty' : 'od-git-clean'}`}
           title={gitStatus.branch ? `Branch: ${gitStatus.branch}` : undefined}
         >
-          {gitDirty ? `${gitStatus.changes} changed` : 'Saved'}
+          {gitDirty ? `${gitStatus.changes} changed` : 'Committed'}
         </span>
       )}
-      <button
-        className="od-save-primary od-save-standalone"
-        onClick={handleSave}
-        disabled={saving}
-      >
-        {saving ? <><span className="od-spinner" />Saving…</> : isDirty ? 'Save' : 'Saved'}
-      </button>
       {gitStatus?.isRepo && (
         <div className="od-commit-group">
           <input
@@ -175,20 +171,29 @@ export function LocalEditor() {
   }, [pageTitle, pageIcon])
 
   const handleSave = useCallback(async () => {
+    if (saving) return
     setSaving(true)
     try {
       const content = getCurrentMarkdown()
       await localSaveFile(currentFile, content)
       originalContentRef.current = content
       setIsDirty(false)
-      showToast('Saved', 'success')
       refreshGit()
     } catch (e) {
       showToast((e as Error).message, 'error')
     } finally {
       setSaving(false)
     }
-  }, [currentFile, refreshGit, getCurrentMarkdown])
+  }, [currentFile, refreshGit, getCurrentMarkdown, saving])
+
+  // Autosave: debounced 1s after last change
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!isDirty) return
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = setTimeout(() => { handleSave() }, 1000)
+    return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current) }
+  }, [isDirty, handleSave])
 
   useKeyboardSave(handleSave)
 
@@ -266,7 +271,7 @@ export function LocalEditor() {
         <LocalEditorHeader
           pages={pages} currentFile={currentFile} switchPage={switchPage}
           gitStatus={gitStatus} gitDirty={gitDirty}
-          saving={saving} isDirty={isDirty} handleSave={handleSave}
+          saving={saving} isDirty={isDirty}
           commitMsg={commitMsg} setCommitMsg={setCommitMsg}
           committing={committing} handleCommit={handleCommit}
           setRightOpen={setRightOpen}
