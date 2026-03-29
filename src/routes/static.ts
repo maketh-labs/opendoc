@@ -82,14 +82,27 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // Serve editor CSS
+  // Serve editor CSS — triggers the same build as editor.tsx if not yet cached
   if (pathname === '/client/editor.css') {
-    if (!ctx.getEditorBundleCss()) {
-      res.writeHead(404); res.end('CSS not yet built — load editor.tsx first')
-      return true
+    try {
+      if (!ctx.getEditorBundleCss()) {
+        const result = await Bun.build({
+          entrypoints: [join(ctx.clientDir, 'editor.tsx')],
+          target: 'browser',
+          minify: false,
+        })
+        if (!result.success) throw new Error(result.logs.join('\n'))
+        for (const out of result.outputs) {
+          if (out.kind === 'entry-point') ctx.setEditorBundleJs(await out.text())
+          else if (out.path.endsWith('.css')) ctx.setEditorBundleCss(await out.text())
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
+      res.end(ctx.getEditorBundleCss() ?? '')
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' })
+      res.end(`Build error: ${err}`)
     }
-    res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
-    res.end(ctx.getEditorBundleCss())
     return true
   }
 
