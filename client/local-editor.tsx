@@ -121,15 +121,17 @@ export function LocalEditor() {
   const { status: gitStatus, refresh: refreshGit } = useGitStatus()
   const darkMode = useDarkMode()
 
-  useEffect(() => {
-    fetch('/_opendoc/nav.json')
-      .then(r => r.json())
-      .then((nav: NavNode) => {
-        setNavTree(nav)
-        setPages(flattenNav(nav))
-      })
-      .catch(() => {})
+  const refreshNav = useCallback(async () => {
+    try {
+      const r = await fetch('/_opendoc/nav.json')
+      const nav: NavNode = await r.json()
+      setNavTree(nav)
+      // Exclude root index.md from editor pages list
+      setPages(flattenNav(nav).filter(p => p.filePath !== 'index.md'))
+    } catch {}
   }, [])
+
+  useEffect(() => { refreshNav() }, [refreshNav])
 
   useEffect(() => {
     setInitialBlocks(null)
@@ -232,16 +234,12 @@ export function LocalEditor() {
     try {
       await localSaveFile(filePath, content)
       showToast(`Created ${name}`, 'success')
-      // Refresh nav
-      const r = await fetch('/_opendoc/nav.json')
-      const nav: NavNode = await r.json()
-      setNavTree(nav)
-      setPages(flattenNav(nav))
+      await refreshNav()
       switchPage(filePath)
     } catch (e) {
       showToast((e as Error).message, 'error')
     }
-  }, [])
+  }, [refreshNav])
 
   const handleTitleChange = useCallback((t: string) => {
     setPageTitle(t)
