@@ -3,6 +3,7 @@ import type { NavNode, BacklinksIndex } from '../types'
 
 export interface RouteContext {
   rootDir: string
+  projectRoot: string
   config: any
   editorPath: string | null
   clientDir: string

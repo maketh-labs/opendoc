@@ -140,6 +140,7 @@ export async function startServer(rootDir: string, port: number = 3000) {
   // Build route context — shared state for all handlers
   const routeContext: RouteContext = {
     rootDir,
+    projectRoot: dirname(dirname(import.meta.path)),
     config,
     editorPath,
     clientDir,

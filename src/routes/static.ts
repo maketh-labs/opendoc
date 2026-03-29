@@ -1,5 +1,5 @@
 import { readFile } from 'fs/promises'
-import { join, dirname } from 'path'
+import { join } from 'path'
 import type { RouteHandler } from './types'
 
 export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
@@ -16,7 +16,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   if (pathname === '/_opendoc/hljs-light.css' || pathname === '/_opendoc/hljs-dark.css') {
     const file = pathname === '/_opendoc/hljs-light.css' ? 'hljs-github.css' : 'hljs-github-dark.css'
     try {
-      const css = await readFile(join(dirname(dirname(import.meta.path)), 'themes', 'default', file), 'utf-8')
+      const css = await readFile(join(ctx.projectRoot, 'themes', 'default', file), 'utf-8')
       res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=86400' })
       res.end(css)
     } catch {
@@ -46,7 +46,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
 
   // Editor route (HTML page)
   if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname === ctx.editorPath + '/')) {
-    const editorFilePath = join(dirname(dirname(import.meta.path)), 'themes', 'default', 'editor.html')
+    const editorFilePath = join(ctx.projectRoot, 'themes', 'default', 'editor.html')
     try {
       const editorHtml = await readFile(editorFilePath, 'utf-8')
       res.writeHead(200, { 'Content-Type': 'text/html' })
