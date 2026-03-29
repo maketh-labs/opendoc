@@ -62,6 +62,8 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   if (pathname === '/client/editor.tsx' || pathname === '/client/editor.ts') {
     try {
       if (!ctx.getEditorBundleJs()) {
+        // Build Tailwind CSS before bundling editor
+        Bun.spawnSync(['bunx', 'tailwindcss', '-i', join(ctx.clientDir, 'globals.css'), '-o', join(ctx.clientDir, 'globals.gen.css'), '--minify'], { cwd: ctx.projectRoot })
         const result = await Bun.build({
           entrypoints: [join(ctx.clientDir, 'editor.tsx')],
           target: 'browser',

@@ -11,22 +11,11 @@ import {
   type NavNode,
 } from './editor-utils'
 import { markdownToBlocks } from './markdown'
-
-const SunIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="5" />
-    <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
-    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-    <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
-    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-  </svg>
-)
-
-const MoonIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-  </svg>
-)
+import { PanelLeft, Sun, Moon, GitBranch, Settings2 } from 'lucide-react'
+import { Button } from './ui/button'
+import { Badge } from './ui/badge'
+import { Input } from './ui/input'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui/select'
 
 function LocalEditorHeader({
   pages, currentFile, switchPage, gitStatus, gitDirty,
@@ -52,57 +41,51 @@ function LocalEditorHeader({
 }) {
   return (
     <div className="editor-header">
-      <button className="od-toggle-themes" onClick={onToggleSidebar} title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" />
-        </svg>
-      </button>
-      <span className="od-breadcrumb">
-        {pages.length > 0 ? (
-          <select
-            value={currentFile}
-            onChange={e => switchPage(e.target.value)}
-            className="od-breadcrumb-select"
-          >
-            {pages.map(p => <option key={p.filePath} value={p.filePath}>{p.title}</option>)}
-          </select>
-        ) : (
-          <span>{currentFile}</span>
-        )}
-      </span>
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggleSidebar} title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
+        <PanelLeft className="h-4 w-4" />
+      </Button>
+      {pages.length > 0 ? (
+        <Select value={currentFile} onValueChange={switchPage}>
+          <SelectTrigger className="h-7 w-auto max-w-[200px] border-none bg-transparent text-xs text-muted-foreground px-2 gap-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {pages.map(p => <SelectItem key={p.filePath} value={p.filePath}>{p.title}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      ) : (
+        <span className="text-xs text-muted-foreground">{currentFile}</span>
+      )}
       <span className="spacer" />
-      {/* Autosave status indicator */}
-      <span className={`od-autosave-status ${saving ? 'saving' : isDirty ? 'dirty' : 'saved'}`}>
+      <Badge variant="outline" className={`text-xs font-normal ${saving ? 'text-muted-foreground' : isDirty ? 'text-muted-foreground' : 'text-green-600 dark:text-green-400'}`}>
         {saving ? <><span className="od-spinner" />Saving…</> : isDirty ? 'Unsaved' : '✓ Saved'}
-      </span>
+      </Badge>
       {gitStatus?.isRepo && (
-        <span
-          className={`od-git-status ${gitDirty ? 'od-git-dirty' : 'od-git-clean'}`}
-          title={gitStatus.branch ? `Branch: ${gitStatus.branch}` : undefined}
-        >
+        <Badge variant="secondary" className="text-xs font-normal gap-1" title={gitStatus.branch ? `Branch: ${gitStatus.branch}` : undefined}>
+          <GitBranch className="h-3 w-3" />
           {gitDirty ? `${gitStatus.changes} changed` : 'Committed'}
-        </span>
+        </Badge>
       )}
       {gitStatus?.isRepo && (
-        <div className="od-commit-group">
-          <input
+        <div className="flex items-center gap-1.5">
+          <Input
             type="text"
-            className="od-commit-msg"
+            className="h-7 w-[180px] text-xs"
             placeholder="Commit message"
             value={commitMsg}
             onChange={e => setCommitMsg(e.target.value)}
           />
-          <button className="btn btn-primary btn-sm" onClick={handleCommit} disabled={committing}>
+          <Button variant="default" size="sm" className="h-7 text-xs" onClick={handleCommit} disabled={committing}>
             {committing ? 'Committing…' : 'Commit & Push'}
-          </button>
+          </Button>
         </div>
       )}
-      <button className="od-toggle-themes" onClick={darkMode.toggle} title={darkMode.theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
-        {darkMode.theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-      </button>
-      <button className="od-toggle-themes" onClick={() => setRightOpen(o => !o)} title="Themes">
-        <ThemeIcon />
-      </button>
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={darkMode.toggle} title={darkMode.theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
+        {darkMode.theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightOpen(o => !o)} title="Themes">
+        <Settings2 className="h-4 w-4" />
+      </Button>
     </div>
   )
 }

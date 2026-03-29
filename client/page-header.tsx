@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
+import { Button } from './ui/button'
 
 export interface PageHeaderProps {
   title: string
@@ -46,13 +47,14 @@ export function PageHeader({ title, icon, onTitleChange, onIconChange, darkMode 
     <div className="od-page-header">
       {icon && (
         <div className="od-page-icon-wrap">
-          <button
+          <Button
             ref={buttonRef}
-            className="od-page-icon"
+            variant="ghost"
+            className="text-5xl p-2 h-auto hover:bg-accent rounded-lg"
             onClick={() => setPickerOpen(o => !o)}
           >
             {icon}
-          </button>
+          </Button>
           {pickerOpen && (
             <div ref={pickerRef} className="od-emoji-picker">
               <Picker

@@ -1,4 +1,8 @@
 import React, { useState, useCallback } from 'react'
+import { ChevronRight, ChevronDown, Plus } from 'lucide-react'
+import { cn } from './ui/cn'
+import { Button } from './ui/button'
+import { ScrollArea } from './ui/scroll-area'
 import type { NavNode } from './editor-utils'
 
 export interface NavSidebarProps {
@@ -14,23 +18,25 @@ export function NavSidebar({ nav, currentFile, onNavigate, onNewPage, collapsed 
     <aside className={`od-sidebar-left${collapsed ? ' od-sidebar-collapsed' : ''}`}>
       {!collapsed && (
         <>
-          <div className="od-sidebar-header">
-            <span className="od-sidebar-title">{nav.title || 'Pages'}</span>
+          <div className="flex items-center justify-between px-3 py-2 border-b text-sm font-semibold">
+            <span className="truncate">{nav.title || 'Pages'}</span>
           </div>
-          <nav className="od-nav">
-            <ul>
-              {nav.children.map(child => (
-                <NavItem
-                  key={child.path}
-                  node={child}
-                  currentFile={currentFile}
-                  onNavigate={onNavigate}
-                  onNewPage={onNewPage}
-                  depth={0}
-                />
-              ))}
-            </ul>
-          </nav>
+          <ScrollArea className="flex-1">
+            <nav className="p-2">
+              <ul className="list-none p-0 m-0">
+                {nav.children.map(child => (
+                  <NavItem
+                    key={child.path}
+                    node={child}
+                    currentFile={currentFile}
+                    onNavigate={onNavigate}
+                    onNewPage={onNewPage}
+                    depth={0}
+                  />
+                ))}
+              </ul>
+            </nav>
+          </ScrollArea>
         </>
       )}
     </aside>
@@ -67,32 +73,42 @@ function NavItem({ node, currentFile, onNavigate, onNewPage, depth }: NavItemPro
   }, [node.path, onNewPage])
 
   return (
-    <li>
-      <div className={`od-nav-item${isActive ? ' active' : ''}`}>
-        {hasChildren && (
+    <li className="list-none">
+      <div className={cn('group relative flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer', isActive && 'bg-accent text-accent-foreground font-medium')}>
+        {hasChildren ? (
           <button
-            className="od-nav-chevron"
+            className="flex items-center justify-center h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
             onClick={() => setExpanded(e => !e)}
             aria-label={expanded ? 'Collapse' : 'Expand'}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 150ms' }}>
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
+            {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           </button>
+        ) : (
+          <span className="w-4 shrink-0" />
         )}
-        {!hasChildren && <span className="od-nav-chevron-spacer" />}
         <a
           href="#"
-          className={isActive ? 'active' : ''}
+          className={cn(
+            'flex-1 truncate no-underline text-muted-foreground hover:text-foreground',
+            isActive && 'text-accent-foreground'
+          )}
           onClick={handleClick}
         >
-          {node.icon && <span className="od-nav-icon">{node.icon}</span>}
+          {node.icon && <span className="mr-1">{node.icon}</span>}
           {node.title}
         </a>
-        <button className="od-nav-add" onClick={handleNewPage} title="New sub-page">+</button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+          onClick={handleNewPage}
+          title="New sub-page"
+        >
+          <Plus className="h-3 w-3" />
+        </Button>
       </div>
       {hasChildren && expanded && (
-        <ul>
+        <ul className="pl-3 ml-2 border-l list-none">
           {node.children.map(child => (
             <NavItem
               key={child.path}
