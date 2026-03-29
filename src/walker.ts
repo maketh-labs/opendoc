@@ -52,7 +52,11 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
   children.sort((a, b) => a.title.localeCompare(b.title));
 
   if (!hasIndex && children.length === 0) return null;
-  if (!hasIndex) return children.length === 1 ? children[0]! : null;
+  if (!hasIndex) {
+    if (children.length === 1) return children[0]!;
+    if (children.length > 1) return { title: titleFromFolder(basename(currentDir) || 'Home'), path: rel || '.', url, children };
+    return null;
+  }
 
   const indexPath = join(currentDir, 'index.md');
   const meta = await extractMeta(indexPath);

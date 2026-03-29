@@ -8,6 +8,8 @@ const CALLOUT_TYPES: Record<string, { icon: string; color: string }> = {
   WARNING: { icon: '\u26A0\uFE0F', color: 'yellow' },
   DANGER: { icon: '\uD83D\uDEAB', color: 'red' },
   INFO: { icon: '\uD83D\uDCCC', color: 'purple' },
+  CAUTION: { icon: '\u26A0\uFE0F', color: 'yellow' },
+  IMPORTANT: { icon: '\uD83D\uDCCC', color: 'purple' },
 };
 
 const CALLOUT_REGEX = /^\[!(\w+)\]\s*/;

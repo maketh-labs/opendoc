@@ -43,14 +43,17 @@ export const BookmarkBlock = createReactBlockSpec(bookmarkBlockConfig, {
 
     useEffect(() => {
       if (!url || title) return
+      let cancelled = false
       setLoading(true)
       fetchMeta(url).then(m => {
+        if (cancelled) return
         if (m) {
           setMeta(m)
           editor.updateBlock(block, { props: { ...m } })
         }
         setLoading(false)
       })
+      return () => { cancelled = true }
     }, [url])
 
     const displayMeta = meta || {

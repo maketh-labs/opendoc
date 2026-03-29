@@ -1,14 +1,14 @@
 // Singleton markdown parser — avoids creating a new BlockNote editor per parse call
 // and lets the parent resolve blocks *before* mounting BlockEditor (no flash/race)
 
-import { BlockNoteEditor, BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core'
+import { BlockNoteEditor, BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from '@blocknote/core'
 import type { Block } from '@blocknote/core'
 import { CalloutBlock, CALLOUT_TYPES, type CalloutType } from './callout-block'
-
 import { BookmarkBlock } from './bookmark-block'
+import { codeBlockOptions } from '@blocknote/code-block'
 
 const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, callout: CalloutBlock(), bookmark: BookmarkBlock() },
+  blockSpecs: { ...defaultBlockSpecs, codeBlock: createCodeBlockSpec(codeBlockOptions), callout: CalloutBlock(), bookmark: BookmarkBlock() },
 })
 
 let _editor: typeof BlockNoteEditor.prototype | null = null
@@ -33,7 +33,7 @@ function extractCallouts(markdown: string): Array<
 
   while (i < lines.length) {
     const line = lines[i]!
-    const m = line.match(/^>\s*\[!(INFO|NOTE|TIP|WARNING|CAUTION|IMPORTANT)\](.*)?$/i)
+    const m = line.match(/^>\s*\[!(INFO|NOTE|TIP|WARNING|CAUTION|IMPORTANT|DANGER)\](.*)?$/i)
     if (m) {
       if (buffer.trim()) { parts.push({ type: 'text', text: buffer }); buffer = '' }
       const calloutType = m[1]!.toLowerCase() as CalloutType
@@ -75,7 +75,7 @@ export async function markdownToBlocks(markdown: string): Promise<Block[]> {
       })
     } else {
       const parsed = await getEditor().tryParseMarkdownToBlocks(part.text)
-      // Convert bare-URL paragraphs to bookmark blocks
+      // Convert bare-URL paragraphs to bookmark or youtube blocks
       const enriched = parsed.map((block: any) => {
         if (
           block.type === "paragraph" &&
@@ -84,6 +84,14 @@ export async function markdownToBlocks(markdown: string): Promise<Block[]> {
           /^https?:\/\/[^\s]+$/.test((block.content[0].text || "").trim())
         ) {
           const url = block.content[0].text.trim()
+          if (isEmbedUrl(url)) {
+            return {
+              type: "youtube" as const,
+              props: { url, caption: "" },
+              content: [],
+              children: [],
+            }
+          }
           return {
             type: "bookmark" as const,
             props: { url, title: "", description: "", favicon: "", domain: "", imageUrl: "" },
@@ -100,11 +108,24 @@ export async function markdownToBlocks(markdown: string): Promise<Block[]> {
   return blocks as unknown as Block[]
 }
 
+function isEmbedUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return u.hostname.includes("youtube.com") || u.hostname === "youtu.be"
+      || u.hostname.includes("vimeo.com") || u.hostname.includes("loom.com")
+  } catch { return false }
+}
+
 export function blocksToMarkdown(blocks: any[]): string {
   const editor = getEditor()
   const parts: string[] = []
 
   for (const block of blocks) {
+    if (block.type === 'youtube') {
+      const url = block.props?.url || ""
+      if (url) parts.push(url)
+      continue
+    }
     if (block.type === 'bookmark') {
       const url = block.props?.url || ""
       const title = block.props?.title || ""

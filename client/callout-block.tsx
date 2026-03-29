@@ -8,6 +8,7 @@ export const CALLOUT_TYPES = {
   warning:   { icon: "⚠️",  label: "Warning",   bg: "#fffbeb", border: "#fcd34d" },
   caution:   { icon: "🔥",  label: "Caution",   bg: "#fef2f2", border: "#fca5a5" },
   important: { icon: "❗",  label: "Important", bg: "#f5f3ff", border: "#c4b5fd" },
+  danger:    { icon: "🔥",  label: "Danger",    bg: "#fef2f2", border: "#fca5a5" },
 } as const
 
 export type CalloutType = keyof typeof CALLOUT_TYPES

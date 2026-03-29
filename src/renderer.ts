@@ -54,6 +54,9 @@ export async function render(markdown: string): Promise<string> {
   return String(result);
 }
 
+// Cache a reusable stringify processor — it has no per-call options
+const stringifyProcessor = unified().use(rehypeStringify, { allowDangerousHtml: true });
+
 export async function renderFull(markdown: string, options: RenderOptions = {}): Promise<RenderResult> {
   const frontmatter = parseFM(markdown) as Frontmatter;
 
@@ -62,25 +65,15 @@ export async function renderFull(markdown: string, options: RenderOptions = {}):
     currentPath: options.currentPath,
   };
 
-  const parsed = unified()
-    .use(remarkParse)
-    .use(remarkFrontmatter, ['yaml'])
-    .use(remarkGfm)
-    .use(remarkMath)
-    .use(calloutPlugin)
-    .use(wikilinkPlugin, wikilinkOpts)
-    .use(remarkRehype, { allowDangerousHtml: true })
-    .use(rehypeHighlight, { detect: true })
-    .use(rehypeKatex)
-    .use(tocPlugin)
-    .use(imagePlugin);
+  // Use the cached default processor when no wikilink options are provided,
+  // otherwise create a custom one with the titleMap/currentPath
+  const hasWikilinkOpts = options.titleMap?.size || options.currentPath;
+  const processor = hasWikilinkOpts ? createProcessor(wikilinkOpts) : defaultProcessor;
 
-  const tree = await parsed.run(parsed.parse(markdown)) as Root;
+  const tree = await processor.run(processor.parse(markdown)) as Root;
   const toc = extractToc(tree);
 
-  const html = unified()
-    .use(rehypeStringify, { allowDangerousHtml: true })
-    .stringify(tree);
+  const html = stringifyProcessor.stringify(tree);
 
   return { html: String(html), toc, frontmatter };
 }
