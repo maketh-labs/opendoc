@@ -1,6 +1,38 @@
 import { resolve, join, basename, dirname } from 'path'
-import { rename, readdir, mkdir } from 'fs/promises'
+import { rename, readdir, mkdir, readFile, writeFile } from 'fs/promises'
 import type { RouteHandler } from './types'
+
+async function readOrderFile(dir: string): Promise<string[]> {
+  try {
+    const raw = await readFile(join(dir, 'order.json'), 'utf-8')
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) return parsed
+  } catch {}
+  return []
+}
+
+async function writeOrderFile(dir: string, order: string[]): Promise<void> {
+  await writeFile(join(dir, 'order.json'), JSON.stringify(order, null, 2) + '\n')
+}
+
+/** Remove a slug from order.json in a directory, delete the file if it becomes empty. */
+async function removeFromOrder(dir: string, slug: string): Promise<void> {
+  const order = await readOrderFile(dir)
+  const next = order.filter(s => s !== slug)
+  if (next.length !== order.length) {
+    if (next.length === 0) {
+      try { await (await import('fs/promises')).unlink(join(dir, 'order.json')) } catch {}
+    } else {
+      await writeOrderFile(dir, next)
+    }
+  }
+}
+
+/** Append a slug to order.json in a directory if not already present. */
+async function appendToOrder(dir: string, slug: string): Promise<void> {
+  const order = await readOrderFile(dir)
+  if (!order.includes(slug)) await writeOrderFile(dir, [...order, slug])
+}
 
 function isWithinRoot(rootDir: string, fullPath: string): boolean {
   const resolved = resolve(rootDir)
@@ -81,6 +113,15 @@ export const handleMoveApi: RouteHandler = async (req, res, url, ctx) => {
     // Ensure parent directory of target exists
     await mkdir(dirname(toPath), { recursive: true })
     await rename(fromPath, toPath)
+
+    // Keep order.json consistent: remove from source parent, add to dest parent
+    const fromSlug = basename(fromPath)
+    const toSlug = basename(toPath)
+    const sourceParent = dirname(fromPath)
+    const destParent = dirname(toPath)
+    await removeFromOrder(sourceParent, fromSlug)
+    await appendToOrder(destParent, toSlug)
+
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
   } catch (e) {

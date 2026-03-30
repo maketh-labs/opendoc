@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'fs/promises';
+import { readdir, readFile, writeFile } from 'fs/promises';
 import { join, relative, basename } from 'path';
 import type { NavNode } from './types';
 import { parseFrontmatter } from './utils.js';
@@ -14,16 +14,29 @@ async function readOrder(dir: string): Promise<string[] | null> {
   }
 }
 
-function sortByOrder(children: NavNode[], order: string[] | null): NavNode[] {
+async function sortByOrder(dir: string, children: NavNode[], order: string[] | null): Promise<NavNode[]> {
   if (!order) {
     children.sort((a, b) => a.title.localeCompare(b.title));
     return children;
   }
-  const orderMap = new Map(order.map((name, i) => [name, i]));
+  const existingSlugs = new Set(children.map(c => basename(c.path)));
+  const cleanOrder = order.filter(name => existingSlugs.has(name));
+
+  // Self-heal: rewrite order.json if stale entries were removed
+  if (cleanOrder.length !== order.length) {
+    try {
+      if (cleanOrder.length === 0) {
+        await (await import('fs/promises')).unlink(join(dir, 'order.json'));
+      } else {
+        await writeFile(join(dir, 'order.json'), JSON.stringify(cleanOrder, null, 2) + '\n');
+      }
+    } catch {}
+  }
+
+  const orderMap = new Map(cleanOrder.map((name, i) => [name, i]));
   const ordered: NavNode[] = [];
   const unordered: NavNode[] = [];
   for (const child of children) {
-    // child.path is relative from root; get the folder basename
     const folderName = basename(child.path);
     if (orderMap.has(folderName)) {
       ordered.push(child);
@@ -83,7 +96,7 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
   }
 
   const order = await readOrder(currentDir);
-  const sortedChildren = sortByOrder(children, order);
+  const sortedChildren = await sortByOrder(currentDir, children, order);
 
   if (!hasIndex && sortedChildren.length === 0) return null;
   if (!hasIndex) {
