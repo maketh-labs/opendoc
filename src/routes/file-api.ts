@@ -1,5 +1,5 @@
 import { resolve, join, basename, dirname } from 'path'
-import { rename, readdir, mkdir, readFile, writeFile } from 'fs/promises'
+import { rename, readdir, mkdir, readFile, writeFile, rm, cp, stat } from 'fs/promises'
 import type { RouteHandler } from './types'
 
 async function readOrderFile(dir: string): Promise<string[]> {
@@ -131,6 +131,101 @@ export const handleMoveApi: RouteHandler = async (req, res, url, ctx) => {
   return true
 }
 
+export const handleRenameApi: RouteHandler = async (req, res, url, ctx) => {
+  if (url.pathname !== '/_opendoc/rename' || req.method !== 'PUT') return false
+
+  const body = JSON.parse(await readBody(req))
+  const { from, to } = body as { from: string; to: string }
+  if (!from || !to) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' })
+    res.end('Missing from or to')
+    return true
+  }
+
+  const fromPath = resolve(ctx.rootDir, from)
+  const toPath = resolve(ctx.rootDir, to)
+  if (!isWithinRoot(ctx.rootDir, fromPath) || !isWithinRoot(ctx.rootDir, toPath)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' })
+    res.end('Forbidden')
+    return true
+  }
+
+  try {
+    await rename(fromPath, toPath)
+    // Update order.json in parent: replace old slug with new slug
+    const parentPath = dirname(fromPath)
+    const oldSlug = basename(fromPath)
+    const newSlug = basename(toPath)
+    const order = await readOrderFile(parentPath)
+    const idx = order.indexOf(oldSlug)
+    if (idx !== -1) {
+      order[idx] = newSlug
+      await writeOrderFile(parentPath, order)
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
+  } catch (e) {
+    res.writeHead(500, { 'Content-Type': 'text/plain' })
+    res.end(String(e))
+  }
+  return true
+}
+
+export const handleDuplicateApi: RouteHandler = async (req, res, url, ctx) => {
+  if (url.pathname !== '/_opendoc/duplicate' || req.method !== 'POST') return false
+
+  const body = JSON.parse(await readBody(req))
+  const { path: pagePath } = body as { path: string }
+  if (!pagePath) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' })
+    res.end('Missing path')
+    return true
+  }
+
+  const srcPath = resolve(ctx.rootDir, pagePath)
+  if (!isWithinRoot(ctx.rootDir, srcPath)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' })
+    res.end('Forbidden')
+    return true
+  }
+
+  try {
+    // Find a unique copy name
+    const parentPath = dirname(srcPath)
+    const slug = basename(srcPath)
+    let copySlug = `${slug}-copy`
+    let counter = 2
+    while (true) {
+      try {
+        await stat(join(parentPath, copySlug))
+        copySlug = `${slug}-copy-${counter++}`
+      } catch {
+        break
+      }
+    }
+
+    const destPath = join(parentPath, copySlug)
+    await cp(srcPath, destPath, { recursive: true })
+
+    // Add to order.json after the original
+    const order = await readOrderFile(parentPath)
+    const idx = order.indexOf(slug)
+    if (idx !== -1) {
+      order.splice(idx + 1, 0, copySlug)
+      await writeOrderFile(parentPath, order)
+    } else {
+      await appendToOrder(parentPath, copySlug)
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, slug: copySlug }))
+  } catch (e) {
+    res.writeHead(500, { 'Content-Type': 'text/plain' })
+    res.end(String(e))
+  }
+  return true
+}
+
 export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/file') return false
 
@@ -170,6 +265,28 @@ export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
     await Bun.write(fullPath, content)
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
+    return true
+  }
+
+  if (req.method === 'DELETE') {
+    try {
+      const s = await stat(fullPath)
+      if (!s.isDirectory()) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' })
+        res.end('Path is not a directory')
+        return true
+      }
+      await rm(fullPath, { recursive: true, force: true })
+      // Remove from parent's order.json
+      const slug = basename(fullPath)
+      const parentPath = dirname(fullPath)
+      await removeFromOrder(parentPath, slug)
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' })
+      res.end(String(e))
+    }
     return true
   }
 

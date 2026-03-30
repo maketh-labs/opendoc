@@ -11,7 +11,7 @@ import { ensureConfig, getEditorPath } from './config';
 import { buildTitleMap } from './utils.js';
 import type { RouteContext, RouteHandler } from './routes/types';
 import { handleStatic } from './routes/static';
-import { handleFileApi, handleOrderApi, handleMoveApi } from './routes/file-api';
+import { handleFileApi, handleOrderApi, handleMoveApi, handleRenameApi, handleDuplicateApi } from './routes/file-api';
 import { handleUpload } from './routes/upload';
 import { handleGitStatus, handleCommit } from './routes/git';
 import { handleOAuthRedirect, handleOAuthCallback } from './routes/oauth';
@@ -35,6 +35,8 @@ const routeHandlers: RouteHandler[] = [
   handleFileApi,
   handleOrderApi,
   handleMoveApi,
+  handleRenameApi,
+  handleDuplicateApi,
   handleUpload,
   handleGitStatus,
   handleCommit,
