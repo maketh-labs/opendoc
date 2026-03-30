@@ -10,7 +10,6 @@ import {
   deleteTheme,
   loadTheme,
 } from './themes'
-import { initFaviconPanel } from './favicon'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui/select'
 import { Input } from './ui/input'
 import { Button } from './ui/button'
@@ -139,7 +138,6 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
   onChange: () => void
 }) {
   const [family, setFamily] = useState(() => familyVar ? getComputedVar(familyVar) || '' : '')
-  const [size, setSize] = useState(() => sizeVar ? getComputedVar(sizeVar) || '' : '')
   const [weight, setWeight] = useState(() => weightVar ? getComputedVar(weightVar) || '' : '')
   const [lh, setLh] = useState(() => lineHeightVar ? getComputedVar(lineHeightVar) || '' : '')
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -198,16 +196,7 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
       {sizeVar && (
         <div className="od-tp-row">
           <label className="od-tp-label-sm">Size</label>
-          <Input
-            className="od-tp-input od-tp-input-sm"
-            value={size}
-            placeholder="1rem"
-            onChange={e => {
-              setSize(e.target.value)
-              setVar(sizeVar, e.target.value)
-              onChange()
-            }}
-          />
+          <SizeInput varName={sizeVar} defaultVal="" onChange={onChange} />
         </div>
       )}
       {weightVar && (
@@ -251,6 +240,67 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
           />
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── SizeInput ──────────────────────────────────────────
+
+const SIZE_UNITS = ['rem', 'em', 'px', '%']
+
+function parseSizeValue(raw: string): { num: string; unit: string } {
+  if (!raw) return { num: '', unit: 'rem' }
+  const m = raw.trim().match(/^([\d.]+)\s*(rem|em|px|%|vw|vh)?$/)
+  if (m) return { num: m[1] ?? '', unit: m[2] ?? 'rem' }
+  return { num: '', unit: 'rem' }
+}
+
+function SizeInput({ varName, defaultVal, onChange }: {
+  varName: string
+  defaultVal: string
+  onChange: () => void
+}) {
+  const raw = getComputedVar(varName) || (THEME_VARS as any)[varName] || defaultVal || ''
+  const parsed = parseSizeValue(raw)
+  const [num, setNum] = useState(parsed.num)
+  const [unit, setUnit] = useState(parsed.unit)
+
+  useEffect(() => {
+    const r = getComputedVar(varName) || (THEME_VARS as any)[varName] || defaultVal || ''
+    const p = parseSizeValue(r)
+    setNum(p.num)
+    setUnit(p.unit)
+  }, [varName, defaultVal])
+
+  function emit(n: string, u: string) {
+    if (n) {
+      setVar(varName, `${n}${u}`)
+      onChange()
+    }
+  }
+
+  return (
+    <div className="od-tp-size-input">
+      <input
+        type="number"
+        className="od-tp-input od-tp-input-num"
+        value={num}
+        step="0.05"
+        min="0"
+        placeholder="—"
+        onChange={e => {
+          setNum(e.target.value)
+          emit(e.target.value, unit)
+        }}
+      />
+      <Select value={unit} onValueChange={u => { setUnit(u); emit(num, u) }}>
+        <SelectTrigger className="od-tp-select od-tp-select-unit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SIZE_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -300,7 +350,6 @@ function SliderRow({ label, varName, min, max, unit, step, onChange }: {
 export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () => void }) {
   const [preset, setPreset] = useState('default')
   const [dirty, setDirty] = useState(false)
-  const faviconInitRef = useRef(false)
 
   const markDirty = useCallback(() => setDirty(true), [])
 
@@ -322,13 +371,6 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
         setPreset('custom')
       }
     })
-  }, [])
-
-  // Init favicon panel
-  useEffect(() => {
-    if (faviconInitRef.current) return
-    faviconInitRef.current = true
-    initFaviconPanel()
   }, [])
 
   function handlePresetChange(id: string) {
@@ -453,14 +495,6 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
 
         <div className="od-tp-separator" />
 
-        {/* Layout */}
-        <Section title="Layout" icon="&#128208;">
-          <SliderRow label="Content width" varName="--od-content-max" min={600} max={960} unit="px" onChange={markDirty} />
-          <SliderRow label="Sidebar width" varName="--od-sidebar-width" min={200} max={320} unit="px" onChange={markDirty} />
-        </Section>
-
-        <div className="od-tp-separator" />
-
         {/* Elements */}
         <Section title="Elements" icon="&#129521;">
           <SliderRow label="Border radius" varName="--od-radius" min={0} max={16} unit="px" onChange={markDirty} />
@@ -472,37 +506,6 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
           <ColorPair label="Important" lightVar="--od-color-callout-important" darkVar="--od-color-callout-important" onChange={markDirty} />
         </Section>
 
-        <div className="od-tp-separator" />
-
-        {/* Favicon */}
-        <details className="od-favicon-panel">
-          <summary>Favicon</summary>
-          <div className="od-favicon-content">
-            <div className="od-favicon-drop" id="favicon-drop">
-              <input type="file" id="favicon-upload" accept="image/png,image/svg+xml" hidden />
-              <div className="od-favicon-drop-inner" id="favicon-drop-inner">
-                <p>Drop a 512x512 PNG or SVG</p>
-                <button className="od-btn od-btn-secondary" id="favicon-browse">Browse</button>
-              </div>
-            </div>
-            <div className="od-favicon-preview" id="favicon-preview" style={{ display: 'none' }}>
-              <img id="favicon-preview-img" alt="favicon preview" />
-              <div className="od-favicon-sizes">
-                <canvas id="preview-16" width="16" height="16" />
-                <canvas id="preview-32" width="32" height="32" />
-                <canvas id="preview-180" width="180" height="180" />
-              </div>
-            </div>
-            <div className="od-favicon-tags" id="favicon-tags" style={{ display: 'none' }}>
-              <label>HTML tags</label>
-              <textarea className="od-css-editor" id="favicon-tags-output" readOnly />
-              <div className="od-css-editor-actions">
-                <button className="od-btn od-btn-ghost" id="favicon-copy-tags">Copy tags</button>
-                <button className="od-btn od-btn-primary" id="favicon-download-all">Download all</button>
-              </div>
-            </div>
-          </div>
-        </details>
       </div>
 
       {/* Action bar */}

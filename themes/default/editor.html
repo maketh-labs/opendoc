@@ -531,6 +531,11 @@
     }
     .od-tp-input:focus { border-color: var(--color-accent, #0969da); }
     .od-tp-input-sm { max-width: 80px; }
+    .od-tp-size-input { display: flex; gap: 4px; align-items: center; flex: 1; }
+    .od-tp-input-num { max-width: 64px; -moz-appearance: textfield; }
+    .od-tp-input-num::-webkit-outer-spin-button,
+    .od-tp-input-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .od-tp-select-unit { width: 68px; min-width: 68px; }
     .od-tp-select {
       padding: 4px 8px;
       border: 1px solid var(--color-border, #e5e5e5);
@@ -626,25 +631,6 @@
     }
     .od-css-editor:focus { box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
     .od-css-editor-actions { display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end; }
-    .od-favicon-panel { border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 12px; }
-    .od-favicon-panel summary {
-      cursor: pointer; font-size: 0.85rem; font-weight: 500;
-      color: var(--color-muted); padding: 4px 0; user-select: none;
-    }
-    .od-favicon-panel summary:hover { color: var(--color-text); }
-    .od-favicon-content { margin-top: 8px; }
-    .od-favicon-drop {
-      border: 2px dashed var(--color-border); border-radius: var(--border-radius);
-      padding: 20px; text-align: center;
-    }
-    .od-favicon-drop.od-favicon-drag-over { border-color: var(--color-accent); background: rgba(37, 99, 235, 0.05); }
-    .od-favicon-drop-inner p { font-size: 0.8rem; color: var(--color-muted); margin-bottom: 8px; }
-    .od-favicon-preview { margin-top: 12px; }
-    .od-favicon-preview img { max-width: 64px; border-radius: var(--border-radius); border: 1px solid var(--color-border); }
-    .od-favicon-sizes { display: flex; align-items: flex-end; gap: 8px; margin-top: 8px; }
-    .od-favicon-sizes canvas { border: 1px solid var(--color-border); border-radius: 2px; image-rendering: pixelated; }
-    .od-favicon-tags { margin-top: 12px; }
-    .od-favicon-tags label { display: block; font-size: 0.75rem; font-weight: 500; color: var(--color-muted); margin-bottom: 4px; }
 
     /* Page Settings panel */
     .od-page-settings {
