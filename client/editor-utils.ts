@@ -122,6 +122,31 @@ export async function movePageApi(from: string, to: string): Promise<void> {
   if (!r.ok) throw new Error('Failed to move page')
 }
 
+export async function deletePageApi(path: string): Promise<void> {
+  const r = await fetch(`/_opendoc/file?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+  if (!r.ok) throw new Error('Failed to delete page')
+}
+
+export async function renamePageApi(from: string, to: string): Promise<void> {
+  const r = await fetch('/_opendoc/rename', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to }),
+  })
+  if (!r.ok) throw new Error('Failed to rename page')
+}
+
+export async function duplicatePageApi(path: string): Promise<string> {
+  const r = await fetch('/_opendoc/duplicate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  if (!r.ok) throw new Error('Failed to duplicate page')
+  const data = await r.json()
+  return data.slug as string
+}
+
 export async function getCommitMessage(path: string, before: string, after: string): Promise<string> {
   const fallback = `edit(${path}): ${new Date().toISOString()}`
   try {
