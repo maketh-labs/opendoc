@@ -59,7 +59,7 @@ function App() {
           const data = await r.json()
           if (data.access_token) localStorage.setItem('github_token', data.access_token)
         } catch {}
-        window.history.replaceState({}, '', '/editor')
+        window.history.replaceState({}, '', '/_')
         window.location.reload()
         return
       }

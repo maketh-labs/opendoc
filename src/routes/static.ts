@@ -77,7 +77,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   }
 
   // Editor route (HTML page)
-  if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname === ctx.editorPath + '/')) {
+  if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname.startsWith(ctx.editorPath + '/'))) {
     const editorFilePath = join(ctx.projectRoot, 'themes', 'default', 'editor.html')
     try {
       const editorHtml = await readFile(editorFilePath, 'utf-8')

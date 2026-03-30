@@ -56,7 +56,10 @@ export function getStoredToken() { return localStorage.getItem('github_token') }
 export function getStoredRepo() { return localStorage.getItem('github_repo') }
 
 export function getCurrentPagePath(): string | null {
-  return new URLSearchParams(window.location.search).get('path') || null
+  const pathname = window.location.pathname
+  const prefix = '/_/'
+  if (pathname.startsWith(prefix)) return pathname.slice(prefix.length) || null
+  return null
 }
 
 export interface NavNode {

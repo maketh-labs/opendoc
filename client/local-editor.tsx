@@ -137,9 +137,7 @@ export function LocalEditor() {
       setCurrentFile(prev => {
         if (!prev && allPages.length > 0) {
           const first = allPages[0]!.filePath
-          const url = new URL(window.location.href)
-          url.searchParams.set('path', first)
-          window.history.replaceState({}, '', url.toString())
+          window.history.replaceState({}, '', `/_/${first}`)
           return first
         }
         return prev
@@ -238,9 +236,7 @@ export function LocalEditor() {
   }
 
   function switchPage(filePath: string) {
-    const url = new URL(window.location.href)
-    url.searchParams.set('path', filePath)
-    window.history.pushState({}, '', url.toString())
+    window.history.pushState({}, '', filePath ? `/_/${filePath}` : '/_')
     setCurrentFile(filePath)
   }
 

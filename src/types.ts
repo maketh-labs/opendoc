@@ -13,7 +13,7 @@ export interface BacklinksIndex {
 export interface OpenDocConfig {
   title?: string
   theme?: string
-  editorPath?: string | null   // default "/_editor", null = disabled
+  editorPath?: string | null   // default "/_", null = disabled
   github?: {
     repo?: string              // "owner/repo-name"
     branch?: string            // default "main"

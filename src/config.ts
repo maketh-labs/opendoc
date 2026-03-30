@@ -11,7 +11,7 @@ export async function ensureConfig(rootDir: string): Promise<OpenDocConfig> {
   // Create default config
   const defaultConfig: OpenDocConfig = {
     title: 'My Docs',
-    editorPath: '/_editor',
+    editorPath: '/_',
   };
   const { mkdir } = await import('fs/promises');
   await mkdir(join(rootDir, '.opendoc'), { recursive: true });
@@ -22,7 +22,7 @@ export async function ensureConfig(rootDir: string): Promise<OpenDocConfig> {
 
 export function getEditorPath(config: OpenDocConfig): string | null {
   if (config.editorPath === null) return null;
-  return config.editorPath ?? '/_editor';
+  return config.editorPath ?? '/_';
 }
 
 /** Build a public-safe config object (strips clientSecret) */
@@ -30,7 +30,7 @@ export function buildPublicConfig(config: OpenDocConfig, editorPath: string | nu
   const { clientSecret: _, ...publicGithub } = config.github ?? {};
   return {
     title: config.title,
-    editorPath: editorPath ?? '/_editor',
+    editorPath: editorPath ?? '/_',
     github: config.github ? publicGithub : undefined,
     theme: config.theme,
   };

@@ -143,7 +143,7 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
   const children: NavNode[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    if (entry.name === '.opendoc' || entry.name === 'assets' || entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    if (entry.name === '.opendoc' || entry.name === 'assets' || entry.name === 'node_modules' || entry.name.startsWith('.') || entry.name.startsWith('_')) continue;
     const child = await walkDir(rootDir, join(currentDir, entry.name));
     if (child) children.push(child);
   }
@@ -178,7 +178,7 @@ export async function getAllPages(rootDir: string, currentDir: string = rootDir)
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    if (entry.name === '.opendoc' || entry.name === 'assets' || entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    if (entry.name === '.opendoc' || entry.name === 'assets' || entry.name === 'node_modules' || entry.name.startsWith('.') || entry.name.startsWith('_')) continue;
     pages.push(...await getAllPages(rootDir, join(currentDir, entry.name)));
   }
 
