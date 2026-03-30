@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react'
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
+import { CodeBlockToolbarManager } from './code-block-toolbar'
 import { filterSuggestionItems } from '@blocknote/core/extensions'
 import type { Block } from '@blocknote/core'
 import { blocksToMarkdown } from './markdown'
@@ -235,6 +236,7 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
         <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false}>
           <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
         </BlockNoteView>
+        <CodeBlockToolbarManager editor={editor} />
       </div>
     </div>
   )

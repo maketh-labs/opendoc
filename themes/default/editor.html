@@ -875,6 +875,56 @@
       margin: 4px 0;
     }
 
+    /* ===== Code block toolbar ===== */
+    .od-cb-toolbar {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 120ms ease;
+      pointer-events: none;
+    }
+    [data-content-type="codeBlock"]:hover ~ .od-cb-toolbar,
+    [data-content-type="codeBlock"]:focus-within ~ .od-cb-toolbar,
+    [data-id]:hover .od-cb-toolbar,
+    [data-id]:focus-within .od-cb-toolbar {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .od-cb-lang-select {
+      height: 24px;
+      padding: 0 6px;
+      border: 1px solid var(--color-border, #e1e4e8);
+      border-radius: 4px;
+      background: var(--color-surface, #f6f8fa);
+      color: var(--color-text, #1a1a1a);
+      font-size: 0.7rem;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+      max-width: 130px;
+    }
+    .od-cb-lang-select:focus { border-color: var(--color-accent, #0969da); }
+    .od-cb-copy-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--color-border, #e1e4e8);
+      border-radius: 4px;
+      background: var(--color-surface, #f6f8fa);
+      color: var(--color-text-muted, #6b7280);
+      cursor: pointer;
+      transition: background 120ms, color 120ms;
+      flex-shrink: 0;
+    }
+    .od-cb-copy-btn:hover { background: var(--color-surface-2, #e9ecef); color: var(--color-text, #1a1a1a); }
+
     /* ===== Callout blocks ===== */
     .od-callout {
       display: flex;
