@@ -1,14 +1,56 @@
-import { readFile } from 'fs/promises'
+import { readFile, writeFile, mkdir } from 'fs/promises'
 import { join, resolve } from 'path'
 import type { RouteHandler } from './types'
 
 export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   const pathname = url.pathname
 
-  // Serve theme CSS
+  // Serve theme CSS (base styles + user overrides)
   if (pathname === '/_opendoc/theme.css') {
+    let css = ctx.getStyles()
+    try {
+      const userTheme = await readFile(join(ctx.rootDir, '.opendoc', 'theme.css'), 'utf-8')
+      if (userTheme) css += '\n' + userTheme
+    } catch {}
     res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
-    res.end(ctx.getStyles())
+    res.end(css)
+    return true
+  }
+
+  // Save user theme overrides
+  if (pathname === '/_opendoc/theme' && req.method === 'PUT') {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf-8'))
+    const dir = join(ctx.rootDir, '.opendoc')
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'theme.css'), body.css || '', 'utf-8')
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
+    return true
+  }
+
+  // Get user theme overrides
+  if (pathname === '/_opendoc/theme' && req.method === 'GET') {
+    try {
+      const css = await readFile(join(ctx.rootDir, '.opendoc', 'theme.css'), 'utf-8')
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ css }))
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ css: '' }))
+    }
+    return true
+  }
+
+  // Delete user theme overrides
+  if (pathname === '/_opendoc/theme' && req.method === 'DELETE') {
+    try {
+      const { unlink } = await import('fs/promises')
+      await unlink(join(ctx.rootDir, '.opendoc', 'theme.css'))
+    } catch {}
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true }))
     return true
   }
 

@@ -1,22 +1,56 @@
 /* ===== Design Tokens ===== */
 :root {
+  /* Backgrounds */
   --od-color-bg: #ffffff;
-  --od-color-surface: #f5f5f5;
-  --od-color-surface-2: #ebebeb;
-  --od-color-text: #1a1a1a;
+  --od-color-surface: #f8f9fa;
+  --od-color-surface-2: #e9ecef;
+  --od-color-border: #e1e4e8;
+
+  /* Text */
+  --od-color-text: #1a1a2e;
   --od-color-text-muted: #6b7280;
-  --od-color-accent: #2563eb;
-  --od-color-accent-hover: #1d4ed8;
-  --od-color-border: #e5e7eb;
-  --od-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --od-font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
-  --od-font-size: 15px;
+
+  /* Accent */
+  --od-color-accent: #0969da;
+  --od-color-accent-hover: #0550ae;
+
+  /* Code */
+  --od-color-code-bg: #f6f8fa;
+  --od-color-code-inline-bg: #f0f2f5;
+
+  /* Callouts */
+  --od-color-callout-note: #0969da;
+  --od-color-callout-tip: #1a7f37;
+  --od-color-callout-warning: #d1242f;
+  --od-color-callout-important: #8250df;
+
+  /* Typography */
+  --od-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --od-font-heading: inherit;
+  --od-font-h1: inherit;
+  --od-font-h2: inherit;
+  --od-font-h3: inherit;
+  --od-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  --od-font-size-base: 1rem;
+  --od-font-size-code: 0.875em;
+  --od-font-size-h1: 2.5rem;
+  --od-font-size-h2: 1.5rem;
+  --od-font-size-h3: 1.2rem;
+
+  --od-font-weight-body: 400;
+  --od-font-weight-h1: 700;
+  --od-font-weight-h2: 600;
+  --od-font-weight-h3: 600;
+
   --od-line-height: 1.75;
-  --od-radius: 6px;
+
+  /* Layout */
   --od-sidebar-width: 260px;
   --od-theme-panel-width: 320px;
   --od-header-height: 48px;
   --od-content-max: 720px;
+  --od-radius: 6px;
   --od-transition: 200ms ease;
 }
 
@@ -27,6 +61,14 @@
   --od-color-text: #e5e5e5;
   --od-color-text-muted: #9ca3af;
   --od-color-border: #2a2a2a;
+  --od-color-accent: #58a6ff;
+  --od-color-accent-hover: #79b8ff;
+  --od-color-code-bg: #161b22;
+  --od-color-code-inline-bg: #1e2430;
+  --od-color-callout-note: #58a6ff;
+  --od-color-callout-tip: #3fb950;
+  --od-color-callout-warning: #f85149;
+  --od-color-callout-important: #a371f7;
 }
 
 /* ===== Reset ===== */
@@ -37,11 +79,13 @@
 }
 
 html {
-  font-size: var(--od-font-size);
+  font-size: var(--od-font-size-base);
 }
 
 body {
   font-family: var(--od-font-body);
+  font-size: var(--od-font-size-base);
+  font-weight: var(--od-font-weight-body);
   line-height: var(--od-line-height);
   color: var(--od-color-text);
   background: var(--od-color-bg);
@@ -139,7 +183,7 @@ body {
 
 .od-search-box input:focus {
   border-color: var(--od-color-accent);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15);
 }
 
 /* ===== Layout ===== */
@@ -248,10 +292,35 @@ body {
 }
 
 /* Typography */
-.od-article h1 { font-size: 2.5rem; margin-bottom: 1rem; font-weight: 700; }
-.od-article h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 0.75rem; font-weight: 600; }
-.od-article h3 { font-size: 1.2rem; margin-top: 1.5rem; margin-bottom: 0.5rem; font-weight: 600; }
-.od-article h4 { font-size: 1rem; margin-top: 1.25rem; margin-bottom: 0.5rem; font-weight: 600; }
+.od-article h1 {
+  font-family: var(--od-font-h1);
+  font-size: var(--od-font-size-h1);
+  font-weight: var(--od-font-weight-h1);
+  margin-bottom: 1rem;
+}
+
+.od-article h2 {
+  font-family: var(--od-font-h2);
+  font-size: var(--od-font-size-h2);
+  font-weight: var(--od-font-weight-h2);
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.od-article h3 {
+  font-family: var(--od-font-h3);
+  font-size: var(--od-font-size-h3);
+  font-weight: var(--od-font-weight-h3);
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.od-article h4 {
+  font-size: 1rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
 
 .od-article p { margin-bottom: 1rem; }
 
@@ -277,14 +346,14 @@ body {
 
 .od-article code {
   font-family: var(--od-font-mono);
-  font-size: 0.875em;
-  background: var(--od-color-surface);
+  font-size: var(--od-font-size-code);
+  background: var(--od-color-code-inline-bg);
   padding: 0.15em 0.35em;
   border-radius: 3px;
 }
 
 .od-article pre {
-  background: var(--od-color-surface);
+  background: var(--od-color-code-bg);
   border: 1px solid var(--od-color-border);
   border-radius: var(--od-radius);
   padding: 1rem;
@@ -293,9 +362,10 @@ body {
 }
 
 .od-article pre code {
+  font-family: var(--od-font-mono);
+  font-size: var(--od-font-size-code);
   background: none;
   padding: 0;
-  font-size: 0.85rem;
   line-height: 1.5;
 }
 
@@ -378,14 +448,14 @@ body {
   margin-bottom: 0;
 }
 
-/* Colors match editor exactly */
+/* Callout colors using CSS variables */
 .od-callout-info      { border-left-color: #93c5fd; background: #eff6ff; }
-.od-callout-note      { border-left-color: #d1d5db; background: #f9fafb; }
-.od-callout-tip       { border-left-color: #6ee7b7; background: #ecfdf5; }
-.od-callout-warning   { border-left-color: #fcd34d; background: #fffbeb; }
+.od-callout-note      { border-left-color: var(--od-color-callout-note); background: #f0f6ff; }
+.od-callout-tip       { border-left-color: var(--od-color-callout-tip); background: #ecfdf5; }
+.od-callout-warning   { border-left-color: var(--od-color-callout-warning); background: #fffbeb; }
 .od-callout-caution,
 .od-callout-danger    { border-left-color: #fca5a5; background: #fef2f2; }
-.od-callout-important { border-left-color: #c4b5fd; background: #f5f3ff; }
+.od-callout-important { border-left-color: var(--od-color-callout-important); background: #f5f3ff; }
 
 [data-theme="dark"] .od-callout-info      { background: rgba(59,130,246,0.1);  border-left-color: rgba(147,197,253,0.5); }
 [data-theme="dark"] .od-callout-note      { background: rgba(107,114,128,0.1); border-left-color: rgba(209,213,219,0.5); }
