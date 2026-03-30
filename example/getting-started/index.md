@@ -1,57 +1,67 @@
 ---
 icon: 🚀
-title: Getting Started
 ---
 
 # Getting Started
 
-Get up and running with OpenDoc in under a minute.
+Get a docs site running in under a minute.
 
-## Installation
+## Install
 
 ```bash
-npx opendoc serve
+bun add -g opendoc
 ```
 
-That's it. Point it at any folder with markdown files and you have a docs site.
+Or run without installing:
 
-> [!TIP]
-> You can also install OpenDoc globally with `bun add -g opendoc` for easier access.
+```bash
+bunx opendoc serve ./my-docs
+```
 
-## Create Your First Page
+## Run the Dev Server
 
-Every page is an `index.md` inside a folder:
+Point OpenDoc at any folder of markdown files:
+
+```bash
+opendoc serve ./my-docs
+```
+
+Your docs site opens automatically at `http://localhost:3000`. The editor is at `/editor`.
+
+## Folder Structure
+
+One rule: every page is an `index.md` inside a named folder. The folder structure becomes your navigation.
 
 ```
 my-docs/
-├── index.md                 ← home page
 ├── getting-started/
-│   └── index.md             ← this page
-└── guides/
-    └── index.md             ← /guides
+│   └── index.md          → /getting-started
+├── guides/
+│   ├── index.md          → /guides
+│   └── advanced/
+│       └── index.md      → /guides/advanced
+└── reference/
+    └── index.md          → /reference
 ```
 
 > [!NOTE]
-> Only `index.md` files are rendered as pages. Other markdown files like `context.md` are used internally by the MCP server.
+> There is no root `index.md`. The docs root redirects to your first page automatically.
 
-## Build for Production
+## Create Your First Page
+
+In the editor at `/editor`, click **New Page** in the sidebar. Type the page name and press Enter — the page is created and opened immediately.
+
+Or create it manually:
 
 ```bash
-npx opendoc build
+mkdir my-docs/my-page
+echo "# My Page\n\nHello, world!" > my-docs/my-page/index.md
 ```
 
-This generates a static site in `.opendoc/dist/` that you can deploy anywhere.
-
-> [!WARNING]
-> Make sure your content directory doesn't contain sensitive files — everything in the folder will be included in the build output.
-
-## Images
-
-You can include images by placing them in an `assets/` folder next to your `index.md`:
-
-![Placeholder image](./assets/placeholder.png)
-*An example asset referenced from the page*
+The dev server picks up the change instantly.
 
 ## What's Next
 
-Check out the [[Guides]] for more detailed walkthroughs on theming, MCP integration, and advanced features.
+- [[Editor]] — learn the block editor
+- [[Writing]] — markdown, callouts, wikilinks, and more
+- [[Configuration]] — config file, themes, page ordering
