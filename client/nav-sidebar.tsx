@@ -16,6 +16,7 @@ export interface NavSidebarProps {
   onCreatePage: (parentPath: string, name: string) => Promise<void>
   onRefreshNav: () => Promise<void>
   collapsed: boolean
+  onOpenSiteSettings?: () => void
 }
 
 type DropZone = { type: 'between'; parentPath: string; index: number } | { type: 'onto'; targetPath: string } | null
@@ -41,7 +42,7 @@ function parentDir(nodePath: string): string {
   return parts.slice(0, -1).join('/')
 }
 
-export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefreshNav, collapsed }: NavSidebarProps) {
+export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefreshNav, collapsed, onOpenSiteSettings }: NavSidebarProps) {
   const [creatingAt, setCreatingAt] = useState<string | null>(null)
   const [draggedPath, setDraggedPath] = useState<string | null>(null)
   const [dropZone, setDropZone] = useState<DropZone>(null)
@@ -195,7 +196,13 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
       {!collapsed && (
         <>
           <div className="flex items-center justify-between px-3 py-2 border-b text-sm font-semibold">
-            <span className="truncate">{nav.title || 'Pages'}</span>
+            <button
+              className="truncate text-left hover:text-accent transition-colors cursor-pointer bg-transparent border-none p-0 font-semibold"
+              onClick={onOpenSiteSettings}
+              title="Site settings"
+            >
+              {nav.title || 'Pages'}
+            </button>
             <Button
               variant="ghost"
               size="icon"

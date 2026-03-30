@@ -298,6 +298,7 @@ export function LocalEditor() {
           onCreatePage={handleCreatePage}
           onRefreshNav={refreshNav}
           collapsed={sidebarCollapsed}
+          onOpenSiteSettings={() => setRightPanel(p => p === 'site-settings' ? null : 'site-settings')}
         />
       ) : undefined}
       rightPanel={rightPanel}

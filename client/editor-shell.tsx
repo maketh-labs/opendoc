@@ -1,8 +1,9 @@
 import React from 'react'
 import { ThemePanel } from './theme-panel'
 import { PageSettingsPanel } from './page-settings-panel'
+import { SiteSettingsPanel } from './site-settings-panel'
 
-export type RightPanel = 'theme' | 'page-settings' | null
+export type RightPanel = 'theme' | 'page-settings' | 'site-settings' | null
 
 export interface EditorShellProps {
   header: React.ReactNode
@@ -27,6 +28,9 @@ export function EditorShell({ header, nav, children, rightPanel, onRightClose, p
           {rightPanel === 'theme' && <ThemePanel onClose={onRightClose} />}
           {rightPanel === 'page-settings' && pagePath && (
             <PageSettingsPanel pagePath={pagePath} onClose={onRightClose} />
+          )}
+          {rightPanel === 'site-settings' && (
+            <SiteSettingsPanel onClose={onRightClose} />
           )}
         </aside>
       </div>
