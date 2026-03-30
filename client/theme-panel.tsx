@@ -11,6 +11,9 @@ import {
   loadTheme,
 } from './themes'
 import { initFaviconPanel } from './favicon'
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from './ui/select'
+import { Input } from './ui/input'
+import { Button } from './ui/button'
 
 // ─── Helpers ────────────────────────────────────────────
 
@@ -159,7 +162,7 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
         <div className="od-tp-row" ref={suggestRef}>
           <label className="od-tp-label-sm">Family</label>
           <div className="od-tp-font-family-wrap">
-            <input
+            <Input
               className="od-tp-input"
               value={family}
               placeholder="inherit"
@@ -195,7 +198,7 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
       {sizeVar && (
         <div className="od-tp-row">
           <label className="od-tp-label-sm">Size</label>
-          <input
+          <Input
             className="od-tp-input od-tp-input-sm"
             value={size}
             placeholder="1rem"
@@ -210,25 +213,29 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
       {weightVar && (
         <div className="od-tp-row">
           <label className="od-tp-label-sm">Weight</label>
-          <select
-            className="od-tp-select"
+          <Select
             value={weight}
-            onChange={e => {
-              setWeight(e.target.value)
-              setVar(weightVar, e.target.value)
+            onValueChange={v => {
+              setWeight(v)
+              setVar(weightVar, v)
               onChange()
             }}
           >
-            {FONT_WEIGHTS.map(w => (
-              <option key={w.value} value={w.value}>{w.label}</option>
-            ))}
-          </select>
+            <SelectTrigger className="od-tp-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_WEIGHTS.map(w => (
+                <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
       {lineHeightVar && (
         <div className="od-tp-row">
           <label className="od-tp-label-sm">Line height</label>
-          <input
+          <Input
             className="od-tp-input od-tp-input-sm"
             type="number"
             step="0.05"
@@ -370,16 +377,17 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
 
       {/* Preset selector */}
       <div className="od-tp-preset-row">
-        <select
-          className="od-tp-select od-tp-preset-select"
-          value={preset}
-          onChange={e => handlePresetChange(e.target.value)}
-        >
-          {THEME_PRESETS.map(p => (
-            <option key={p.id} value={p.id}>{p.name} — {p.description}</option>
-          ))}
-          {preset === 'custom' && <option value="custom">Custom</option>}
-        </select>
+        <Select value={preset} onValueChange={handlePresetChange}>
+          <SelectTrigger className="od-tp-select od-tp-preset-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {THEME_PRESETS.map(p => (
+              <SelectItem key={p.id} value={p.id}>{p.name} — {p.description}</SelectItem>
+            ))}
+            {preset === 'custom' && <SelectItem value="custom">Custom</SelectItem>}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="od-tp-separator" />
@@ -499,10 +507,10 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
 
       {/* Action bar */}
       <div className="od-tp-action-bar">
-        <button className="od-btn od-btn-ghost" onClick={handleReset}>Reset to default</button>
-        <button className="od-btn od-btn-primary" onClick={handleSave} disabled={!dirty}>
+        <Button variant="ghost" className="od-btn od-btn-ghost" onClick={handleReset}>Reset to default</Button>
+        <Button variant="default" className="od-btn od-btn-primary" onClick={handleSave} disabled={!dirty}>
           Save
-        </button>
+        </Button>
       </div>
     </div>
   )
