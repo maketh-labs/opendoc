@@ -3,6 +3,9 @@ import { ChevronRight, ChevronDown, Plus, MoreHorizontal } from 'lucide-react'
 import { cn } from './ui/cn'
 import { Button } from './ui/button'
 import { ScrollArea } from './ui/scroll-area'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from './ui/dropdown-menu'
 import type { NavNode } from './editor-utils'
 import { saveOrder, movePageApi, fetchOrder, deletePageApi, renamePageApi, duplicatePageApi, flattenNav } from './editor-utils'
 
@@ -44,7 +47,6 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
   const [dropZone, setDropZone] = useState<DropZone>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   const handleStartCreate = useCallback((parentPath: string) => {
     setCreatingAt(parentPath)
@@ -106,25 +108,6 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
   }, [currentFile, onNavigate, onRefreshNav])
 
   const handleRenameCancel = useCallback(() => setRenamingPath(null), [])
-
-  // Close context menu on click-outside or Escape
-  useEffect(() => {
-    if (!contextMenu) return
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setContextMenu(null)
-      }
-    }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null)
-    }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [contextMenu])
 
   const handleDragStart = useCallback((nodePath: string) => {
     setDraggedPath(nodePath)
@@ -264,16 +247,15 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
           </ScrollArea>
         </>
       )}
-      {contextMenu && (
-        <div
-          ref={menuRef}
-          className="fixed z-50 bg-popover border border-border rounded-md shadow-md py-1 text-sm min-w-[160px]"
-          style={{
-            left: Math.min(contextMenu.x, window.innerWidth - 180),
-            top: Math.min(contextMenu.y, window.innerHeight - 200),
-          }}
-        >
-          {contextMenu.confirmingDelete ? (
+      <DropdownMenu open={!!contextMenu} onOpenChange={(open) => { if (!open) setContextMenu(null) }}>
+        <DropdownMenuTrigger asChild>
+          <span
+            className="pointer-events-none fixed w-0 h-0 p-0 m-0"
+            style={{ left: contextMenu?.x ?? 0, top: contextMenu?.y ?? 0 }}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="bottom" align="start" className="min-w-[160px]">
+          {contextMenu?.confirmingDelete ? (
             <div className="px-3 py-2">
               <p className="text-sm mb-2">Delete page and all sub-pages?</p>
               <div className="flex gap-2">
@@ -293,15 +275,20 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
             </div>
           ) : (
             <>
-              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground" onClick={() => handleContextMenuAction('rename')}>Rename</button>
-              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground" onClick={() => handleContextMenuAction('new-sub-page')}>New sub-page</button>
-              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground text-destructive" onClick={() => handleContextMenuAction('confirm-delete')}>Delete</button>
-              <div className="my-1 border-t border-border" />
-              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground" onClick={() => handleContextMenuAction('duplicate')}>Duplicate</button>
+              <DropdownMenuItem onSelect={() => handleContextMenuAction('rename')}>Rename</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleContextMenuAction('new-sub-page')}>New sub-page</DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={(e) => { e.preventDefault(); handleContextMenuAction('confirm-delete') }}
+              >
+                Delete
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => handleContextMenuAction('duplicate')}>Duplicate</DropdownMenuItem>
             </>
           )}
-        </div>
-      )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </aside>
   )
 }
