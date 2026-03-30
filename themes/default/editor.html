@@ -531,11 +531,11 @@
     }
     .od-tp-input:focus { border-color: var(--color-accent, #0969da); }
     .od-tp-input-sm { max-width: 80px; }
-    .od-tp-size-input { display: flex; gap: 4px; align-items: center; flex: 1; }
-    .od-tp-input-num { max-width: 64px; -moz-appearance: textfield; }
+    .od-tp-size-input { display: flex; gap: 4px; align-items: stretch; flex: 1; }
+    .od-tp-input-num { width: 64px; min-width: 0; flex-shrink: 0; -moz-appearance: textfield; }
     .od-tp-input-num::-webkit-outer-spin-button,
     .od-tp-input-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .od-tp-select-unit { width: 68px; min-width: 68px; }
+    .od-tp-select-unit { width: 58px; min-width: 0; flex-shrink: 0; padding-right: 4px; cursor: pointer; }
     .od-tp-select {
       padding: 4px 8px;
       border: 1px solid var(--color-border, #e5e5e5);

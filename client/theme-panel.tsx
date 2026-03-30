@@ -293,14 +293,13 @@ function SizeInput({ varName, defaultVal, onChange }: {
           emit(e.target.value, unit)
         }}
       />
-      <Select value={unit} onValueChange={u => { setUnit(u); emit(num, u) }}>
-        <SelectTrigger className="od-tp-select od-tp-select-unit">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {SIZE_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <select
+        className="od-tp-input od-tp-select-unit"
+        value={unit}
+        onChange={e => { setUnit(e.target.value); emit(num, e.target.value) }}
+      >
+        {SIZE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+      </select>
     </div>
   )
 }
