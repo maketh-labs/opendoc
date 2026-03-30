@@ -30,6 +30,16 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
     return vars.toc ? content : '';
   });
 
+  // Handle conditional {{#if pageFavicon}} blocks
+  result = result.replace(/\{\{#if pageFavicon\}\}([\s\S]*?)\{\{\/if\}\}/g, (_match, content) => {
+    return vars.pageFavicon ? content : '';
+  });
+
+  // Handle conditional {{#if ogImage}} blocks
+  result = result.replace(/\{\{#if ogImage\}\}([\s\S]*?)\{\{\/if\}\}/g, (_match, content) => {
+    return vars.ogImage ? content : '';
+  });
+
   return result
     .replace(/\{\{title\}\}/g, escapeHtml(vars.title))
     .replace(/\{\{siteTitle\}\}/g, escapeHtml(vars.siteTitle))
@@ -38,6 +48,8 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
     .replace(/\{\{backlinks\}\}/g, vars.backlinks)
     .replace(/\{\{toc\}\}/g, vars.toc)
     .replace(/\{\{icon\}\}/g, vars.icon)
-    .replace(/\{\{pageTitle\}\}/g, escapeHtml(vars.pageTitle));
+    .replace(/\{\{pageTitle\}\}/g, escapeHtml(vars.pageTitle))
+    .replace(/\{\{pageFavicon\}\}/g, escapeHtml(vars.pageFavicon))
+    .replace(/\{\{ogImage\}\}/g, escapeHtml(vars.ogImage));
 }
 

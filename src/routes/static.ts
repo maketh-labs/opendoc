@@ -108,6 +108,29 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
+  // Serve favicon and og-image files from page directories
+  if (/\/(favicon\.(ico|svg|png)|og-image\.(png|jpg|webp))$/.test(pathname)) {
+    const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
+    if (!filePath.startsWith(resolve(ctx.rootDir) + '/') && filePath !== resolve(ctx.rootDir)) {
+      res.writeHead(403); res.end('Forbidden')
+      return true
+    }
+    try {
+      const data = await Bun.file(filePath).arrayBuffer()
+      const ext = pathname.split('.').pop()?.toLowerCase()
+      const mimeTypes: Record<string, string> = {
+        ico: 'image/x-icon', svg: 'image/svg+xml', png: 'image/png',
+        jpg: 'image/jpeg', webp: 'image/webp',
+      }
+      res.writeHead(200, { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
+      res.end(Buffer.from(data))
+    } catch {
+      // Fall through — not found, let other handlers try
+      return false
+    }
+    return true
+  }
+
   // Serve assets from page directories
   if (pathname.includes('/assets/')) {
     const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))

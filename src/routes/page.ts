@@ -4,6 +4,7 @@ import { renderFull } from '../renderer'
 import { tocToHtml } from '../plugins/toc'
 import { backlinksToHtml } from '../render-utils.js'
 import { extractTitle } from '../utils.js'
+import { resolvePageAssets } from '../walker'
 import type { RouteHandler } from './types'
 
 export const handlePage: RouteHandler = async (_req, res, url, ctx) => {
@@ -32,6 +33,7 @@ export const handlePage: RouteHandler = async (_req, res, url, ctx) => {
   const icon = (frontmatter.icon as string) || ''
   const normalized = page === '.' ? '' : page
   const pageBacklinks = ctx.getBacklinks()[normalized] || []
+  const assets = await resolvePageAssets(ctx.rootDir, page)
 
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' })
   res.end(JSON.stringify({
@@ -40,6 +42,10 @@ export const handlePage: RouteHandler = async (_req, res, url, ctx) => {
     title,
     icon,
     backlinks: backlinksToHtml(pageBacklinks),
+    faviconUrl: assets.faviconPath,
+    ogImageUrl: assets.ogImagePath,
+    faviconInherited: assets.faviconInherited,
+    ogImageInherited: assets.ogImageInherited,
   }))
   return true
 }

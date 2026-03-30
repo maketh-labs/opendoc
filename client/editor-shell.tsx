@@ -1,15 +1,19 @@
 import React from 'react'
 import { ThemePanel } from './theme-panel'
+import { PageSettingsPanel } from './page-settings-panel'
+
+export type RightPanel = 'theme' | 'page-settings' | null
 
 export interface EditorShellProps {
   header: React.ReactNode
   nav?: React.ReactNode
   children: React.ReactNode
-  rightOpen: boolean
+  rightPanel: RightPanel
   onRightClose: () => void
+  pagePath?: string
 }
 
-export function EditorShell({ header, nav, children, rightOpen, onRightClose }: EditorShellProps) {
+export function EditorShell({ header, nav, children, rightPanel, onRightClose, pagePath }: EditorShellProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {header}
@@ -17,10 +21,13 @@ export function EditorShell({ header, nav, children, rightOpen, onRightClose }: 
         {nav}
         <div className="od-wysiwyg-wrap">{children}</div>
         <aside
-          className={`od-editor-right${rightOpen ? ' open' : ''}`}
+          className={`od-editor-right${rightPanel ? ' open' : ''}`}
           id="editor-right-panel"
         >
-          {rightOpen && <ThemePanel onClose={onRightClose} />}
+          {rightPanel === 'theme' && <ThemePanel onClose={onRightClose} />}
+          {rightPanel === 'page-settings' && pagePath && (
+            <PageSettingsPanel pagePath={pagePath} onClose={onRightClose} />
+          )}
         </aside>
       </div>
     </div>

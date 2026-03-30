@@ -1,7 +1,60 @@
-import { readdir, readFile, writeFile } from 'fs/promises';
-import { join, relative, basename } from 'path';
+import { readdir, readFile, writeFile, access } from 'fs/promises';
+import { join, relative, basename, dirname } from 'path';
 import type { NavNode } from './types';
 import { parseFrontmatter } from './utils.js';
+
+const FAVICON_NAMES = ['favicon.ico', 'favicon.svg', 'favicon.png'];
+const OG_IMAGE_NAMES = ['og-image.png', 'og-image.jpg', 'og-image.webp'];
+
+async function findFile(dir: string, candidates: string[]): Promise<string | null> {
+  for (const name of candidates) {
+    try {
+      await access(join(dir, name));
+      return name;
+    } catch {}
+  }
+  return null;
+}
+
+export interface PageAssets {
+  faviconPath: string | null
+  ogImagePath: string | null
+  faviconInherited: boolean
+  ogImageInherited: boolean
+}
+
+export async function resolvePageAssets(rootDir: string, pagePath: string): Promise<PageAssets> {
+  const result: PageAssets = { faviconPath: null, ogImagePath: null, faviconInherited: false, ogImageInherited: false }
+  let currentDir = pagePath === '.' ? rootDir : join(rootDir, pagePath)
+  const resolvedRoot = join(rootDir)
+  let isFirst = true
+
+  while (true) {
+    if (!result.faviconPath) {
+      const found = await findFile(currentDir, FAVICON_NAMES)
+      if (found) {
+        const rel = relative(rootDir, join(currentDir, found))
+        result.faviconPath = '/' + rel
+        result.faviconInherited = !isFirst
+      }
+    }
+    if (!result.ogImagePath) {
+      const found = await findFile(currentDir, OG_IMAGE_NAMES)
+      if (found) {
+        const rel = relative(rootDir, join(currentDir, found))
+        result.ogImagePath = '/' + rel
+        result.ogImageInherited = !isFirst
+      }
+    }
+    if (result.faviconPath && result.ogImagePath) break
+    if (currentDir === resolvedRoot) break
+    currentDir = dirname(currentDir)
+    if (!currentDir.startsWith(resolvedRoot)) break
+    isFirst = false
+  }
+
+  return result
+}
 
 async function readOrder(dir: string): Promise<string[] | null> {
   try {

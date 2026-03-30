@@ -18,6 +18,7 @@ import { handleOAuthRedirect, handleOAuthCallback } from './routes/oauth';
 import { handleFetchMeta } from './routes/fetch-meta';
 import { handleNav } from './routes/nav';
 import { handlePage } from './routes/page';
+import { handlePageAsset } from './routes/page-asset';
 
 // Editor bundle cache — built once at startup, invalidated on client file changes
 let editorBundleJs: string | null = null;
@@ -38,6 +39,7 @@ const routeHandlers: RouteHandler[] = [
   handleRenameApi,
   handleDuplicateApi,
   handleUpload,
+  handlePageAsset,
   handleGitStatus,
   handleCommit,
   handleOAuthRedirect,

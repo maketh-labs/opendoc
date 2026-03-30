@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type { Block } from '@blocknote/core'
 import { useDarkMode, useKeyboardSave } from './hooks'
-import { EditorShell, ThemeIcon } from './editor-shell'
+import { EditorShell, ThemeIcon, type RightPanel } from './editor-shell'
 import { PageHeader } from './page-header'
 import { BlockEditor } from './block-editor'
 import {
@@ -36,7 +36,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
   const [repoAccess, setRepoAccess] = useState<RepoAccess>('none')
   const [saving, setSaving] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [rightOpen, setRightOpen] = useState(false)
+  const [rightPanel, setRightPanel] = useState<RightPanel>(null)
 
   const { theme: editorTheme } = useDarkMode()
 
@@ -138,14 +138,14 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
       </div>
       <button className="btn btn-sm" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>Change Repo</button>
       <button className="btn btn-sm" onClick={() => { localStorage.removeItem('github_token'); localStorage.removeItem('github_repo'); window.location.reload() }}>Logout</button>
-      <button className="od-toggle-themes" onClick={() => setRightOpen(o => !o)} title="Themes">
+      <button className="od-toggle-themes" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
         <ThemeIcon />
       </button>
     </div>
   )
 
   return (
-    <EditorShell header={header} rightOpen={rightOpen} onRightClose={() => setRightOpen(false)}>
+    <EditorShell header={header} rightPanel={rightPanel} onRightClose={() => setRightPanel(null)}>
       {initialBlocks ? (
         <BlockEditor
           key={pagePath}

@@ -35,6 +35,8 @@ export interface TemplateVars {
   toc: string
   icon: string
   pageTitle: string
+  pageFavicon: string
+  ogImage: string
 }
 
 export interface SearchResult {

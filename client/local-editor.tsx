@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type { Block } from '@blocknote/core'
 import { useGitStatus, useDarkMode, useKeyboardSave } from './hooks'
-import { EditorShell, ThemeIcon } from './editor-shell'
+import { EditorShell, type RightPanel } from './editor-shell'
 import { NavSidebar } from './nav-sidebar'
 import { PageHeader } from './page-header'
 import { BlockEditor } from './block-editor'
@@ -12,7 +12,7 @@ import {
   type NavNode,
 } from './editor-utils'
 import { markdownToBlocks } from './markdown'
-import { PanelLeft, Sun, Moon, GitBranch, Settings2 } from 'lucide-react'
+import { PanelLeft, Sun, Moon, GitBranch, Settings2, FileImage } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
@@ -30,7 +30,7 @@ function updateNavNodeTitle(node: NavNode, filePath: string, newTitle: string): 
 function LocalEditorHeader({
   pages, currentFile, switchPage, gitStatus, gitDirty,
   saving, isDirty, commitMsg, setCommitMsg,
-  committing, handleCommit, setRightOpen,
+  committing, handleCommit, setRightPanel, rightPanel,
   sidebarCollapsed, onToggleSidebar, darkMode,
 }: {
   pages: { title: string; filePath: string }[]
@@ -44,7 +44,8 @@ function LocalEditorHeader({
   setCommitMsg: (m: string) => void
   committing: boolean
   handleCommit: () => void
-  setRightOpen: React.Dispatch<React.SetStateAction<boolean>>
+  setRightPanel: React.Dispatch<React.SetStateAction<RightPanel>>
+  rightPanel: RightPanel
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
   darkMode: { theme: 'light' | 'dark'; toggle: () => void }
@@ -93,7 +94,10 @@ function LocalEditorHeader({
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={darkMode.toggle} title={darkMode.theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
         {darkMode.theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightOpen(o => !o)} title="Themes">
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightPanel(p => p === 'page-settings' ? null : 'page-settings')} title="Page Settings">
+        <FileImage className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
         <Settings2 className="h-4 w-4" />
       </Button>
     </div>
@@ -117,7 +121,7 @@ export function LocalEditor() {
   const [saving, setSaving] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [commitMsg, setCommitMsg] = useState('')
-  const [rightOpen, setRightOpen] = useState(false)
+  const [rightPanel, setRightPanel] = useState<RightPanel>(null)
 
   const { status: gitStatus, refresh: refreshGit } = useGitStatus()
   const darkMode = useDarkMode()
@@ -284,7 +288,7 @@ export function LocalEditor() {
           saving={saving} isDirty={isDirty}
           commitMsg={commitMsg} setCommitMsg={setCommitMsg}
           committing={committing} handleCommit={handleCommit}
-          setRightOpen={setRightOpen}
+          setRightPanel={setRightPanel} rightPanel={rightPanel}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed(c => !c)}
           darkMode={darkMode}
@@ -300,8 +304,9 @@ export function LocalEditor() {
           collapsed={sidebarCollapsed}
         />
       ) : undefined}
-      rightOpen={rightOpen}
-      onRightClose={() => setRightOpen(false)}
+      rightPanel={rightPanel}
+      onRightClose={() => setRightPanel(null)}
+      pagePath={currentFile}
     >
       {initialBlocks ? (
         <BlockEditor

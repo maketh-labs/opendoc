@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir, copyFile, access, readdir } from 'fs/promises';
 import { join, dirname } from 'path';
-import { walkDir, getAllPages } from './walker';
+import { walkDir, getAllPages, resolvePageAssets } from './walker';
 import { renderFull } from './renderer';
 import { buildBacklinks } from './backlinks';
 import { compress, compressMini } from './compressor';
@@ -80,6 +80,9 @@ export async function build(rootDir: string): Promise<void> {
     const normalized = page === '.' ? '' : page;
     const pageBacklinks = backlinks[normalized] || [];
 
+    // Resolve per-page favicon and OG image
+    const assets = await resolvePageAssets(rootDir, page);
+
     const html = renderTemplate(template, {
       title,
       siteTitle: 'OpenDoc',
@@ -89,6 +92,8 @@ export async function build(rootDir: string): Promise<void> {
       toc: tocToHtml(toc),
       icon,
       pageTitle: title,
+      pageFavicon: assets.faviconPath || '',
+      ogImage: assets.ogImagePath || '',
     });
 
     // Write HTML

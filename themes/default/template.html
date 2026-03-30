@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{title}}</title>
+  {{#if pageFavicon}}<link rel="icon" href="{{pageFavicon}}" />{{/if}}
+  <meta property="og:title" content="{{pageTitle}}" />
+  <meta property="og:type" content="website" />
+  {{#if ogImage}}<meta property="og:image" content="{{ogImage}}" />
+  <meta name="twitter:image" content="{{ogImage}}" />{{/if}}
   <link rel="stylesheet" href="/_opendoc/theme.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <link rel="stylesheet" href="/_opendoc/hljs-light.css" media="(prefers-color-scheme: light)">
