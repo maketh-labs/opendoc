@@ -208,13 +208,25 @@ function Viewer() {
   // Initial load
   useEffect(() => {
     async function load() {
-      const [navData, pageData] = await Promise.all([
-        fetchNav(),
-        fetchPage(currentPath),
-      ])
+      const navData = await fetchNav()
       setNav(navData)
-      setPage(pageData)
-      document.title = pageData.title
+
+      // If at root with no content, redirect to first page
+      let targetPath = currentPath
+      if (!targetPath) {
+        const firstPage = navData?.path && navData.path !== '.' ? navData.path : navData?.children?.[0]?.path
+        if (firstPage && firstPage !== '.') {
+          targetPath = firstPage
+          history.replaceState({}, '', `/${firstPage}`)
+          setCurrentPath(firstPage)
+        }
+      }
+
+      if (targetPath) {
+        const pageData = await fetchPage(targetPath)
+        setPage(pageData)
+        document.title = pageData.title
+      }
       setLoading(false)
     }
     load()
