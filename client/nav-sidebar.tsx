@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { ChevronRight, ChevronDown, Plus } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, MoreHorizontal } from 'lucide-react'
 import { cn } from './ui/cn'
 import { Button } from './ui/button'
 import { ScrollArea } from './ui/scroll-area'
 import type { NavNode } from './editor-utils'
-import { saveOrder, movePageApi, fetchOrder } from './editor-utils'
+import { saveOrder, movePageApi, fetchOrder, deletePageApi, renamePageApi, duplicatePageApi, flattenNav } from './editor-utils'
 
 export interface NavSidebarProps {
   nav: NavNode
@@ -16,6 +16,14 @@ export interface NavSidebarProps {
 }
 
 type DropZone = { type: 'between'; parentPath: string; index: number } | { type: 'onto'; targetPath: string } | null
+
+type ContextMenuState = {
+  nodePath: string
+  nodeTitle: string
+  x: number
+  y: number
+  confirmingDelete?: boolean
+} | null
 
 // Get the folder name (basename) from a NavNode path
 function folderName(nodePath: string): string {
@@ -34,6 +42,9 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
   const [creatingAt, setCreatingAt] = useState<string | null>(null)
   const [draggedPath, setDraggedPath] = useState<string | null>(null)
   const [dropZone, setDropZone] = useState<DropZone>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
+  const [renamingPath, setRenamingPath] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const handleStartCreate = useCallback((parentPath: string) => {
     setCreatingAt(parentPath)
@@ -47,6 +58,73 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
   const handleCancelCreate = useCallback(() => {
     setCreatingAt(null)
   }, [])
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+  const handleContextMenuAction = useCallback(async (action: string) => {
+    if (!contextMenu) return
+    const nodePath = contextMenu.nodePath
+
+    if (action === 'rename') {
+      setContextMenu(null)
+      setRenamingPath(nodePath)
+    } else if (action === 'new-sub-page') {
+      setContextMenu(null)
+      handleStartCreate(nodePath)
+    } else if (action === 'confirm-delete') {
+      setContextMenu(prev => prev ? { ...prev, confirmingDelete: true } : null)
+    } else if (action === 'delete') {
+      setContextMenu(null)
+      await deletePageApi(nodePath)
+      await onRefreshNav()
+      // If deleted page is currently open, navigate to first available page
+      const filePath = nodePath ? `${nodePath}/index.md` : 'index.md'
+      if (currentFile === filePath || currentFile.startsWith(nodePath + '/')) {
+        const pages = flattenNav(nav)
+        const firstAvailable = pages.find(p => !p.filePath.startsWith(nodePath + '/') && p.filePath !== filePath)
+        if (firstAvailable) onNavigate(firstAvailable.filePath)
+      }
+    } else if (action === 'duplicate') {
+      setContextMenu(null)
+      await duplicatePageApi(nodePath)
+      await onRefreshNav()
+    }
+  }, [contextMenu, currentFile, nav, onNavigate, onRefreshNav, handleStartCreate])
+
+  const handleRenameConfirm = useCallback(async (oldPath: string, newSlug: string) => {
+    setRenamingPath(null)
+    const parent = parentDir(oldPath)
+    const newPath = parent === '.' ? newSlug : `${parent}/${newSlug}`
+    if (newPath === oldPath) return
+    await renamePageApi(oldPath, newPath)
+    await onRefreshNav()
+    // If renamed page is currently open, navigate to new path
+    const oldFile = `${oldPath}/index.md`
+    if (currentFile === oldFile) {
+      onNavigate(`${newPath}/index.md`)
+    }
+  }, [currentFile, onNavigate, onRefreshNav])
+
+  const handleRenameCancel = useCallback(() => setRenamingPath(null), [])
+
+  // Close context menu on click-outside or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setContextMenu(null)
+      }
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [contextMenu])
 
   const handleDragStart = useCallback((nodePath: string) => {
     setDraggedPath(nodePath)
@@ -175,12 +253,54 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
                     parentPath="."
                     index={idx}
                     isLast={idx === nav.children.length - 1}
+                    onContextMenu={setContextMenu}
+                    renamingPath={renamingPath}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 ))}
               </ul>
             </nav>
           </ScrollArea>
         </>
+      )}
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 bg-popover border border-border rounded-md shadow-md py-1 text-sm min-w-[160px]"
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 180),
+            top: Math.min(contextMenu.y, window.innerHeight - 200),
+          }}
+        >
+          {contextMenu.confirmingDelete ? (
+            <div className="px-3 py-2">
+              <p className="text-sm mb-2">Delete page and all sub-pages?</p>
+              <div className="flex gap-2">
+                <button
+                  className="px-2 py-1 text-xs rounded bg-muted hover:bg-muted/80"
+                  onClick={closeContextMenu}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-2 py-1 text-xs rounded bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => handleContextMenuAction('delete')}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground" onClick={() => handleContextMenuAction('rename')}>Rename</button>
+              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground" onClick={() => handleContextMenuAction('new-sub-page')}>New sub-page</button>
+              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground text-destructive" onClick={() => handleContextMenuAction('confirm-delete')}>Delete</button>
+              <div className="my-1 border-t border-border" />
+              <button className="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground" onClick={() => handleContextMenuAction('duplicate')}>Duplicate</button>
+            </>
+          )}
+        </div>
       )}
     </aside>
   )
@@ -261,12 +381,54 @@ interface NavItemProps {
   parentPath: string
   index: number
   isLast: boolean
+  onContextMenu: (state: ContextMenuState) => void
+  renamingPath: string | null
+  onRenameConfirm: (oldPath: string, newSlug: string) => Promise<void>
+  onRenameCancel: () => void
+}
+
+function InlineRenameInput({ currentSlug, onConfirm, onCancel }: {
+  currentSlug: string
+  onConfirm: (newSlug: string) => void
+  onCancel: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [value, setValue] = useState(currentSlug)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const slug = value.trim()
+      if (slug && slug !== currentSlug) onConfirm(slug)
+      else onCancel()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCancel()
+    }
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      className="flex-1 min-w-0 text-sm bg-transparent border border-border rounded px-1.5 py-0.5 outline-none focus:border-accent"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={onCancel}
+    />
+  )
 }
 
 function NavItem({
   node, currentFile, onNavigate, onStartCreate, onConfirmCreate, onCancelCreate,
   creatingAt, depth, draggedPath, dropZone, onDragStart, onDragEnd, onDropZoneChange, onDrop,
-  parentPath, index, isLast,
+  parentPath, index, isLast, onContextMenu, renamingPath, onRenameConfirm, onRenameCancel,
 }: NavItemProps) {
   const [expanded, setExpanded] = useState(true)
   const itemRef = useRef<HTMLDivElement>(null)
@@ -275,6 +437,7 @@ function NavItem({
   const nodePath = node.path === '.' ? '' : node.path
   const hasChildren = node.children.length > 0
   const isCreatingHere = creatingAt === nodePath
+  const isRenaming = renamingPath === node.path
   const isDragged = draggedPath === node.path
   const isDropOnto = dropZone?.type === 'onto' && dropZone.targetPath === node.path
   const isDropBefore = dropZone?.type === 'between' && dropZone.parentPath === parentPath && dropZone.index === index
@@ -290,6 +453,22 @@ function NavItem({
     onStartCreate(nodePath)
     if (!expanded) setExpanded(true)
   }, [nodePath, onStartCreate, expanded])
+
+  const openContextMenu = useCallback((x: number, y: number) => {
+    onContextMenu({ nodePath: node.path, nodeTitle: node.title, x, y })
+  }, [node.path, node.title, onContextMenu])
+
+  const handleRightClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    openContextMenu(e.clientX, e.clientY)
+  }, [openContextMenu])
+
+  const handleMoreClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    openContextMenu(rect.right, rect.bottom)
+  }, [openContextMenu])
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move'
@@ -362,12 +541,13 @@ function NavItem({
       )}
       <div
         ref={itemRef}
-        draggable
+        draggable={!isRenaming}
         onDragStart={handleDragStart}
         onDragEnd={onDragEnd}
         onDragOver={handleDragOver}
         onDrop={handleDropEvent}
         onDragLeave={handleDragLeave}
+        onContextMenu={handleRightClick}
         className={cn(
           'group relative flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer',
           isActive && 'bg-accent text-accent-foreground font-medium',
@@ -385,21 +565,38 @@ function NavItem({
         ) : (
           <span className="w-4 shrink-0" />
         )}
-        <a
-          href={`/${node.path === '.' ? '' : node.path}`}
-          className={cn(
-            'flex-1 truncate no-underline text-muted-foreground hover:text-foreground',
-            isActive && 'text-accent-foreground'
-          )}
-          onClick={handleClick}
-        >
-          {node.icon && <span className="mr-1">{node.icon}</span>}
-          {node.title}
-        </a>
+        {isRenaming ? (
+          <InlineRenameInput
+            currentSlug={folderName(node.path)}
+            onConfirm={(newSlug) => onRenameConfirm(node.path, newSlug)}
+            onCancel={onRenameCancel}
+          />
+        ) : (
+          <a
+            href={`/${node.path === '.' ? '' : node.path}`}
+            className={cn(
+              'flex-1 truncate no-underline text-muted-foreground hover:text-foreground',
+              isActive && 'text-accent-foreground'
+            )}
+            onClick={handleClick}
+          >
+            {node.icon && <span className="mr-1">{node.icon}</span>}
+            {node.title}
+          </a>
+        )}
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
+          onClick={handleMoreClick}
+          title="More actions"
+        >
+          <MoreHorizontal className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
           onClick={handleNewPage}
           title="New sub-page"
         >
@@ -435,6 +632,10 @@ function NavItem({
               parentPath={node.path}
               index={idx}
               isLast={idx === node.children.length - 1}
+              onContextMenu={onContextMenu}
+              renamingPath={renamingPath}
+              onRenameConfirm={onRenameConfirm}
+              onRenameCancel={onRenameCancel}
             />
           ))}
         </ul>
