@@ -294,6 +294,21 @@ function NavItem({
   const handleDragStart = useCallback((e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', node.path)
+
+    // Custom drag image: clone the element so the ghost looks like the actual item
+    if (itemRef.current) {
+      const clone = itemRef.current.cloneNode(true) as HTMLElement
+      clone.style.position = 'absolute'
+      clone.style.top = '-9999px'
+      clone.style.left = '-9999px'
+      clone.style.width = `${itemRef.current.offsetWidth}px`
+      document.body.appendChild(clone)
+      const rect = itemRef.current.getBoundingClientRect()
+      e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top)
+      // Clean up after browser captures the image
+      requestAnimationFrame(() => document.body.removeChild(clone))
+    }
+
     onDragStart(node.path)
   }, [node.path, onDragStart])
 
@@ -354,7 +369,6 @@ function NavItem({
         className={cn(
           'group relative flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer',
           isActive && 'bg-accent text-accent-foreground font-medium',
-          isDragged && 'opacity-40',
           isDropOnto && 'ring-2 ring-blue-500 bg-blue-500/10 rounded-md',
         )}
       >
