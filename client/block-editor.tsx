@@ -232,7 +232,7 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
         {editorEmpty && (
           <div className="od-editor-empty-hint">Start writing...</div>
         )}
-        <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false} sideMenu={false}>
+        <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false}>
           <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
         </BlockNoteView>
       </div>
