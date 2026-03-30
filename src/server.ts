@@ -102,8 +102,8 @@ export async function startServer(rootDir: string, port: number = 3000) {
     titleMap = await buildTitleMap(rootDir, pages);
     cache.clear();
     pageBuilding.clear();
-    editorBundleJs = null;
-    editorBundleCss = null;
+    // Note: editor bundle is NOT cleared here — it only needs rebuilding
+    // when client source files change, not on every markdown content change.
   }
 
   // Watch for markdown file changes using native fs.watch (chokidar v5 is broken with Bun)
