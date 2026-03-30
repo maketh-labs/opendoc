@@ -103,7 +103,7 @@ function LocalEditorHeader({
 export function LocalEditor() {
   const [pages, setPages] = useState<{ title: string; filePath: string }[]>([])
   const [navTree, setNavTree] = useState<NavNode | null>(null)
-  const [currentFile, setCurrentFile] = useState(getCurrentPagePath())
+  const [currentFile, setCurrentFile] = useState<string>(getCurrentPagePath() ?? '')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const currentBodyRef = useRef('')
@@ -127,14 +127,26 @@ export function LocalEditor() {
       const r = await fetch('/_opendoc/nav.json')
       const nav: NavNode = await r.json()
       setNavTree(nav)
-      // Exclude root index.md from editor pages list
-      setPages(flattenNav(nav).filter(p => p.filePath !== 'index.md'))
+      const allPages = flattenNav(nav).filter(p => p.filePath !== 'index.md')
+      setPages(allPages)
+      // If no page is selected yet, navigate to the first available page
+      setCurrentFile(prev => {
+        if (!prev && allPages.length > 0) {
+          const first = allPages[0]!.filePath
+          const url = new URL(window.location.href)
+          url.searchParams.set('path', first)
+          window.history.replaceState({}, '', url.toString())
+          return first
+        }
+        return prev
+      })
     } catch {}
   }, [])
 
   useEffect(() => { refreshNav() }, [refreshNav])
 
   useEffect(() => {
+    if (!currentFile) return
     setInitialBlocks(null)
     const cancelled = { current: false }
 

@@ -55,8 +55,8 @@ export function getMcpUrl(): string {
 export function getStoredToken() { return localStorage.getItem('github_token') }
 export function getStoredRepo() { return localStorage.getItem('github_repo') }
 
-export function getCurrentPagePath() {
-  return new URLSearchParams(window.location.search).get('path') || 'index.md'
+export function getCurrentPagePath(): string | null {
+  return new URLSearchParams(window.location.search).get('path') || null
 }
 
 export interface NavNode {
