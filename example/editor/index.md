@@ -4,7 +4,7 @@ icon: ✏️
 
 # Editor
 
-OpenDoc ships with a Notion-style block editor at `/editor`. Every edit saves automatically and the viewer updates instantly.
+OpenDoc ships with a Notion-style block editor at `/_editor`. Every edit saves automatically and the viewer updates instantly.
 
 ## Opening the Editor
 

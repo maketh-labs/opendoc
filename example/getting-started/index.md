@@ -26,7 +26,7 @@ Point OpenDoc at any folder of markdown files:
 opendoc serve ./my-docs
 ```
 
-Your docs site opens automatically at `http://localhost:3000`. The editor is at `/editor`.
+Your docs site opens automatically at `http://localhost:3000`. The editor is at `/_editor`.
 
 ## Folder Structure
 
@@ -49,7 +49,7 @@ my-docs/
 
 ## Create Your First Page
 
-In the editor at `/editor`, click **New Page** in the sidebar. Type the page name and press Enter — the page is created and opened immediately.
+In the editor at `/_editor`, click **New Page** in the sidebar. Type the page name and press Enter — the page is created and opened immediately.
 
 Or create it manually:
 

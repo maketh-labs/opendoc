@@ -37,7 +37,7 @@ export const handleOAuthCallback: RouteHandler = async (req, res, url, ctx) => {
       body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code }),
     })
     const { access_token } = await tokenRes.json() as { access_token: string }
-    const editorTarget = ctx.editorPath ?? '/editor'
+    const editorTarget = ctx.editorPath ?? '/_editor'
     res.writeHead(302, { Location: `${editorTarget}#github_token=${access_token}` })
     res.end()
   } catch (e) {

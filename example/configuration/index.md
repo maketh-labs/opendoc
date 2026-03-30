@@ -15,7 +15,7 @@ Create `.opendoc/config.json` in your docs root to customize behavior:
   "title": "My Docs",
   "theme": "default",
   "editor": {
-    "path": "/editor"
+    "path": "/_editor"
   },
   "github": {
     "repo": "your-org/your-repo",
@@ -29,7 +29,7 @@ Create `.opendoc/config.json` in your docs root to customize behavior:
 |---|---|---|
 | `title` | `"OpenDoc"` | Site title shown in the browser tab |
 | `theme` | `"default"` | Theme name |
-| `editor.path` | `"/editor"` | URL path for the editor. Set to `null` to disable. |
+| `editor.path` | `"/_editor"` | URL path for the editor. Set to `null` to disable. |
 | `github.repo` | — | GitHub repo for the GitHub editor integration |
 | `github.branch` | `"main"` | Branch to read/write from |
 | `github.clientId` | — | GitHub OAuth App client ID for auth |
