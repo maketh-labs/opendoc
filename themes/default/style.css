@@ -82,6 +82,10 @@ html {
   font-size: var(--od-font-size-base);
 }
 
+#od-viewer-root {
+  display: contents;
+}
+
 body {
   font-family: var(--od-font-body);
   font-size: var(--od-font-size-base);
@@ -89,7 +93,8 @@ body {
   line-height: var(--od-line-height);
   color: var(--od-color-text);
   background: var(--od-color-bg);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   overflow: hidden;
 }
 
