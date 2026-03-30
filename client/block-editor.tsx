@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react'
+import React, { useRef, useEffect, useCallback, useState } from 'react'
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import { filterSuggestionItems } from '@blocknote/core/extensions'
@@ -157,8 +157,19 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
   usePasteHandler(editor, uploadFile)
   useDragDropHandler(editorWrapperRef, editor, uploadFile)
 
+  const [editorEmpty, setEditorEmpty] = useState(() => {
+    if (!initialBlocks.length) return true
+    if (initialBlocks.length === 1 && initialBlocks[0].type === 'paragraph') {
+      const c = initialBlocks[0].content
+      if (!c || (Array.isArray(c) && c.length === 0)) return true
+    }
+    return false
+  })
+
   const handleChange = useCallback(() => {
-    onContentChange(blocksToMarkdown(editor.document as any[]))
+    const md = blocksToMarkdown(editor.document as any[])
+    onContentChange(md)
+    setEditorEmpty(md.trim() === '')
   }, [editor, onContentChange])
 
   const getSlashMenuItems = useCallback(async (query: string) => {
@@ -217,9 +228,14 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
   return (
     <div className="od-editor-content" ref={editorWrapperRef}>
       {pageHeader}
-      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false} sideMenu={false}>
-        <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
-      </BlockNoteView>
+      <div style={{ position: 'relative' }}>
+        {editorEmpty && (
+          <div className="od-editor-empty-hint">Start writing...</div>
+        )}
+        <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false} sideMenu={false}>
+          <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
+        </BlockNoteView>
+      </div>
     </div>
   )
 }

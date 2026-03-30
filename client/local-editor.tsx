@@ -139,7 +139,7 @@ export function LocalEditor() {
     const cancelled = { current: false }
 
     localLoadFile(currentFile)
-      .catch(() => '# New Page\n\nStart writing here...')
+      .catch(() => '# New Page\n')
       .then(async text => {
         if (cancelled.current) return
         const { title, icon, body } = extractPageMeta(text)
@@ -231,7 +231,7 @@ export function LocalEditor() {
   const handleCreatePage = useCallback(async (parentPath: string, name: string) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
     const filePath = parentPath ? `${parentPath}/${slug}/index.md` : `${slug}/index.md`
-    const content = `# ${name}\n\nStart writing here...\n`
+    const content = `# ${name}\n`
     try {
       await localSaveFile(filePath, content)
       // Append to order.json for this directory

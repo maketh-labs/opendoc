@@ -865,6 +865,20 @@
     .bn-container .shiki span { color: var(--shiki-light); }
     .bn-container[data-color-scheme="dark"] .shiki span { color: var(--shiki-dark); }
 
+    /* ===== Empty editor placeholder ===== */
+    .od-editor-empty-hint {
+      position: absolute;
+      top: 12px;
+      left: 54px;
+      color: var(--od-color-text-muted, #6b7280);
+      pointer-events: none;
+      font-size: var(--od-font-size, 16px);
+      line-height: var(--od-line-height, 1.7);
+      opacity: 0.5;
+      z-index: 1;
+      user-select: none;
+    }
+
     /* ===== BlockNote side menu alignment fix ===== */
     .bn-side-menu { align-items: center !important; }
 
