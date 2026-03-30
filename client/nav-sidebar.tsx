@@ -302,6 +302,8 @@ function NavItem({
       clone.style.top = '-9999px'
       clone.style.left = '-9999px'
       clone.style.width = `${itemRef.current.offsetWidth}px`
+      // Strip hrefs so the browser doesn't show the URL in the drag tooltip
+      clone.querySelectorAll('a').forEach(a => a.removeAttribute('href'))
       document.body.appendChild(clone)
       const rect = itemRef.current.getBoundingClientRect()
       e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top)
@@ -384,7 +386,7 @@ function NavItem({
           <span className="w-4 shrink-0" />
         )}
         <a
-          href="#"
+          href={`/${node.path === '.' ? '' : node.path}`}
           className={cn(
             'flex-1 truncate no-underline text-muted-foreground hover:text-foreground',
             isActive && 'text-accent-foreground'
