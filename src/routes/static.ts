@@ -25,22 +25,12 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // Serve client JS — bundle app.ts on the fly
-  if (pathname === '/_opendoc/app.js') {
-    try {
-      const result = await Bun.build({
-        entrypoints: [join(ctx.clientDir, 'app.ts')],
-        target: 'browser',
-        minify: false,
-      })
-      const js = await result.outputs[0]!.text()
-      const hotReload = `\n// Hot reload\nconst es = new EventSource('/__reload');\nes.onmessage = () => location.reload();\n`
-      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
-      res.end(js + hotReload)
-    } catch (err) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' })
-      res.end(`Build error: ${err}`)
-    }
+  // Serve viewer bundle JS — built at startup
+  if (pathname === '/client/viewer.tsx' || pathname === '/client/viewer.ts') {
+    const js = ctx.getViewerBundleJs()
+    if (!js) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Viewer bundle not ready'); return true }
+    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
+    res.end(js)
     return true
   }
 

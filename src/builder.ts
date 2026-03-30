@@ -135,15 +135,15 @@ export async function build(rootDir: string): Promise<void> {
   // Write theme CSS
   await writeFile(join(opendocDir, 'theme.css'), styles);
 
-  // Bundle client JS
+  // Bundle viewer JS
   const clientDir = join(dirname(dirname(import.meta.path)), 'client');
   const buildResult = await Bun.build({
-    entrypoints: [join(clientDir, 'app.ts')],
+    entrypoints: [join(clientDir, 'viewer.tsx')],
     target: 'browser',
     minify: true,
   });
   if (buildResult.outputs[0]) {
-    await writeFile(join(opendocDir, 'app.js'), await buildResult.outputs[0].text());
+    await writeFile(join(opendocDir, 'viewer.js'), await buildResult.outputs[0].text());
   }
 
   // Copy editor.html to dist at configured editorPath
@@ -171,7 +171,7 @@ export async function build(rootDir: string): Promise<void> {
   console.log(`  _opendoc/nav.json`);
   console.log(`  _opendoc/backlinks.json`);
   console.log(`  _opendoc/theme.css`);
-  console.log(`  _opendoc/app.js`);
+  console.log(`  _opendoc/viewer.js`);
   for (const line of summary) console.log(line);
   console.log(`\nBuilt to ${distDir}`);
 }

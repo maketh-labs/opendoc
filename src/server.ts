@@ -4,15 +4,11 @@ import { watch as fsWatch } from 'fs';
 import { createServer } from 'http';
 import type { ServerResponse } from 'http';
 import { walkDir, getAllPages } from './walker';
-import { renderFull } from './renderer';
 import { buildBacklinks } from './backlinks';
-import { loadTemplate, loadStyles, renderTemplate } from './theme';
+import { loadStyles } from './theme';
 import { startMcpServer } from './mcp';
-import { tocToHtml } from './plugins/toc';
 import { ensureConfig, getEditorPath } from './config';
-import { escapeHtml, extractTitle, buildTitleMap } from './utils.js';
-import { navToHtml, backlinksToHtml } from './render-utils.js';
-import type { BacklinksIndex } from './types';
+import { buildTitleMap } from './utils.js';
 import type { RouteContext, RouteHandler } from './routes/types';
 import { handleStatic } from './routes/static';
 import { handleFileApi, handleOrderApi, handleMoveApi } from './routes/file-api';
@@ -21,47 +17,20 @@ import { handleGitStatus, handleCommit } from './routes/git';
 import { handleOAuthRedirect, handleOAuthCallback } from './routes/oauth';
 import { handleFetchMeta } from './routes/fetch-meta';
 import { handleNav } from './routes/nav';
-
-// In-memory page cache
-const cache = new Map<string, string>();
+import { handlePage } from './routes/page';
 
 // Editor bundle cache — built once at startup, invalidated on client file changes
 let editorBundleJs: string | null = null;
 let editorBundleCss: string | null = null;
 
-async function buildPage(
-  rootDir: string,
-  page: string,
-  template: string,
-  navHtml: string,
-  backlinks: BacklinksIndex,
-  titleMap: Map<string, string>,
-): Promise<string> {
-  const indexPath = join(rootDir, page, 'index.md');
-  const markdown = await readFile(indexPath, 'utf-8');
-  const currentPath = page === '.' ? 'index.md' : `${page}/index.md`;
-  const { html: content, toc, frontmatter } = await renderFull(markdown, { titleMap, currentPath });
-  const title = extractTitle(markdown, 'OpenDoc');
-  const icon = (frontmatter.icon as string) || '';
-
-  const normalized = page === '.' ? '' : page;
-  const pageBacklinks = backlinks[normalized] || [];
-
-  return renderTemplate(template, {
-    title,
-    siteTitle: 'OpenDoc',
-    content,
-    nav: navHtml,
-    backlinks: backlinksToHtml(pageBacklinks),
-    toc: tocToHtml(toc),
-    icon,
-    pageTitle: title,
-  });
-}
+// Viewer bundle cache — built once at startup
+let viewerBundleJs: string | null = null;
+let viewerHtml: string | null = null;
 
 // Ordered list of route handlers — first match wins
 const routeHandlers: RouteHandler[] = [
   handleNav,
+  handlePage,
   handleStatic,
   handleFileApi,
   handleOrderApi,
@@ -77,19 +46,14 @@ const routeHandlers: RouteHandler[] = [
 export async function startServer(rootDir: string, port: number = 3000) {
   const config = await ensureConfig(rootDir);
   const editorPath = getEditorPath(config);
-  let template = await loadTemplate();
   let styles = await loadStyles();
   let navTree = await walkDir(rootDir);
   let backlinks = await buildBacklinks(rootDir);
-  let navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
   let titleMap = new Map<string, string>();
 
   // Init titleMap
   const initPages = await getAllPages(rootDir);
   titleMap = await buildTitleMap(rootDir, initPages);
-
-  // Inflight dedup map
-  const pageBuilding = new Map<string, Promise<string>>();
 
   const clientDir = join(dirname(dirname(import.meta.path)), 'client');
   const reloadClients = new Set<ServerResponse>();
@@ -97,13 +61,8 @@ export async function startServer(rootDir: string, port: number = 3000) {
   async function rebuildAll(): Promise<void> {
     navTree = await walkDir(rootDir);
     backlinks = await buildBacklinks(rootDir);
-    navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
     const pages = await getAllPages(rootDir);
     titleMap = await buildTitleMap(rootDir, pages);
-    cache.clear();
-    pageBuilding.clear();
-    // Note: editor bundle is NOT cleared here — it only needs rebuilding
-    // when client source files change, not on every markdown content change.
   }
 
   // Watch for markdown file changes using native fs.watch (chokidar v5 is broken with Bun)
@@ -143,8 +102,14 @@ export async function startServer(rootDir: string, port: number = 3000) {
     setEditorBundleJs: (js: string) => { editorBundleJs = js },
     getEditorBundleCss: () => editorBundleCss,
     setEditorBundleCss: (css: string) => { editorBundleCss = css },
+    getViewerBundleJs: () => viewerBundleJs,
+    setViewerBundleJs: (js: string) => { viewerBundleJs = js },
+    getViewerHtml: () => viewerHtml,
+    setViewerHtml: (html: string) => { viewerHtml = html },
     getStyles: () => styles,
     getNavTree: () => navTree,
+    getBacklinks: () => backlinks,
+    getTitleMap: () => titleMap,
     reloadClients,
   };
 
@@ -156,48 +121,32 @@ export async function startServer(rootDir: string, port: number = 3000) {
       if (await handler(req, res, url, routeContext)) return;
     }
 
-    // Fallback: serve pages from the doc root
-    const pathname = url.pathname;
-
-    // Root redirects to first page
-    if (pathname === '/') {
-      const pages = await getAllPages(rootDir);
-      const first = pages[0];
-      if (first) {
-        res.writeHead(302, { Location: `/${first}` });
-        res.end();
-      } else {
-        res.writeHead(404, { 'Content-Type': 'text/html' });
-        res.end('<h1>No pages found</h1>');
-      }
-      return;
+    // Fallback: serve viewer SPA shell for all doc routes
+    if (viewerHtml) {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(viewerHtml);
+    } else {
+      res.writeHead(503, { 'Content-Type': 'text/html' });
+      res.end('<h1>Viewer not ready</h1>');
     }
-
-    const pagePath = pathname.replace(/^\//, '').replace(/\/$/, '');
-
-    const pages = await getAllPages(rootDir);
-    if (!pages.includes(pagePath)) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      res.end('<h1>404 — Page not found</h1>');
-      return;
-    }
-
-    if (!cache.has(pagePath)) {
-      if (!pageBuilding.has(pagePath)) {
-        const p = buildPage(rootDir, pagePath, template, navHtml, backlinks, titleMap)
-          .then(html => { cache.set(pagePath, html); pageBuilding.delete(pagePath); return html; })
-          .catch(err => { pageBuilding.delete(pagePath); throw err; });
-        pageBuilding.set(pagePath, p);
-      }
-      try { await pageBuilding.get(pagePath); } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'text/html' });
-        res.end(`<h1>Error</h1><pre>${escapeHtml(String(err))}</pre>`);
-        return;
-      }
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(cache.get(pagePath));
   });
+
+  // Load viewer HTML shell
+  viewerHtml = await readFile(join(dirname(dirname(import.meta.path)), 'themes', 'default', 'viewer.html'), 'utf-8');
+
+  // Build viewer bundle before accepting requests
+  const viewerResult = await Bun.build({
+    entrypoints: [join(clientDir, 'viewer.tsx')],
+    target: 'browser',
+    minify: false,
+  })
+  if (!viewerResult.success) {
+    console.error('Viewer bundle build failed:\n' + viewerResult.logs.join('\n'))
+  } else {
+    for (const out of viewerResult.outputs) {
+      if (out.kind === 'entry-point') viewerBundleJs = await out.text()
+    }
+  }
 
   // Build editor bundle before accepting requests
   if (editorPath !== null) {
