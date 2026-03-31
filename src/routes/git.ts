@@ -2,7 +2,7 @@ import { join } from 'path'
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import simpleGit from 'simple-git'
-import type { RouteHandler } from './types'
+import { readBody, type RouteHandler } from './types'
 
 export const handleGitStatus: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/git-status' || req.method !== 'GET') return false
@@ -40,12 +40,7 @@ export const handleGitStatus: RouteHandler = async (req, res, url, ctx) => {
 export const handleCommit: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/commit' || req.method !== 'POST') return false
 
-  const body = await new Promise<string>((resolve) => {
-    let data = ''
-    req.on('data', (chunk: Buffer) => { data += chunk.toString() })
-    req.on('end', () => resolve(data))
-  })
-  const { message, token } = JSON.parse(body) as { message?: string; token?: string }
+  const { message, token } = JSON.parse(await readBody(req)) as { message?: string; token?: string }
 
   try {
     const git = simpleGit(ctx.rootDir)

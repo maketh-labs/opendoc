@@ -1,26 +1,28 @@
 import { join, resolve } from 'path'
-import { readdir, unlink, mkdir } from 'fs/promises'
-import type { RouteHandler } from './types'
+import { unlink, mkdir } from 'fs/promises'
+import { readBodyRaw, isWithinRoot, type RouteHandler } from './types'
 
-const FAVICON_NAMES       = ['favicon.ico', 'favicon.svg', 'favicon.png']
-const FAVICON_DARK_NAMES  = ['favicon-dark.png', 'favicon-dark.svg']
-const APPLE_TOUCH_NAMES   = ['apple-touch-icon.png']
-const OG_IMAGE_NAMES      = ['og-image.png', 'og-image.jpg', 'og-image.webp']
-
-const VALID_TYPES = ['favicon', 'favicon-dark', 'apple-touch-icon', 'og-image']
-
-function getRecognizedNames(type: string): string[] {
-  if (type === 'favicon')           return FAVICON_NAMES
-  if (type === 'favicon-dark')      return FAVICON_DARK_NAMES
-  if (type === 'apple-touch-icon')  return APPLE_TOUCH_NAMES
-  return OG_IMAGE_NAMES
+const ASSET_DEFS: Record<string, { recognized: string[]; canonical: string }> = {
+  'favicon-96x96':        { recognized: ['favicon-96x96.png'],                              canonical: 'favicon-96x96.png' },
+  'favicon-svg':          { recognized: ['favicon.svg'],                                    canonical: 'favicon.svg' },
+  'favicon-ico':          { recognized: ['favicon.ico'],                                    canonical: 'favicon.ico' },
+  'apple-touch-icon':     { recognized: ['apple-touch-icon.png'],                           canonical: 'apple-touch-icon.png' },
+  'web-app-manifest-192': { recognized: ['web-app-manifest-192x192.png'],                   canonical: 'web-app-manifest-192x192.png' },
+  'web-app-manifest-512': { recognized: ['web-app-manifest-512x512.png'],                   canonical: 'web-app-manifest-512x512.png' },
+  'site-webmanifest':     { recognized: ['site.webmanifest'],                               canonical: 'site.webmanifest' },
+  'favicon':              { recognized: ['favicon.ico', 'favicon.svg', 'favicon.png'],      canonical: 'favicon.png' },
+  'favicon-dark':         { recognized: ['favicon-dark.png', 'favicon-dark.svg'],           canonical: 'favicon-dark.png' },
+  'og-image':             { recognized: ['og-image.png', 'og-image.jpg', 'og-image.webp'], canonical: 'og-image.png' },
 }
 
-function getCanonicalName(type: string, ext: string): string {
-  if (type === 'favicon')           return `favicon.${ext}`
-  if (type === 'favicon-dark')      return `favicon-dark.${ext}`
-  if (type === 'apple-touch-icon')  return `apple-touch-icon.${ext}`
-  return `og-image.${ext}`
+const VALID_TYPES = Object.keys(ASSET_DEFS)
+
+function getRecognizedNames(type: string): string[] {
+  return ASSET_DEFS[type]?.recognized ?? []
+}
+
+function getCanonicalName(type: string, fallbackExt: string): string {
+  return ASSET_DEFS[type]?.canonical ?? `${type}.${fallbackExt}`
 }
 
 export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
@@ -28,11 +30,7 @@ export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
 
   if (req.method === 'POST') {
     try {
-      const rawBody = await new Promise<Buffer>((resolve) => {
-        const chunks: Buffer[] = []
-        req.on('data', (c: Buffer) => chunks.push(c))
-        req.on('end', () => resolve(Buffer.concat(chunks)))
-      })
+      const rawBody = await readBodyRaw(req)
       const bunReq = new Request('http://localhost/_opendoc/page-asset', {
         method: 'POST',
         headers: Object.fromEntries(
@@ -53,7 +51,7 @@ export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
 
       const pageDir = pagePath === '.' ? ctx.rootDir : join(ctx.rootDir, pagePath)
       const resolvedDir = resolve(pageDir)
-      if (!resolvedDir.startsWith(resolve(ctx.rootDir))) {
+      if (!isWithinRoot(ctx.rootDir, resolvedDir)) {
         res.writeHead(403, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Forbidden' }))
         return true
@@ -85,12 +83,7 @@ export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
 
   if (req.method === 'DELETE') {
     try {
-      const rawBody = await new Promise<Buffer>((resolve) => {
-        const chunks: Buffer[] = []
-        req.on('data', (c: Buffer) => chunks.push(c))
-        req.on('end', () => resolve(Buffer.concat(chunks)))
-      })
-      const { pagePath = '.', type } = JSON.parse(rawBody.toString('utf-8'))
+      const { pagePath = '.', type } = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
 
       if (!VALID_TYPES.includes(type)) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -100,7 +93,7 @@ export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
 
       const pageDir = pagePath === '.' ? ctx.rootDir : join(ctx.rootDir, pagePath)
       const resolvedDir = resolve(pageDir)
-      if (!resolvedDir.startsWith(resolve(ctx.rootDir))) {
+      if (!isWithinRoot(ctx.rootDir, resolvedDir)) {
         res.writeHead(403, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Forbidden' }))
         return true

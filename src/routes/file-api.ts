@@ -1,6 +1,6 @@
 import { resolve, join, basename, dirname } from 'path'
-import { rename, readdir, mkdir, readFile, writeFile, rm, cp, stat } from 'fs/promises'
-import type { RouteHandler } from './types'
+import { rename, readdir, mkdir, readFile, writeFile, rm, cp, stat, unlink } from 'fs/promises'
+import { readBody, isWithinRoot, type RouteHandler } from './types'
 
 async function readOrderFile(dir: string): Promise<string[]> {
   try {
@@ -21,7 +21,7 @@ async function removeFromOrder(dir: string, slug: string): Promise<void> {
   const next = order.filter(s => s !== slug)
   if (next.length !== order.length) {
     if (next.length === 0) {
-      try { await (await import('fs/promises')).unlink(join(dir, 'order.json')) } catch {}
+      try { await unlink(join(dir, 'order.json')) } catch {}
     } else {
       await writeOrderFile(dir, next)
     }
@@ -32,19 +32,6 @@ async function removeFromOrder(dir: string, slug: string): Promise<void> {
 async function appendToOrder(dir: string, slug: string): Promise<void> {
   const order = await readOrderFile(dir)
   if (!order.includes(slug)) await writeOrderFile(dir, [...order, slug])
-}
-
-function isWithinRoot(rootDir: string, fullPath: string): boolean {
-  const resolved = resolve(rootDir)
-  return fullPath.startsWith(resolved + '/') || fullPath === resolved
-}
-
-function readBody(req: import('http').IncomingMessage): Promise<string> {
-  return new Promise((resolve) => {
-    let data = ''
-    req.on('data', (chunk: Buffer) => { data += chunk.toString() })
-    req.on('end', () => resolve(data))
-  })
 }
 
 export const handleOrderApi: RouteHandler = async (req, res, url, ctx) => {
@@ -237,7 +224,7 @@ export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
   }
 
   const fullPath = resolve(ctx.rootDir, filePath)
-  if (!fullPath.startsWith(resolve(ctx.rootDir) + '/') && fullPath !== resolve(ctx.rootDir)) {
+  if (!isWithinRoot(ctx.rootDir, fullPath)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' })
     res.end('Forbidden')
     return true
@@ -256,12 +243,7 @@ export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
   }
 
   if (req.method === 'PUT') {
-    const body = await new Promise<string>((resolve) => {
-      let data = ''
-      req.on('data', (chunk: Buffer) => { data += chunk.toString() })
-      req.on('end', () => resolve(data))
-    })
-    const { content } = JSON.parse(body)
+    const { content } = JSON.parse(await readBody(req))
     await Bun.write(fullPath, content)
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))

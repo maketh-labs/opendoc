@@ -1,7 +1,8 @@
 import { join } from 'path'
-import { buildPublicConfig, ensureConfig } from '../config'
+import { mkdir, writeFile } from 'fs/promises'
+import { buildPublicConfig } from '../config'
 import { walkDir } from '../walker'
-import type { RouteHandler } from './types'
+import { readBodyRaw, type RouteHandler } from './types'
 
 export const handleNav: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname === '/_opendoc/config.json') {
@@ -12,11 +13,7 @@ export const handleNav: RouteHandler = async (req, res, url, ctx) => {
 
   // PATCH /_opendoc/config — update mutable config fields (title, etc.)
   if (url.pathname === '/_opendoc/config' && req.method === 'PATCH') {
-    const chunks: Buffer[] = []
-    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-    const body = JSON.parse(Buffer.concat(chunks).toString('utf-8'))
-
-    const { mkdir, writeFile } = await import('fs/promises')
+    const body = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
     const configPath = join(ctx.rootDir, '.opendoc', 'config.json')
     await mkdir(join(ctx.rootDir, '.opendoc'), { recursive: true })
 

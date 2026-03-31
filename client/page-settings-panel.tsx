@@ -7,7 +7,6 @@ interface PageAssetSectionProps {
   icon: React.ReactNode
   currentUrl: string | null
   inherited: boolean
-  inheritedFrom?: string
   onUpload: (file: File) => Promise<void>
   onDelete: () => Promise<void>
   uploading: boolean

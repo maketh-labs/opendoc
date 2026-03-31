@@ -203,17 +203,6 @@ export function clearVars(): void {
   }
 }
 
-/** Apply a preset by ID */
-export function applyPreset(presetId: string): void {
-  const preset = THEME_PRESETS.find(p => p.id === presetId)
-  if (!preset) return
-
-  clearVars()
-  if (preset.id !== 'default') {
-    applyVars(preset.vars)
-  }
-}
-
 /** Generate CSS string from current overrides */
 export function generateThemeCss(lightOverrides: Record<string, string>, darkOverrides: Record<string, string>): string {
   const lines: string[] = []

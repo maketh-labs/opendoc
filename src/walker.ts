@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, access } from 'fs/promises';
+import { readdir, readFile, writeFile, access, unlink } from 'fs/promises';
 import { join, relative, basename, dirname } from 'path';
 import type { NavNode } from './types';
 import { parseFrontmatter } from './utils.js';
@@ -79,7 +79,7 @@ async function sortByOrder(dir: string, children: NavNode[], order: string[] | n
   if (cleanOrder.length !== order.length) {
     try {
       if (cleanOrder.length === 0) {
-        await (await import('fs/promises')).unlink(join(dir, 'order.json'));
+        await unlink(join(dir, 'order.json'));
       } else {
         await writeFile(join(dir, 'order.json'), JSON.stringify(cleanOrder, null, 2) + '\n');
       }

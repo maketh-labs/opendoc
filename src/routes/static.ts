@@ -1,6 +1,6 @@
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile, writeFile, mkdir, unlink } from 'fs/promises'
 import { join, resolve } from 'path'
-import type { RouteHandler } from './types'
+import { readBodyRaw, isWithinRoot, MIME_TYPES, type RouteHandler } from './types'
 
 export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   const pathname = url.pathname
@@ -19,9 +19,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
 
   // Save user theme overrides
   if (pathname === '/_opendoc/theme' && req.method === 'PUT') {
-    const chunks: Buffer[] = []
-    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-    const body = JSON.parse(Buffer.concat(chunks).toString('utf-8'))
+    const body = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
     const dir = join(ctx.rootDir, '.opendoc')
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'theme.css'), body.css || '', 'utf-8')
@@ -46,7 +44,6 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   // Delete user theme overrides
   if (pathname === '/_opendoc/theme' && req.method === 'DELETE') {
     try {
-      const { unlink } = await import('fs/promises')
       await unlink(join(ctx.rootDir, '.opendoc', 'theme.css'))
     } catch {}
     res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -111,18 +108,14 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   // Serve favicon and og-image files from page directories
   if (/\/(favicon(-dark|-96x96)?\.(ico|svg|png)|apple-touch-icon\.png|web-app-manifest-(192x192|512x512)\.png|site\.webmanifest|og-image\.(png|jpg|webp))$/.test(pathname)) {
     const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
-    if (!filePath.startsWith(resolve(ctx.rootDir) + '/') && filePath !== resolve(ctx.rootDir)) {
+    if (!isWithinRoot(ctx.rootDir, filePath)) {
       res.writeHead(403); res.end('Forbidden')
       return true
     }
     try {
       const data = await Bun.file(filePath).arrayBuffer()
       const ext = pathname.split('.').pop()?.toLowerCase()
-      const mimeTypes: Record<string, string> = {
-        ico: 'image/x-icon', svg: 'image/svg+xml', png: 'image/png',
-        jpg: 'image/jpeg', webp: 'image/webp', webmanifest: 'application/manifest+json',
-      }
-      res.writeHead(200, { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
+      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
       res.end(Buffer.from(data))
     } catch {
       // Fall through — not found, let other handlers try
@@ -142,11 +135,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
     try {
       const data = await Bun.file(assetPath).arrayBuffer()
       const ext = assetName.split('.').pop()?.toLowerCase()
-      const mimeTypes: Record<string, string> = {
-        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-        webp: 'image/webp', svg: 'image/svg+xml', gif: 'image/gif',
-      }
-      res.writeHead(200, { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' })
+      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' })
       res.end(Buffer.from(data))
     } catch {
       res.writeHead(404); res.end('Not found')
@@ -157,19 +146,14 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   // Serve assets from page directories
   if (pathname.includes('/assets/')) {
     const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
-    if (!filePath.startsWith(resolve(ctx.rootDir) + '/')) {
+    if (!isWithinRoot(ctx.rootDir, filePath)) {
       res.writeHead(403); res.end('Forbidden')
       return true
     }
     try {
       const data = await Bun.file(filePath).arrayBuffer()
       const ext = pathname.split('.').pop()?.toLowerCase()
-      const mimeTypes: Record<string, string> = {
-        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-        gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
-        pdf: 'application/pdf',
-      }
-      res.writeHead(200, { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream' })
+      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream' })
       res.end(Buffer.from(data))
     } catch {
       res.writeHead(404); res.end('Not found')

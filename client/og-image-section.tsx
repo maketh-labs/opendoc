@@ -103,7 +103,7 @@ export function OGImageSection({ siteTitle }: { siteTitle: string }) {
           onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
         {currentUrl ? (
           <>
-            <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--od-color-border, #e2e8f0)', aspectRatio: '1200/630', background: '#f0f0f0' }}>
+            <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--od-border, #e1e4e8)', aspectRatio: '1200/630', background: '#f0f0f0' }}>
               <img src={currentUrl} alt="OG image preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
