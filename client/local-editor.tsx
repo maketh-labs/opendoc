@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type { Block } from '@blocknote/core'
 import { useGitStatus, useDarkMode, useKeyboardSave } from './hooks'
 import { EditorShell, type RightPanel } from './editor-shell'
+import { SiteSettingsPage } from './site-settings-page'
 import { NavSidebar } from './nav-sidebar'
 import { PageHeader } from './page-header'
 import { BlockEditor } from './block-editor'
@@ -94,9 +95,11 @@ function LocalEditorHeader({
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={darkMode.toggle} title={darkMode.theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
         {darkMode.theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightPanel(p => p === 'page-settings' ? null : 'page-settings')} title="Page Settings">
-        <FileImage className="h-4 w-4" />
-      </Button>
+      {currentFile && (
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightPanel(p => p === 'page-settings' ? null : 'page-settings')} title="Page Settings">
+          <FileImage className="h-4 w-4" />
+        </Button>
+      )}
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
         <Settings2 className="h-4 w-4" />
       </Button>
@@ -121,7 +124,7 @@ export function LocalEditor() {
   const [saving, setSaving] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [commitMsg, setCommitMsg] = useState('')
-  const [rightPanel, setRightPanel] = useState<RightPanel>(currentFile ? null : 'site-settings')
+  const [rightPanel, setRightPanel] = useState<RightPanel>(null)
 
   const { status: gitStatus, refresh: refreshGit } = useGitStatus()
   const darkMode = useDarkMode()
@@ -302,7 +305,9 @@ export function LocalEditor() {
       onRightClose={() => setRightPanel(null)}
       pagePath={currentFile}
     >
-      {initialBlocks ? (
+      {!currentFile ? (
+        <SiteSettingsPage />
+      ) : initialBlocks ? (
         <BlockEditor
           key={currentFile}
           initialBlocks={initialBlocks}

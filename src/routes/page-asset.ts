@@ -2,15 +2,24 @@ import { join, resolve } from 'path'
 import { readdir, unlink, mkdir } from 'fs/promises'
 import type { RouteHandler } from './types'
 
-const FAVICON_NAMES = ['favicon.ico', 'favicon.svg', 'favicon.png']
-const OG_IMAGE_NAMES = ['og-image.png', 'og-image.jpg', 'og-image.webp']
+const FAVICON_NAMES       = ['favicon.ico', 'favicon.svg', 'favicon.png']
+const FAVICON_DARK_NAMES  = ['favicon-dark.png', 'favicon-dark.svg']
+const APPLE_TOUCH_NAMES   = ['apple-touch-icon.png']
+const OG_IMAGE_NAMES      = ['og-image.png', 'og-image.jpg', 'og-image.webp']
+
+const VALID_TYPES = ['favicon', 'favicon-dark', 'apple-touch-icon', 'og-image']
 
 function getRecognizedNames(type: string): string[] {
-  return type === 'favicon' ? FAVICON_NAMES : OG_IMAGE_NAMES
+  if (type === 'favicon')           return FAVICON_NAMES
+  if (type === 'favicon-dark')      return FAVICON_DARK_NAMES
+  if (type === 'apple-touch-icon')  return APPLE_TOUCH_NAMES
+  return OG_IMAGE_NAMES
 }
 
 function getCanonicalName(type: string, ext: string): string {
-  if (type === 'favicon') return `favicon.${ext}`
+  if (type === 'favicon')           return `favicon.${ext}`
+  if (type === 'favicon-dark')      return `favicon-dark.${ext}`
+  if (type === 'apple-touch-icon')  return `apple-touch-icon.${ext}`
   return `og-image.${ext}`
 }
 
@@ -36,9 +45,9 @@ export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
       const pagePath = (form.get('pagePath') as string | null) ?? '.'
       const type = (form.get('type') as string | null) ?? ''
 
-      if (!file || (type !== 'favicon' && type !== 'og-image')) {
+      if (!file || !VALID_TYPES.includes(type)) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Missing file or invalid type (favicon | og-image)' }))
+        res.end(JSON.stringify({ error: `Missing file or invalid type (${VALID_TYPES.join(' | ')})` }))
         return true
       }
 
@@ -83,9 +92,9 @@ export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
       })
       const { pagePath = '.', type } = JSON.parse(rawBody.toString('utf-8'))
 
-      if (type !== 'favicon' && type !== 'og-image') {
+      if (!VALID_TYPES.includes(type)) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Invalid type (favicon | og-image)' }))
+        res.end(JSON.stringify({ error: `Invalid type (${VALID_TYPES.join(' | ')})` }))
         return true
       }
 

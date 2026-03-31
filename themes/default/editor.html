@@ -727,6 +727,161 @@
     }
     .od-ps-title-input:focus { border-color: var(--color-accent, #0969da); }
 
+    /* ── Site Settings Page (od-ssp-*) ───────────────────────────────────── */
+    .od-ssp-wrap {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--od-color-bg, #fff);
+    }
+    .od-ssp-content {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3rem 2.5rem 5rem;
+    }
+    .od-ssp-heading {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--od-color-text, #1a1a1a);
+      margin: 0 0 2rem;
+    }
+    .od-ssp-section {
+      margin-bottom: 2rem;
+    }
+    .od-ssp-section-heading {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--od-color-text, #1a1a1a);
+      margin: 0 0 1.25rem;
+    }
+    .od-ssp-divider {
+      border: none;
+      border-top: 1px solid var(--od-color-border, #e5e7eb);
+      margin: 2.5rem 0;
+    }
+    .od-ssp-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+    .od-ssp-label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--od-color-text, #1a1a1a);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .od-ssp-value {
+      font-weight: 400;
+      color: var(--od-color-text-muted, #6b7280);
+    }
+    .od-ssp-hint {
+      font-size: 0.78rem;
+      color: var(--od-color-text-muted, #6b7280);
+      margin: 0;
+      line-height: 1.5;
+    }
+    .od-ssp-input {
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--od-color-border, #d1d5db);
+      border-radius: 6px;
+      font-size: 0.875rem;
+      background: var(--od-color-bg, #fff);
+      color: var(--od-color-text, #1a1a1a);
+      outline: none;
+      transition: border-color 0.15s;
+      max-width: 340px;
+      width: 100%;
+    }
+    .od-ssp-input:focus { border-color: var(--color-accent, #0969da); }
+    .od-ssp-color {
+      width: 36px;
+      height: 34px;
+      padding: 2px;
+      border: 1px solid var(--od-color-border, #d1d5db);
+      border-radius: 6px;
+      cursor: pointer;
+      background: none;
+    }
+    .od-ssp-range {
+      width: 100%;
+      max-width: 280px;
+      accent-color: var(--color-accent, #0969da);
+      cursor: pointer;
+    }
+    .od-ssp-radio-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--od-color-text, #1a1a1a);
+      cursor: pointer;
+    }
+    .od-ssp-btn-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--od-color-border, #d1d5db);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      background: var(--od-color-bg, #fff);
+      color: var(--od-color-text, #1a1a1a);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .od-ssp-btn-sm:hover { background: var(--od-color-surface, #f5f5f5); }
+    .od-ssp-btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+    .od-ssp-btn-danger { color: #dc2626; border-color: #fca5a5; }
+    .od-ssp-btn-danger:hover { background: #fef2f2; }
+
+    /* Dropzone */
+    .od-ssp-dropzone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      border: 2px dashed var(--od-color-border, #d1d5db);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      min-height: 80px;
+      background: var(--od-color-surface, #fafafa);
+    }
+    .od-ssp-dropzone:hover,
+    .od-ssp-dropzone.active { border-color: var(--color-accent, #0969da); background: color-mix(in srgb, var(--color-accent, #0969da) 5%, transparent); }
+    .od-ssp-dropzone-label { font-size: 0.8rem; color: var(--od-color-text-muted, #6b7280); text-align: center; }
+
+    /* Favicon layout: controls left, previews right */
+    .od-ssp-favicon-layout {
+      display: flex;
+      gap: 3rem;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .od-ssp-favicon-controls {
+      flex: 0 0 260px;
+      display: flex;
+      flex-direction: column;
+    }
+    .od-ssp-favicon-previews {
+      flex: 1;
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+    .od-ssp-preview-pair {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
     @media (max-width: 768px) {
       .od-wysiwyg-wrap { padding: 2rem 1rem; }
       .od-page-header { padding: 0 12px; }
