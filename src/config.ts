@@ -35,5 +35,6 @@ export function buildPublicConfig(config: OpenDocConfig, editorPath: string | nu
     editorPath: editorPath ?? '/_',
     github: config.github ? publicGithub : undefined,
     theme: config.theme,
+    faviconConfig: config.faviconConfig,
   };
 }

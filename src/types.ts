@@ -10,10 +10,21 @@ export interface BacklinksIndex {
   [targetUrl: string]: string[]
 }
 
+export interface FaviconConfig {
+  bgColor: string
+  padding: number
+  brightness: number
+  darkMode: 'auto-invert' | 'same' | 'custom'
+  appName: string
+  themeColor: string
+  version: number
+}
+
 export interface OpenDocConfig {
   title?: string
   theme?: string
   editorPath?: string | null   // default "/_", null = disabled
+  faviconConfig?: FaviconConfig
   github?: {
     repo?: string              // "owner/repo-name"
     branch?: string            // default "main"

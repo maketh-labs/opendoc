@@ -42,7 +42,7 @@ function PageAssetSection({ label, icon, currentUrl, inherited, onUpload, onDele
               e.target.value = ''
             }} />
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              <Upload className="h-3 w-3 mr-1" />{uploading ? 'Uploading...' : 'Replace'}
+              <Upload className="h-3 w-3 mr-1" />{uploading ? 'Uploading…' : 'Replace'}
             </Button>
             {!inherited && (
               <Button variant="outline" size="sm" className="h-7 text-xs text-red-500 hover:text-red-600" onClick={onDelete}>
@@ -59,7 +59,7 @@ function PageAssetSection({ label, icon, currentUrl, inherited, onUpload, onDele
             e.target.value = ''
           }} />
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
-            <Upload className="h-3 w-3 mr-1" />{uploading ? 'Uploading...' : `Upload ${label.toLowerCase()}`}
+            <Upload className="h-3 w-3 mr-1" />{uploading ? 'Uploading…' : `Upload ${label.toLowerCase()}`}
           </Button>
           <span className="od-ps-hint">No {label.toLowerCase()} set for this page</span>
         </div>

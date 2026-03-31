@@ -23,8 +23,8 @@ export const handleNav: RouteHandler = async (req, res, url, ctx) => {
     const updated = { ...ctx.config }
     if (typeof body.title === 'string') { updated.title = body.title; ctx.config.title = body.title }
     if (body.faviconConfig && typeof body.faviconConfig === 'object') {
-      (updated as Record<string, unknown>).faviconConfig = body.faviconConfig
-      ;(ctx.config as Record<string, unknown>).faviconConfig = body.faviconConfig
+      updated.faviconConfig = body.faviconConfig
+      ctx.config.faviconConfig = body.faviconConfig
     }
 
     await writeFile(configPath, JSON.stringify(updated, null, 2) + '\n')

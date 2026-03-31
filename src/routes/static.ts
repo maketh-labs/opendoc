@@ -109,7 +109,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   }
 
   // Serve favicon and og-image files from page directories
-  if (/\/(favicon\.(ico|svg|png)|og-image\.(png|jpg|webp))$/.test(pathname)) {
+  if (/\/(favicon(-dark)?\.(ico|svg|png)|apple-touch-icon\.png|og-image\.(png|jpg|webp))$/.test(pathname)) {
     const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
     if (!filePath.startsWith(resolve(ctx.rootDir) + '/') && filePath !== resolve(ctx.rootDir)) {
       res.writeHead(403); res.end('Forbidden')

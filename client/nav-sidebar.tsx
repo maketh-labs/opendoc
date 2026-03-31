@@ -432,7 +432,7 @@ function NavItem({
   const hasChildren = node.children.length > 0
   const isCreatingHere = creatingAt === nodePath
   const isRenaming = renamingPath === node.path
-  const isDragged = draggedPath === node.path
+  const isDragged = draggedPath === node.path  // used for opacity below
   const isDropOnto = dropZone?.type === 'onto' && dropZone.targetPath === node.path
   const isDropBefore = dropZone?.type === 'between' && dropZone.parentPath === parentPath && dropZone.index === index
   const isDropAfter = isLast && dropZone?.type === 'between' && dropZone.parentPath === parentPath && dropZone.index === index + 1
@@ -520,12 +520,8 @@ function NavItem({
     onDrop(dropZone)
   }, [dropZone, onDrop])
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear if leaving this element entirely (not entering a child)
-    if (!itemRef.current?.contains(e.relatedTarget as Node)) {
-      // Don't clear — parent will handle
-    }
-  }, [])
+  // Drop zone clearing is handled at the parent level on drop/dragend
+  const handleDragLeave = useCallback((_e: React.DragEvent) => {}, [])
 
   return (
     <li className="list-none relative">
@@ -546,6 +542,7 @@ function NavItem({
           'group relative flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer',
           isActive && 'bg-accent text-accent-foreground font-medium',
           isDropOnto && 'ring-2 ring-blue-500 bg-blue-500/10 rounded-md',
+          isDragged && 'opacity-40',
         )}
       >
         {hasChildren || isCreatingHere ? (
