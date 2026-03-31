@@ -364,7 +364,29 @@ body {
   padding: 1rem;
   overflow-x: auto;
   margin-bottom: 1rem;
+  position: relative;
 }
+
+.od-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--od-color-border);
+  border-radius: 5px;
+  background: var(--od-color-code-bg);
+  color: var(--od-color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.od-article pre:hover .od-copy-btn { opacity: 1; }
+.od-copy-btn:hover { background: var(--od-color-surface); color: var(--od-color-text); }
 
 .od-article pre code {
   font-family: var(--od-font-mono);
