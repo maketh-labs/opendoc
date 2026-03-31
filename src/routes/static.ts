@@ -109,7 +109,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   }
 
   // Serve favicon and og-image files from page directories
-  if (/\/(favicon(-dark)?\.(ico|svg|png)|apple-touch-icon\.png|og-image\.(png|jpg|webp))$/.test(pathname)) {
+  if (/\/(favicon(-dark|-96x96)?\.(ico|svg|png)|apple-touch-icon\.png|web-app-manifest-(192x192|512x512)\.png|site\.webmanifest|og-image\.(png|jpg|webp))$/.test(pathname)) {
     const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
     if (!filePath.startsWith(resolve(ctx.rootDir) + '/') && filePath !== resolve(ctx.rootDir)) {
       res.writeHead(403); res.end('Forbidden')
@@ -120,13 +120,36 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
       const ext = pathname.split('.').pop()?.toLowerCase()
       const mimeTypes: Record<string, string> = {
         ico: 'image/x-icon', svg: 'image/svg+xml', png: 'image/png',
-        jpg: 'image/jpeg', webp: 'image/webp',
+        jpg: 'image/jpeg', webp: 'image/webp', webmanifest: 'application/manifest+json',
       }
       res.writeHead(200, { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
       res.end(Buffer.from(data))
     } catch {
       // Fall through — not found, let other handlers try
       return false
+    }
+    return true
+  }
+
+  // Serve client assets (preview images, etc.) — must come before generic /assets/ handler
+  if (pathname.startsWith('/_opendoc/assets/')) {
+    const assetName = pathname.slice('/_opendoc/assets/'.length)
+    if (assetName.includes('..') || assetName.includes('/')) {
+      res.writeHead(403); res.end('Forbidden')
+      return true
+    }
+    const assetPath = join(ctx.projectRoot, 'client', 'assets', assetName)
+    try {
+      const data = await Bun.file(assetPath).arrayBuffer()
+      const ext = assetName.split('.').pop()?.toLowerCase()
+      const mimeTypes: Record<string, string> = {
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+        webp: 'image/webp', svg: 'image/svg+xml', gif: 'image/gif',
+      }
+      res.writeHead(200, { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' })
+      res.end(Buffer.from(data))
+    } catch {
+      res.writeHead(404); res.end('Not found')
     }
     return true
   }
