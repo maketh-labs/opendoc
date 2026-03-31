@@ -22,7 +22,9 @@ export async function ensureConfig(rootDir: string): Promise<OpenDocConfig> {
 
 export function getEditorPath(config: OpenDocConfig): string | null {
   if (config.editorPath === null) return null;
-  return config.editorPath ?? '/_';
+  const path = config.editorPath ?? '/_';
+  // Migrate legacy /_editor → /_ 
+  return path === '/_editor' ? '/_' : path;
 }
 
 /** Build a public-safe config object (strips clientSecret) */
