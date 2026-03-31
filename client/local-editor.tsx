@@ -133,11 +133,11 @@ export function LocalEditor() {
       setNavTree(nav)
       const allPages = flattenNav(nav).filter(p => p.filePath !== 'index.md')
       setPages(allPages)
-      // If no page is selected yet, navigate to the first available page
+      // If no page is selected yet, default to index.md (root) or first available page
       setCurrentFile(prev => {
-        if (!prev && allPages.length > 0) {
-          const first = allPages[0]!.filePath
-          window.history.replaceState({}, '', `/_/${first}`)
+        if (!prev) {
+          const first = 'index.md'
+          window.history.replaceState({}, '', '/_')
           return first
         }
         return prev
@@ -236,8 +236,9 @@ export function LocalEditor() {
   }
 
   function switchPage(filePath: string) {
-    window.history.pushState({}, '', filePath ? `/_/${filePath}` : '/_')
-    setCurrentFile(filePath)
+    const url = (!filePath || filePath === 'index.md') ? '/_' : `/_/${filePath}`
+    window.history.pushState({}, '', url)
+    setCurrentFile(filePath || 'index.md')
   }
 
   const handleCreatePage = useCallback(async (parentPath: string, name: string) => {
