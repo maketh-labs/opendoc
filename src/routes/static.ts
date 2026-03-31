@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import type { RouteHandler } from './types'
 
 export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
