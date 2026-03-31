@@ -26,30 +26,28 @@ Point OpenDoc at any folder of markdown files:
 opendoc serve ./my-docs
 ```
 
-Your docs site opens automatically at `http://localhost:3000`. The editor is at `/_editor`.
+Your docs site opens at `http://localhost:3000`. The editor is at `http://localhost:3000/_`.
 
 ## Folder Structure
 
-One rule: every page is an `index.md` inside a named folder. The folder structure becomes your navigation.
+Every page is an `index.md` inside a named folder. The folder structure becomes your navigation.
 
 ```
 my-docs/
+├── index.md                  → / (home page)
 ├── getting-started/
-│   └── index.md          → /getting-started
+│   └── index.md              → /getting-started
 ├── guides/
-│   ├── index.md          → /guides
+│   ├── index.md              → /guides
 │   └── advanced/
-│       └── index.md      → /guides/advanced
+│       └── index.md          → /guides/advanced
 └── reference/
-    └── index.md          → /reference
+    └── index.md              → /reference
 ```
-
-> [!NOTE]
-> There is no root `index.md`. The docs root redirects to your first page automatically.
 
 ## Create Your First Page
 
-In the editor at `/_editor`, click **New Page** in the sidebar. Type the page name and press Enter — the page is created and opened immediately.
+Open the editor at `/_` and click **+** in the sidebar. Type the page name and press **Enter** — it's created and opened immediately.
 
 Or create it manually:
 
@@ -58,10 +56,18 @@ mkdir my-docs/my-page
 echo "# My Page\n\nHello, world!" > my-docs/my-page/index.md
 ```
 
-The dev server picks up the change instantly.
+The dev server picks up the change instantly — no restart needed.
+
+## Site Settings
+
+Go to `/_` to open site settings. From there you can set:
+
+- **Site title** — shown in the browser tab and sidebar header
+- **Favicon** — applied to all pages (individual pages can override this)
+- **OG image** — default social share image for all pages
 
 ## What's Next
 
-- [[Editor]] — learn the block editor
+- [[Editor]] — the block editor and everything it can do
 - [[Writing]] — markdown, callouts, wikilinks, and more
 - [[Configuration]] — config file, themes, page ordering

@@ -23,74 +23,82 @@ OpenDoc renders standard Markdown with several extensions.
 
 1. Ordered item
 2. Second item
+
+- [ ] Unchecked to-do
+- [x] Checked to-do
 ```
 
 ## Code
 
-Fenced code blocks with language identifiers get full syntax highlighting:
+Fenced code blocks with language identifiers get full syntax highlighting via Shiki. Every code block in the viewer has a **copy button** that appears on hover.
 
 ````markdown
 ```typescript
 function greet(name: string): string {
-  return `Hello, ${name}!`;
+  return `Hello, ${name}!`
 }
 ```
 ````
 
-Supported languages include TypeScript, JavaScript, Python, Go, Rust, SQL, JSON, Bash, and [many more](https://shiki.style/languages).
+Supported languages include TypeScript, JavaScript, Python, Go, Rust, SQL, JSON, Bash, CSS, HTML, and [many more](https://shiki.style/languages).
 
 ## Tables
 
 ```markdown
-| Name    | Type   | Default |
-|---------|--------|---------|
-| title   | string | —       |
-| icon    | string | —       |
-| order   | number | —       |
+| Name  | Type   | Required |
+|-------|--------|----------|
+| title | string | No       |
+| icon  | string | No       |
 ```
 
 ## Callouts
 
-> [!NOTE]
-> This is a note callout.
-
-> [!TIP]
-> This is a tip.
-
-> [!WARNING]
-> This is a warning.
-
-> [!IMPORTANT]
-> This is important.
-
 ```markdown
 > [!NOTE]
-> This is a note callout.
+> Useful information that users should know.
 
 > [!TIP]
-> This is a tip.
+> Helpful advice for doing things better.
 
 > [!WARNING]
-> This is a warning.
+> Urgent info that needs immediate attention.
 
 > [!IMPORTANT]
-> This is important.
+> Key information users need to succeed.
 ```
+
+Renders as:
+
+> [!NOTE]
+> Useful information that users should know.
+
+> [!TIP]
+> Helpful advice for doing things better.
+
+> [!WARNING]
+> Urgent info that needs immediate attention.
+
+> [!IMPORTANT]
+> Key information users need to succeed.
+
+Available types: `NOTE`, `TIP`, `WARNING`, `IMPORTANT`, `CAUTION`.
+
+You can also insert callouts from the editor using the `/` block menu.
 
 ## Wikilinks
 
 Link to other pages by title using double brackets:
 
 ```markdown
-See [[Getting Started]] for installation instructions.
-See [[Editor]] for how to use the block editor.
+See [[Getting Started]] for installation.
+See [[Configuration]] for theme options.
 ```
 
-Wikilinks resolve by matching page titles case-insensitively. If the title changes, update the wikilink to match.
+Wikilinks resolve by matching page titles case-insensitively.
 
 ## Backlinks
 
-Every page automatically shows a **Backlinks** panel listing all pages that link to it. No configuration needed — OpenDoc builds the backlink index on every save.
+Every page automatically shows a **Backlinks** section listing all pages that link to it. OpenDoc builds the backlink index on every save — no configuration needed.
 
 ## Images
 
@@ -109,6 +117,8 @@ Reference them with a relative path:
 ![Screenshot](./assets/screenshot.png)
 ```
 
+In the editor, paste or drag an image directly — it uploads automatically.
+
 ## Frontmatter
 
 Each page can have optional YAML frontmatter:
@@ -122,24 +132,5 @@ title: Custom Title
 
 | Field | Description |
 |---|---|
-| `icon` | Emoji shown next to the page title in the nav |
-| `title` | Override the page title (defaults to the H1) |
-
-## Math
-
-Inline math: $E = mc^2$
-
-Block math:
-
-$$
-\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
-$$
-
-```markdown
-Inline: $E = mc^2$
-
-Block:
-$$
-\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
-$$
-```
+| `icon` | Emoji shown next to the page title in the nav and at the top of the page |
+| `title` | Override the page title (defaults to the first H1) |
