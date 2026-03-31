@@ -162,6 +162,13 @@ export async function startServer(rootDir: string, port: number = 3000) {
       entrypoints: [join(clientDir, 'editor.tsx')],
       target: 'browser',
       minify: false,
+      define: {
+        'process.env.NODE_ENV': '"production"',
+        'process.browser':      'true',
+        'process.version':      '"v20.0.0"',
+        'process.versions':     '{}',
+        'process.platform':     '"browser"',
+      },
     })
     if (!result.success) {
       console.error('Editor bundle build failed:\n' + result.logs.join('\n'))
