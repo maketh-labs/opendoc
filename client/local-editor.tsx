@@ -53,7 +53,7 @@ function LocalEditorHeader({
 }) {
   return (
     <div className="editor-header">
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggleSidebar} title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
+      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onToggleSidebar} title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
         <PanelLeft className="h-4 w-4" />
       </Button>
       {pages.length > 0 ? (
@@ -92,15 +92,15 @@ function LocalEditorHeader({
           </Button>
         </div>
       )}
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={darkMode.toggle} title={darkMode.theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
+      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={darkMode.toggle} title={darkMode.theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
         {darkMode.theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>
       {currentFile && (
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightPanel(p => p === 'page-settings' ? null : 'page-settings')} title="Page Settings">
+        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRightPanel(p => p === 'page-settings' ? null : 'page-settings')} title="Page Settings">
           <FileImage className="h-4 w-4" />
         </Button>
       )}
-      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
+      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
         <Settings2 className="h-4 w-4" />
       </Button>
     </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Upload } from 'lucide-react'
+import { Button } from './ui/button'
 
 function TwitterCardPreview({ imageUrl, siteTitle }: { imageUrl: string | null; siteTitle: string }) {
   return (
@@ -7,7 +8,7 @@ function TwitterCardPreview({ imageUrl, siteTitle }: { imageUrl: string | null; 
       <div style={{ fontSize: 11, fontWeight: 600, color: '#536471', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Twitter / X</div>
       <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #cfd9de', width: 360 }}>
         {imageUrl
-          ? <img src={imageUrl} style={{ width: '100%', aspectRatio: '1200/630', objectFit: 'cover', display: 'block' }} />
+          ? <img src={imageUrl} alt="" style={{ width: '100%', aspectRatio: '1200/630', objectFit: 'cover', display: 'block' }} />
           : <div style={{ width: '100%', aspectRatio: '1200/630', background: '#e7e7e7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: 12, color: '#8899a6' }}>1200 × 630</span>
             </div>}
@@ -28,7 +29,7 @@ function SlackPreview({ imageUrl, siteTitle }: { imageUrl: string | null; siteTi
         <div style={{ fontSize: 12, fontWeight: 700, color: '#1264a3', marginBottom: 3 }}>localhost:3000</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: '#1d1c1d', marginBottom: 6 }}>{siteTitle || 'My Docs'}</div>
         {imageUrl
-          ? <img src={imageUrl} style={{ width: '100%', maxWidth: 360, aspectRatio: '1200/630', objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+          ? <img src={imageUrl} alt="" style={{ width: '100%', maxWidth: 360, aspectRatio: '1200/630', objectFit: 'cover', borderRadius: 4, display: 'block' }} />
           : <div style={{ width: '100%', maxWidth: 360, aspectRatio: '1200/630', background: '#f1f1f1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: 12, color: '#999' }}>no image</span>
             </div>}
@@ -43,7 +44,7 @@ function IMessagePreview({ imageUrl, siteTitle }: { imageUrl: string | null; sit
       <div style={{ fontSize: 11, fontWeight: 600, color: '#536471', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>iMessage</div>
       <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e0e0e0', background: '#fff', width: 240 }}>
         {imageUrl
-          ? <img src={imageUrl} style={{ width: '100%', aspectRatio: '1200/630', objectFit: 'cover', display: 'block' }} />
+          ? <img src={imageUrl} alt="" style={{ width: '100%', aspectRatio: '1200/630', objectFit: 'cover', display: 'block' }} />
           : <div style={{ width: '100%', aspectRatio: '1200/630', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: 11, color: '#aaa' }}>1200 × 630</span>
             </div>}
@@ -103,19 +104,22 @@ export function OGImageSection({ siteTitle }: { siteTitle: string }) {
         {currentUrl ? (
           <>
             <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--od-color-border, #e2e8f0)', aspectRatio: '1200/630', background: '#f0f0f0' }}>
-              <img src={currentUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src={currentUrl} alt="OG image preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="od-ssp-btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 <Upload style={{ width: 12, height: 12 }} />
-                {uploading ? 'Uploading…' : 'Replace'}
-              </button>
-              <button className="od-ssp-btn-sm od-ssp-btn-danger" onClick={remove}>Remove</button>
+                {uploading ? 'Uploading...' : 'Replace'}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={remove}>Remove</Button>
             </div>
           </>
         ) : (
           <div className="od-ssp-dropzone" style={{ aspectRatio: '1200/630' }}
+            role="button"
+            tabIndex={0}
             onClick={() => fileRef.current?.click()}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileRef.current?.click() } }}
             onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('active') }}
             onDragLeave={e => e.currentTarget.classList.remove('active')}
             onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('active'); const f = e.dataTransfer.files[0]; if (f) upload(f) }}

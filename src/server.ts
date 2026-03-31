@@ -156,7 +156,7 @@ export async function startServer(rootDir: string, port: number = 3000) {
   if (editorPath !== null) {
     Bun.spawnSync(
       ['bunx', 'tailwindcss', '-i', join(clientDir, 'globals.css'), '-o', join(clientDir, 'globals.gen.css'), '--minify'],
-      { cwd: routeContext.projectRoot },
+      { cwd: dirname(clientDir) },
     )
     const result = await Bun.build({
       entrypoints: [join(clientDir, 'editor.tsx')],

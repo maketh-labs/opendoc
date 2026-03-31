@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { showToast } from './editor-utils'
+import { Button } from './ui/button'
 
 export function LoginScreen({ clientId }: { clientId?: string }) {
   function login() {
@@ -17,7 +18,7 @@ export function LoginScreen({ clientId }: { clientId?: string }) {
         <div className="login-box">
           <h1>OpenDoc Editor</h1>
           <p>Sign in with GitHub to edit documentation.</p>
-          <button className="btn btn-primary" onClick={login}>Login with GitHub</button>
+          <Button onClick={login}>Login with GitHub</Button>
         </div>
       </div>
     </div>
@@ -39,12 +40,12 @@ export function RepoPicker({ repos }: { repos: { full_name: string }[] }) {
       <div className="editor-header">
         <span className="logo">OpenDoc Editor</span>
         <span className="spacer" />
-        <button className="btn" onClick={() => { localStorage.removeItem('github_token'); window.location.reload() }}>Logout</button>
+        <Button variant="outline" onClick={() => { localStorage.removeItem('github_token'); window.location.reload() }}>Logout</Button>
       </div>
       <div className="repo-picker">
         <div className="repo-picker-box">
-          <h2>Select a repository</h2>
-          <select onChange={e => setInput(e.target.value)} defaultValue="">
+          <h1>Select a repository</h1>
+          <select onChange={e => setInput(e.target.value)} defaultValue="" aria-label="Select repository">
             <option value="" disabled>Choose a repo…</option>
             {repos.map(r => <option key={r.full_name} value={r.full_name}>{r.full_name}</option>)}
           </select>
@@ -52,11 +53,12 @@ export function RepoPicker({ repos }: { repos: { full_name: string }[] }) {
           <input
             type="text"
             placeholder="owner/repo"
+            aria-label="Repository name"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && go()}
           />
-          <button className="btn btn-primary" style={{ width: '100%' }} onClick={go}>Open</button>
+          <Button style={{ width: '100%' }} onClick={go}>Open</Button>
         </div>
       </div>
     </div>
@@ -69,16 +71,16 @@ export function NoAccess({ repo }: { repo: string }) {
       <div className="editor-header">
         <span className="logo">OpenDoc Editor</span>
         <span className="spacer" />
-        <button className="btn" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>Change Repo</button>
-        <button className="btn" onClick={() => { localStorage.removeItem('github_token'); localStorage.removeItem('github_repo'); window.location.reload() }}>Logout</button>
+        <Button variant="outline" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>Change Repo</Button>
+        <Button variant="outline" onClick={() => { localStorage.removeItem('github_token'); localStorage.removeItem('github_repo'); window.location.reload() }}>Logout</Button>
       </div>
       <div className="login-screen">
         <div className="login-box">
           <h1>No Access</h1>
           <p>You don't have access to <strong>{repo}</strong>.</p>
-          <button className="btn btn-primary" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>
+          <Button onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>
             Choose Another Repo
-          </button>
+          </Button>
         </div>
       </div>
     </div>

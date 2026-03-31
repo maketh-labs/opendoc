@@ -43,6 +43,7 @@ function CodeBlockToolbar({ blockId, container, editor }: ToolbarEntry & { edito
         className="od-cb-lang-select"
         value={language}
         onChange={handleLanguageChange}
+        aria-label="Code language"
       >
         {LANGUAGES.map(l => (
           <option key={l.id} value={l.id}>{l.name}</option>

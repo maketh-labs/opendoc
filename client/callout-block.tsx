@@ -39,6 +39,7 @@ export const CalloutBlock = createReactBlockSpec(
             contentEditable={false}
             onClick={cycleType}
             title={`${label} — click to change type`}
+            aria-label={`${label} callout — click to change type`}
           >
             {icon}
           </button>

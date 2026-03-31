@@ -197,7 +197,7 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
         <>
           <div className="flex items-center justify-between px-3 py-2 border-b text-sm font-semibold">
             <button
-              className="truncate text-left hover:text-accent transition-colors cursor-pointer bg-transparent border-none p-0 font-semibold"
+              className="truncate text-left hover:text-accent transition-colors cursor-pointer bg-transparent border-none p-0 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
               onClick={onOpenSiteSettings}
               title="Site settings"
             >
@@ -206,7 +206,7 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5 text-muted-foreground hover:text-foreground"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => handleStartCreate('')}
               title="New page"
             >
@@ -342,6 +342,7 @@ function InlineNewPageInput({ onConfirm, onCancel, depth }: {
           type="text"
           className="flex-1 min-w-0 text-sm bg-transparent border border-border rounded px-1.5 py-0.5 outline-none focus:border-accent"
           placeholder="Page name..."
+          aria-label="New page name"
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -411,6 +412,7 @@ function InlineRenameInput({ currentSlug, onConfirm, onCancel }: {
       ref={inputRef}
       type="text"
       className="flex-1 min-w-0 text-sm bg-transparent border border-border rounded px-1.5 py-0.5 outline-none focus:border-accent"
+      aria-label="Rename page"
       value={value}
       onChange={e => setValue(e.target.value)}
       onKeyDown={handleKeyDown}
@@ -547,7 +549,7 @@ function NavItem({
       >
         {hasChildren || isCreatingHere ? (
           <button
-            className="flex items-center justify-center h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
+            className="flex items-center justify-center h-5 w-5 shrink-0 text-muted-foreground hover:text-foreground relative before:absolute before:inset-[-10px] before:content-['']"
             onClick={() => setExpanded(e => !e)}
             aria-label={expanded ? 'Collapse' : 'Expand'}
           >
@@ -578,7 +580,7 @@ function NavItem({
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0 relative before:absolute before:inset-[-8px] before:content-['']"
           onClick={handleMoreClick}
           title="More actions"
         >
@@ -587,7 +589,7 @@ function NavItem({
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0 relative before:absolute before:inset-[-8px] before:content-['']"
           onClick={handleNewPage}
           title="New sub-page"
         >

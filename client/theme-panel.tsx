@@ -413,7 +413,7 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
     <div className="od-theme-panel">
       <div className="od-theme-panel-header">
         <h3>Theme</h3>
-        <button className="od-close-btn" onClick={onClose}>&times;</button>
+        <button className="od-close-btn" onClick={onClose} aria-label="Close panel">&times;</button>
       </div>
 
       {/* Preset selector */}

@@ -42,11 +42,11 @@ function PageAssetSection({ label, icon, currentUrl, inherited, onUpload, onDele
               e.target.value = ''
             }} />
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              <Upload className="h-3 w-3 mr-1" />{uploading ? 'Uploading…' : 'Replace'}
+              <Upload className="h-3 w-3" />{uploading ? 'Uploading…' : 'Replace'}
             </Button>
             {!inherited && (
               <Button variant="outline" size="sm" className="h-7 text-xs text-red-500 hover:text-red-600" onClick={onDelete}>
-                <Trash2 className="h-3 w-3 mr-1" />Remove
+                <Trash2 className="h-3 w-3" />Remove
               </Button>
             )}
           </div>
@@ -59,7 +59,7 @@ function PageAssetSection({ label, icon, currentUrl, inherited, onUpload, onDele
             e.target.value = ''
           }} />
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
-            <Upload className="h-3 w-3 mr-1" />{uploading ? 'Uploading…' : `Upload ${label.toLowerCase()}`}
+            <Upload className="h-3 w-3" />{uploading ? 'Uploading…' : `Upload ${label.toLowerCase()}`}
           </Button>
           <span className="od-ps-hint">No {label.toLowerCase()} set for this page</span>
         </div>
@@ -129,7 +129,7 @@ export function PageSettingsPanel({ pagePath, onClose }: PageSettingsPanelProps)
     <div className="od-page-settings">
       <div className="od-page-settings-header">
         <h3>Page Settings</h3>
-        <button className="od-close-btn" onClick={onClose}>&times;</button>
+        <button className="od-close-btn" onClick={onClose} aria-label="Close panel">&times;</button>
       </div>
       <div className="od-page-settings-body">
         <PageAssetSection

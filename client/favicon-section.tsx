@@ -165,7 +165,7 @@ function BrowserPreview({ favicon, siteTitle, theme }: {
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: tabBg, borderRadius: '6px 6px 0 0', flex: '0 0 auto', maxWidth: 160 }}>
           {favicon
-            ? <img src={favicon} width={13} height={13} style={{ flexShrink: 0, objectFit: 'contain' }} />
+            ? <img src={favicon} alt="" width={13} height={13} style={{ flexShrink: 0, objectFit: 'contain' }} />
             : <div style={{ width: 13, height: 13, background: lineBg, borderRadius: 2, flexShrink: 0 }} />}
           <span style={{ fontSize: 11, color: textCol, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'system-ui' }}>
             {siteTitle || 'My Docs'}
@@ -195,7 +195,7 @@ function GooglePreview({ favicon, siteTitle, theme }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <div style={{ width: 26, height: 26, borderRadius: 13, background: dk ? '#303134' : '#f1f3f4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {favicon
-            ? <img src={favicon} width={16} height={16} style={{ objectFit: 'contain' }} />
+            ? <img src={favicon} alt="" width={16} height={16} style={{ objectFit: 'contain' }} />
             : <div style={{ width: 16, height: 16, background: dk ? '#555' : '#ccc', borderRadius: 2 }} />}
         </div>
         <div>
@@ -216,10 +216,10 @@ function GooglePreview({ favicon, siteTitle, theme }: {
 function AppleTouchPreview({ favicon, appName }: { favicon: string | null; appName: string }) {
   return (
     <div style={{ position: 'relative', width: 156, height: 182, minWidth: 156, userSelect: 'none' }}>
-      <img src="/_opendoc/assets/homescreen-ios.webp" width={156} height={182} style={{ position: 'absolute', left: 0, top: 0 }} />
+      <img src="/_opendoc/assets/homescreen-ios.webp" alt="" width={156} height={182} style={{ position: 'absolute', left: 0, top: 0 }} />
       <div style={{ position: 'absolute', left: 88, top: 98, zIndex: 20, width: 56, height: 56, overflow: 'hidden', borderRadius: 12 }}>
         {favicon
-          ? <img src={favicon} width={56} height={56} style={{ objectFit: 'cover' }} />
+          ? <img src={favicon} alt="" width={56} height={56} style={{ objectFit: 'cover' }} />
           : <div style={{ width: 56, height: 56, background: '#e0e0e0' }} />}
       </div>
       <div style={{ position: 'absolute', left: 80, top: 156, width: 72, textAlign: 'center', fontSize: 12, color: '#fff', fontFamily: '-apple-system, SF Pro, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -232,11 +232,11 @@ function AppleTouchPreview({ favicon, appName }: { favicon: string | null; appNa
 function ManifestHomePreview({ icon, shortName }: { icon: string | null; shortName: string }) {
   return (
     <div style={{ position: 'relative', width: 156, height: 228, display: 'inline-block', border: '1px solid #e0e0e0', userSelect: 'none' }}>
-      <img src="/_opendoc/assets/homescreen-android.webp" width={156} height={228} style={{ position: 'absolute', left: 0, top: 0 }} />
+      <img src="/_opendoc/assets/homescreen-android.webp" alt="" width={156} height={228} style={{ position: 'absolute', left: 0, top: 0 }} />
       {/* App icon */}
       <div style={{ position: 'absolute', left: 90, top: 138, width: 52, height: 52, overflow: 'hidden', borderRadius: '50%', background: '#000', filter: 'drop-shadow(0 1px 1px #444)' }}>
         {icon
-          ? <img src={icon} width={52} height={52} style={{ objectFit: 'cover' }} />
+          ? <img src={icon} alt="" width={52} height={52} style={{ objectFit: 'cover' }} />
           : <div style={{ width: 52, height: 52, background: '#333' }} />}
       </div>
       {/* Chrome badge */}
@@ -279,7 +279,7 @@ function ManifestSplashPreview({ icon, name, bgColor }: { icon: string | null; n
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {icon
-              ? <img src={icon} width={26} height={26} style={{ objectFit: 'cover' }} />
+              ? <img src={icon} alt="" width={26} height={26} style={{ objectFit: 'cover' }} />
               : <div style={{ width: 26, height: 26, background: 'rgba(0,0,0,.08)', borderRadius: '50%' }} />}
           </div>
         </div>
@@ -298,12 +298,12 @@ function ManifestSplashPreview({ icon, name, bgColor }: { icon: string | null; n
 function ManifestSwitchPreview({ icon, name, themeColor }: { icon: string | null; name: string; themeColor: string }) {
   return (
     <div style={{ position: 'relative', width: 376, height: 228, display: 'flex', justifyContent: 'center', userSelect: 'none' }}>
-      <img src="/_opendoc/assets/app-switch.webp" width={376} height={228} style={{ position: 'absolute', left: 0, top: 0 }} />
+      <img src="/_opendoc/assets/app-switch.webp" alt="" width={376} height={228} style={{ position: 'absolute', left: 0, top: 0 }} />
       {/* Icon circle with theme color background */}
       <div style={{ position: 'relative', zIndex: 10, marginTop: 78, width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', background: themeColor }}>
         <div style={{ position: 'absolute', left: 6, top: 6, width: 24, height: 24, borderRadius: '50%', overflow: 'hidden' }}>
           {icon
-            ? <img src={icon} width={24} height={24} style={{ objectFit: 'cover' }} />
+            ? <img src={icon} alt="" width={24} height={24} style={{ objectFit: 'cover' }} />
             : <div style={{ width: 24, height: 24, background: 'rgba(0,0,0,.08)' }} />}
         </div>
       </div>
@@ -319,9 +319,9 @@ function PreviewLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function SectionHeading({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--od-text, #111)' }}>
+    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--od-text, #111)', marginBottom: 4, ...style }}>
       {children}
     </div>
   )
@@ -436,7 +436,7 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
   const manifestShortName = cfg.manifestShortName || manifestName
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {/* ══ Section 1: Classic & SVG Favicons ══ */}
       <SectionHeading>Classic & SVG Favicons</SectionHeading>
       <p className="od-ssp-hint" style={{ marginBottom: 12 }}>
@@ -451,13 +451,16 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
             <input ref={fileRef} type="file" accept=".svg,.png" hidden
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
             <div className="od-ssp-dropzone"
+              role="button"
+              tabIndex={0}
               onClick={() => fileRef.current?.click()}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileRef.current?.click() } }}
               onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('active') }}
               onDragLeave={e => e.currentTarget.classList.remove('active')}
               onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('active'); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
             >
               {rawUrl
-                ? <img src={rawUrl} width={36} height={36} style={{ objectFit: 'contain', borderRadius: 4 }} />
+                ? <img src={rawUrl} alt="Favicon source" width={36} height={36} style={{ objectFit: 'contain', borderRadius: 4 }} />
                 : <Upload style={{ width: 20, height: 20, color: 'var(--od-text-muted, #6b7280)' }} />}
               <span className="od-ssp-dropzone-label">{rawUrl ? 'Click or drag to replace' : 'Click or drag SVG / PNG here'}</span>
             </div>
@@ -499,10 +502,10 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
         </div>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-8" />
 
       {/* ══ Section 2: Apple Touch Icon ══ */}
-      <SectionHeading>Apple Touch Icon</SectionHeading>
+      <SectionHeading style={{ marginTop: 8 }}>Apple Touch Icon</SectionHeading>
       <p className="od-ssp-hint" style={{ marginBottom: 12 }}>
         180x180 icon for iOS "Add to Home Screen".
       </p>
@@ -551,10 +554,10 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
         </div>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-8" />
 
       {/* ══ Section 3: Web App Manifest ══ */}
-      <SectionHeading>Web App Manifest</SectionHeading>
+      <SectionHeading style={{ marginTop: 8 }}>Web App Manifest</SectionHeading>
       <p className="od-ssp-hint" style={{ marginBottom: 12 }}>
         192x192 and 512x512 icons for Android "Add to Home Screen" and PWA install.
       </p>
@@ -637,20 +640,20 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
         </div>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-8" />
 
       {/* ══ Cache version + Save ══ */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div className="od-ssp-field" style={{ flex: 1 }}>
-          <label className="od-ssp-label">Cache version <span className="od-ssp-value">v{cfg.version}</span></label>
-          <p className="od-ssp-hint">Increment to force browsers to reload the cached favicon.</p>
+      <div className="od-ssp-field">
+        <label className="od-ssp-label">Cache version <span className="od-ssp-value">v{cfg.version}</span></label>
+        <p className="od-ssp-hint">Increment to force browsers to reload the cached favicon.</p>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button variant="outline" size="sm" onClick={() => { setCfg(c => ({ ...c, version: c.version + 1 })); setSaved(false) }}>
             <RefreshCcw style={{ width: 12, height: 12 }} /> Bump version
           </Button>
+          <Button size="sm" onClick={handleSave} disabled={!rawUrl || saving}>
+            {saving ? 'Saving...' : saved ? 'Saved' : 'Save Favicon'}
+          </Button>
         </div>
-        <Button onClick={handleSave} disabled={!rawUrl || saving} style={{ alignSelf: 'flex-end' }}>
-          {saving ? 'Saving...' : saved ? 'Saved' : 'Save Favicon'}
-        </Button>
       </div>
     </div>
   )

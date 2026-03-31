@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Separator } from './ui/separator'
 import { FaviconSection } from './favicon-section'
 import { OGImageSection } from './og-image-section'
 
@@ -39,8 +41,7 @@ export function SiteSettingsPage() {
           <div className="od-ssp-field">
             <label className="od-ssp-label">Site title</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                className="od-ssp-input"
+              <Input
                 type="text"
                 value={siteTitle}
                 placeholder="My Docs"
@@ -56,14 +57,14 @@ export function SiteSettingsPage() {
           </div>
         </section>
 
-        <div className="od-ssp-divider" />
+        <Separator className="mt-8 mb-10" />
 
         <section className="od-ssp-section">
           <h2 className="od-ssp-section-heading">Favicon</h2>
           <FaviconSection siteTitle={savedTitle} />
         </section>
 
-        <div className="od-ssp-divider" />
+        <Separator className="mt-8 mb-10" />
 
         <section className="od-ssp-section">
           <h2 className="od-ssp-section-heading">OG Image</h2>

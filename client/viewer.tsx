@@ -369,6 +369,7 @@ function Viewer() {
             <input
               type="search"
               placeholder="Search docs..."
+              aria-label="Search documentation"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
