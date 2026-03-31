@@ -1,34 +1,11 @@
 import { readFile, writeFile, mkdir } from 'fs/promises'
-import { join, resolve } from 'path'
+import { join } from 'path'
 import type { RouteHandler } from './types'
-
-// Resolve the root of the installed opendoc package (three levels up from src/routes/static.ts)
-const PKG_ROOT = resolve(import.meta.dir, '../..')
 
 export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   const pathname = url.pathname
 
-  // Serve Inter font files (WOFF2) used by the OG image Satori renderer
-  if (pathname.startsWith('/_opendoc/fonts/')) {
-    // Serve WOFF (not WOFF2) — satori requires uncompressed font data; WOFF2 uses Brotli which satori can't decode
-    const ALLOWED_FONTS: Record<string, { file: string; mime: string }> = {
-      'inter-regular.woff': { file: 'node_modules/@blocknote/core/src/fonts/inter-v12-latin/inter-v12-latin-regular.woff', mime: 'font/woff' },
-      'inter-700.woff':     { file: 'node_modules/@blocknote/core/src/fonts/inter-v12-latin/inter-v12-latin-700.woff',     mime: 'font/woff' },
-    }
-    const name = pathname.slice('/_opendoc/fonts/'.length)
-    const entry = ALLOWED_FONTS[name]
-    if (!entry) { res.writeHead(404); res.end(); return true }
-    try {
-      const data = await readFile(join(PKG_ROOT, entry.file))
-      res.writeHead(200, { 'Content-Type': entry.mime, 'Cache-Control': 'public, max-age=86400' })
-      res.end(data)
-    } catch {
-      res.writeHead(404); res.end()
-    }
-    return true
-  }
-
-  // Serve theme CSS (base styles + user overrides)
+    // Serve theme CSS (base styles + user overrides)
   if (pathname === '/_opendoc/theme.css') {
     let css = ctx.getStyles()
     try {

@@ -69,7 +69,6 @@
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
-    "satori": "^0.26.0",
     "simple-git": "^3.33.0",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "3",
