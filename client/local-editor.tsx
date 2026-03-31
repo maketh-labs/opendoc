@@ -297,7 +297,7 @@ export function LocalEditor() {
           onOpenSiteSettings={() => {
             window.history.pushState({}, '', '/_')
             setCurrentFile('')
-            setRightPanel('site-settings')
+            setRightPanel(null)
           }}
         />
       ) : undefined}

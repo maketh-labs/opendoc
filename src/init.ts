@@ -1,5 +1,6 @@
 import { join, resolve, basename } from 'path'
 import { mkdir, writeFile, access } from 'fs/promises'
+import { execSync } from 'child_process'
 
 const GREEN  = '\x1b[32m'
 const CYAN   = '\x1b[36m'
@@ -88,6 +89,15 @@ export async function init(targetDir: string) {
     // order.json
     await writeFile(join(dir, 'order.json'), JSON.stringify(['getting-started'], null, 2) + '\n')
     ok(`order.json`)
+  }
+
+  // Initialize git if not already in a repo
+  try {
+    execSync('git rev-parse --git-dir', { cwd: dir, stdio: 'ignore' })
+    info(`already in a git repo — skipped git init`)
+  } catch {
+    execSync('git init', { cwd: dir, stdio: 'ignore' })
+    ok(`git init`)
   }
 
   log('')
