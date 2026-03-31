@@ -46,10 +46,10 @@ export async function init(targetDir: string) {
 
   // Check if dir already has content
   const alreadyExists = await exists(dir)
-  const hasContent = alreadyExists && await exists(join(dir, 'index.md'))
+  const hasContent = alreadyExists && await exists(join(dir, 'getting-started', 'index.md'))
 
   if (hasContent) {
-    log(`${DIM}  Found existing index.md — skipping scaffold, only creating .opendoc/config.json${RESET}`)
+    log(`${DIM}  Found existing content — skipping scaffold, only creating .opendoc/config.json${RESET}`)
     log('')
   }
 
@@ -66,26 +66,6 @@ export async function init(targetDir: string) {
   }
 
   if (!hasContent) {
-    // Root index.md
-    await writeFile(join(dir, 'index.md'), [
-      `---`,
-      `icon: 🏠`,
-      `---`,
-      ``,
-      `# ${title}`,
-      ``,
-      `Welcome to your docs.`,
-      ``,
-      `Edit this page at [\`/_\`](/_) or create new pages from the sidebar.`,
-      ``,
-      `## Getting started`,
-      ``,
-      `- Click **+** in the sidebar to add a page`,
-      `- Press \`/\` in the editor to insert blocks`,
-      `- Click the site name to open site settings`,
-    ].join('\n') + '\n')
-    ok(`index.md`)
-
     // Starter page
     await mkdir(join(dir, 'getting-started'), { recursive: true })
     await writeFile(join(dir, 'getting-started', 'index.md'), [

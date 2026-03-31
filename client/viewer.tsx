@@ -211,13 +211,12 @@ function Viewer() {
       const navData = await fetchNav()
       setNav(navData)
 
-      // If at root with no content, redirect to first page
+      // If at root, show first page content without changing URL
       let targetPath = currentPath
       if (!targetPath) {
         const firstPage = navData?.path && navData.path !== '.' ? navData.path : navData?.children?.[0]?.path
         if (firstPage && firstPage !== '.') {
           targetPath = firstPage
-          history.replaceState({}, '', `/${firstPage}`)
           setCurrentPath(firstPage)
         }
       }
