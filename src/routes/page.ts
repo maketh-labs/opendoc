@@ -18,6 +18,20 @@ export const handlePage: RouteHandler = async (_req, res, url, ctx) => {
   try {
     markdown = await readFile(indexPath, 'utf-8')
   } catch {
+    // If the page markdown is missing but assets are requested for root (e.g. site settings),
+    // return asset info with empty content rather than 404
+    if (page === '.') {
+      const assets = await resolvePageAssets(ctx.rootDir, '.')
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' })
+      res.end(JSON.stringify({
+        html: '', toc: '', title: '', icon: '', backlinks: '',
+        faviconUrl: assets.faviconPath,
+        ogImageUrl: assets.ogImagePath,
+        faviconInherited: assets.faviconInherited,
+        ogImageInherited: assets.ogImageInherited,
+      }))
+      return true
+    }
     res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'Page not found' }))
     return true

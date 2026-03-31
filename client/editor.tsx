@@ -1,4 +1,5 @@
 // OpenDoc Editor — React + BlockNote
+import './process-polyfill'
 import './globals.gen.css'
 import React, { useState, useEffect, createContext, useContext } from 'react'
 import { createRoot } from 'react-dom/client'

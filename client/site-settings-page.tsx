@@ -603,8 +603,8 @@ let cachedFonts: { name: string; data: ArrayBuffer; weight: number; style: 'norm
 async function loadSatoriFonts() {
   if (cachedFonts) return cachedFonts
   const [regular, bold] = await Promise.all([
-    fetch('/_opendoc/fonts/inter-regular.woff2').then(r => r.arrayBuffer()),
-    fetch('/_opendoc/fonts/inter-700.woff2').then(r => r.arrayBuffer()),
+    fetch('/_opendoc/fonts/inter-regular.woff').then(r => r.arrayBuffer()),
+    fetch('/_opendoc/fonts/inter-700.woff').then(r => r.arrayBuffer()),
   ])
   cachedFonts = [
     { name: 'Inter', data: regular, weight: 400, style: 'normal' },
