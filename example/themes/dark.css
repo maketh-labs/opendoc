@@ -1,0 +1,43 @@
+/**
+ * Dark — OpenDoc Theme
+ * Dark-first. GitHub-inspired color palette.
+ * Set data-theme="dark" by default via config if desired.
+ */
+
+:root {
+  --od-bg:           #0d1117;
+  --od-bg-surface:   #161b22;
+  --od-bg-surface-2: #21262d;
+  --od-border:       #30363d;
+
+  --od-text:         #e6edf3;
+  --od-text-muted:   #8b949e;
+
+  --od-accent:       #58a6ff;
+  --od-accent-hover: #79b8ff;
+
+  --od-bg-code:        #161b22;
+  --od-bg-code-inline: #1e2430;
+
+  --od-callout-note-color:      #58a6ff;
+  --od-callout-note-bg:         rgba(88,166,255,0.08);
+  --od-callout-tip-color:       #3fb950;
+  --od-callout-tip-bg:          rgba(63,185,80,0.08);
+  --od-callout-warning-color:   #f0883e;
+  --od-callout-warning-bg:      rgba(240,136,62,0.08);
+  --od-callout-caution-bg:      rgba(248,81,73,0.08);
+  --od-callout-important-color: #a371f7;
+  --od-callout-important-bg:    rgba(163,113,247,0.08);
+}
+
+/* Same values for dark mode — this theme is dark-first */
+[data-theme="dark"] {
+  --od-bg:           #0d1117;
+  --od-bg-surface:   #161b22;
+  --od-bg-surface-2: #21262d;
+  --od-border:       #30363d;
+  --od-text:         #e6edf3;
+  --od-text-muted:   #8b949e;
+  --od-accent:       #58a6ff;
+  --od-accent-hover: #79b8ff;
+}

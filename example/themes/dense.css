@@ -1,0 +1,41 @@
+/**
+ * Dense — OpenDoc Theme
+ * Compact. Smaller fonts, tighter spacing. Good for reference docs.
+ */
+
+:root {
+  --od-text-base:   0.9rem;
+  --od-text-nav:    0.8rem;
+  --od-text-h1:     2rem;
+  --od-text-h2:     1.35rem;
+  --od-text-h3:     1.1rem;
+
+  --od-line-height:  1.6;
+
+  --od-sidebar-width:  220px;
+  --od-content-max:    800px;
+
+  --od-nav-item-padding: 3px 8px;
+  --od-content-padding:  1.5rem 2rem 0;
+
+  --od-p-margin:         0.75rem;
+  --od-h2-margin-top:    1.5rem;
+  --od-h2-margin-bottom: 0.5rem;
+  --od-h3-margin-top:    1.25rem;
+  --od-h3-margin-bottom: 0.35rem;
+
+  --od-code-block-padding: 0.75rem;
+
+  --od-radius: 4px;
+}
+
+[data-theme="dark"] {
+  --od-bg:           #0f0f0f;
+  --od-bg-surface:   #1a1a1a;
+  --od-bg-surface-2: #252525;
+  --od-border:       #2a2a2a;
+  --od-text:         #e5e5e5;
+  --od-text-muted:   #9ca3af;
+  --od-accent:       #58a6ff;
+  --od-accent-hover: #79b8ff;
+}

@@ -1,0 +1,48 @@
+/**
+ * Minimal — OpenDoc Theme
+ * Clean, generous whitespace, neutral palette, subtle accent.
+ */
+
+:root {
+  --od-bg:           #ffffff;
+  --od-bg-surface:   #fafafa;
+  --od-bg-surface-2: #f3f3f3;
+  --od-border:       #ececec;
+
+  --od-text:         #2c2c2c;
+  --od-text-muted:   #999999;
+
+  --od-accent:       #666666;
+  --od-accent-hover: #444444;
+
+  --od-bg-code:        #f9f9f9;
+  --od-bg-code-inline: #f3f3f3;
+
+  --od-radius:     4px;
+  --od-line-height: 1.85;
+
+  --od-content-max:    680px;
+  --od-sidebar-width:  240px;
+
+  --od-callout-note-color:      #888888;
+  --od-callout-note-bg:         #f5f5f5;
+  --od-callout-tip-color:       #5a9a6a;
+  --od-callout-tip-bg:          #f0faf3;
+  --od-callout-warning-color:   #c08030;
+  --od-callout-warning-bg:      #fdf8f0;
+  --od-callout-important-color: #8a6aaa;
+  --od-callout-important-bg:    #f8f4ff;
+}
+
+[data-theme="dark"] {
+  --od-bg:           #111111;
+  --od-bg-surface:   #191919;
+  --od-bg-surface-2: #222222;
+  --od-border:       #2a2a2a;
+  --od-text:         #d4d4d4;
+  --od-text-muted:   #777777;
+  --od-accent:       #a0a0a0;
+  --od-accent-hover: #cccccc;
+  --od-bg-code:        #161616;
+  --od-bg-code-inline: #1e1e1e;
+}

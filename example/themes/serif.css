@@ -1,0 +1,55 @@
+/**
+ * Serif — OpenDoc Theme
+ * Editorial feel. Georgia body, warm parchment tones.
+ * Pair with a Google Fonts import for a premium look:
+ *   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,700;1,400&family=Playfair+Display:wght@700&display=swap');
+ */
+
+:root {
+  --od-font-body:    Georgia, "Times New Roman", serif;
+  --od-font-h1:      "Playfair Display", Georgia, serif;
+  --od-font-h2:      "Playfair Display", Georgia, serif;
+  --od-font-h3:      Georgia, serif;
+
+  --od-bg:           #faf8f5;
+  --od-bg-surface:   #f3efe8;
+  --od-bg-surface-2: #e8e2d8;
+  --od-border:       #ddd5c8;
+  --od-bg-code:        #f3efe8;
+  --od-bg-code-inline: #ede8df;
+
+  --od-text:         #2a2520;
+  --od-text-muted:   #8c7e6e;
+
+  --od-accent:       #9b4d2e;
+  --od-accent-hover: #7a3b22;
+
+  --od-text-base:    1.05rem;
+  --od-line-height:  1.8;
+
+  --od-weight-h1:    700;
+  --od-weight-h2:    700;
+
+  --od-content-max:  700px;
+  --od-radius:       4px;
+
+  --od-callout-note-color:      #9b4d2e;
+  --od-callout-note-bg:         #fdf0ea;
+  --od-callout-tip-color:       #4a7c59;
+  --od-callout-tip-bg:          #eef5f0;
+  --od-callout-warning-color:   #b8860b;
+  --od-callout-warning-bg:      #fefae8;
+}
+
+[data-theme="dark"] {
+  --od-bg:           #1a1714;
+  --od-bg-surface:   #242019;
+  --od-bg-surface-2: #302b22;
+  --od-border:       #3d3528;
+  --od-text:         #dcd4c8;
+  --od-text-muted:   #9a8e7e;
+  --od-accent:       #d4845a;
+  --od-accent-hover: #e09b70;
+  --od-bg-code:        #1e1b17;
+  --od-bg-code-inline: #2a2620;
+}

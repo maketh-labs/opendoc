@@ -1,153 +1,250 @@
-/* ===== Design Tokens ===== */
+/* =============================================================================
+   OpenDoc Default Theme
+   All visual properties are CSS custom properties.
+   Override any of these in .opendoc/theme.css to create your own theme.
+   See /example/themes/ for starter themes and documentation.
+   ============================================================================= */
+
 :root {
-  /* Backgrounds */
-  --od-color-bg: #ffffff;
-  --od-color-surface: #f8f9fa;
-  --od-color-surface-2: #e9ecef;
-  --od-color-border: #e1e4e8;
+  /* ─── Colors: Backgrounds ─────────────────────────────────────────────────── */
+  --od-bg:              #ffffff;   /* Page background */
+  --od-bg-surface:      #f8f9fa;   /* Sidebar, cards, subtle panels */
+  --od-bg-surface-2:    #e9ecef;   /* Hover states, secondary surfaces */
+  --od-bg-code:         #f6f8fa;   /* Code block background */
+  --od-bg-code-inline:  #f0f2f5;   /* Inline code background */
 
-  /* Text */
-  --od-color-text: #1a1a2e;
-  --od-color-text-muted: #6b7280;
+  /* ─── Colors: Borders ─────────────────────────────────────────────────────── */
+  --od-border:          #e1e4e8;   /* Default border color */
 
-  /* Accent */
-  --od-color-accent: #0969da;
-  --od-color-accent-hover: #0550ae;
+  /* ─── Colors: Text ────────────────────────────────────────────────────────── */
+  --od-text:            #1a1a2e;   /* Primary text */
+  --od-text-muted:      #6b7280;   /* Secondary / placeholder text */
 
-  /* Code */
-  --od-color-code-bg: #f6f8fa;
-  --od-color-code-inline-bg: #f0f2f5;
+  /* ─── Colors: Accent ──────────────────────────────────────────────────────── */
+  --od-accent:          #0969da;   /* Links, active nav, focus rings */
+  --od-accent-hover:    #0550ae;   /* Accent on hover */
 
-  /* Callouts */
-  --od-color-callout-note: #0969da;
-  --od-color-callout-tip: #1a7f37;
-  --od-color-callout-warning: #d1242f;
-  --od-color-callout-important: #8250df;
+  /* ─── Colors: Callouts ────────────────────────────────────────────────────── */
+  --od-callout-note-color:      #0969da;
+  --od-callout-tip-color:       #1a7f37;
+  --od-callout-warning-color:   #d1242f;
+  --od-callout-important-color: #8250df;
+  --od-callout-note-bg:         #f0f6ff;
+  --od-callout-tip-bg:          #ecfdf5;
+  --od-callout-warning-bg:      #fffbeb;
+  --od-callout-caution-bg:      #fef2f2;
+  --od-callout-important-bg:    #f5f3ff;
 
-  /* Typography */
-  --od-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --od-font-heading: inherit;
-  --od-font-h1: inherit;
-  --od-font-h2: inherit;
-  --od-font-h3: inherit;
-  --od-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  /* ─── Typography: Fonts ───────────────────────────────────────────────────── */
+  --od-font-body:     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --od-font-heading:  inherit;     /* All headings unless overridden per-level */
+  --od-font-h1:       inherit;
+  --od-font-h2:       inherit;
+  --od-font-h3:       inherit;
+  --od-font-mono:     "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --od-font-nav:      inherit;     /* Sidebar navigation font */
+  --od-font-logo:     inherit;     /* Site name / logo */
 
-  --od-font-size-base: 1rem;
-  --od-font-size-code: 0.875em;
-  --od-font-size-h1: 2.5rem;
-  --od-font-size-h2: 1.5rem;
-  --od-font-size-h3: 1.2rem;
+  /* ─── Typography: Sizes ───────────────────────────────────────────────────── */
+  --od-text-base:   1rem;         /* Base body font size */
+  --od-text-sm:     0.875rem;     /* Small text (code, captions, backlinks) */
+  --od-text-xs:     0.75rem;      /* Extra small (TOC, labels) */
+  --od-text-nav:    0.8375rem;    /* Sidebar nav link size */
+  --od-text-logo:   0.9rem;       /* Site logo size */
+  --od-text-h1:     2.5rem;
+  --od-text-h2:     1.5rem;
+  --od-text-h3:     1.2rem;
+  --od-text-h4:     1rem;
+  --od-text-code:   0.875em;      /* Code relative to parent */
 
-  --od-font-weight-body: 400;
-  --od-font-weight-h1: 700;
-  --od-font-weight-h2: 600;
-  --od-font-weight-h3: 600;
+  /* ─── Typography: Weights ─────────────────────────────────────────────────── */
+  --od-weight-body:   400;
+  --od-weight-h1:     700;
+  --od-weight-h2:     600;
+  --od-weight-h3:     600;
+  --od-weight-h4:     600;
+  --od-weight-logo:   600;
+  --od-weight-nav:    400;
+  --od-weight-nav-active: 500;
 
-  --od-line-height: 1.75;
+  /* ─── Typography: Spacing ─────────────────────────────────────────────────── */
+  --od-line-height:   1.75;       /* Body line height */
+  --od-line-height-heading: 1.2;  /* Heading line height */
+  --od-line-height-code: 1.5;     /* Code line height */
 
-  /* Layout */
-  --od-sidebar-width: 260px;
-  --od-theme-panel-width: 320px;
-  --od-header-height: 48px;
-  --od-content-max: 720px;
-  --od-radius: 6px;
-  --od-transition: 200ms ease;
+  /* ─── Layout: Dimensions ──────────────────────────────────────────────────── */
+  --od-header-height:   48px;
+  --od-sidebar-width:   260px;
+  --od-content-max:     720px;    /* Max width of article body */
+  --od-toc-width:       200px;    /* Right-hand table of contents */
+
+  /* ─── Layout: Spacing ─────────────────────────────────────────────────────── */
+  --od-header-padding:          0 12px;
+  --od-sidebar-padding:         12px 8px;
+  --od-content-padding:         2rem 3rem 0;
+  --od-content-padding-mobile:  1.5rem 1.5rem 0;
+  --od-content-bottom:          6rem;   /* Space below last article element */
+  --od-content-gap:             2rem;   /* Gap between article and TOC */
+
+  /* ─── Nav ─────────────────────────────────────────────────────────────────── */
+  --od-nav-item-padding:        5px 10px;
+  --od-nav-item-gap:            1px;    /* Vertical gap between items */
+  --od-nav-nested-indent:       10px;
+  --od-nav-nested-margin:       6px;
+
+  /* ─── Article: Block Spacing ──────────────────────────────────────────────── */
+  --od-p-margin:                1rem;
+  --od-list-margin:             1rem;
+  --od-list-indent:             1.5rem;
+  --od-li-gap:                  0.25rem;
+  --od-h1-margin-top:           0;
+  --od-h1-margin-bottom:        1rem;
+  --od-h2-margin-top:           2rem;
+  --od-h2-margin-bottom:        0.75rem;
+  --od-h3-margin-top:           1.5rem;
+  --od-h3-margin-bottom:        0.5rem;
+  --od-h4-margin-top:           1.25rem;
+  --od-h4-margin-bottom:        0.5rem;
+  --od-hr-margin:               2rem 0;
+  --od-blockquote-margin:       1rem 0;
+  --od-code-block-margin:       1rem 0;
+  --od-table-margin:            1rem 0;
+
+  /* ─── Article: Code ───────────────────────────────────────────────────────── */
+  --od-code-block-padding:      1rem;
+  --od-code-inline-padding:     0.15em 0.35em;
+  --od-code-inline-radius:      3px;
+
+  /* ─── Article: Blockquote ─────────────────────────────────────────────────── */
+  --od-blockquote-border-width: 3px;
+  --od-blockquote-padding-left: 1rem;
+
+  /* ─── Article: Table ──────────────────────────────────────────────────────── */
+  --od-table-cell-padding:      0.5rem 0.75rem;
+
+  /* ─── Article: Image ──────────────────────────────────────────────────────── */
+  --od-image-border-radius:     var(--od-radius);
+
+  /* ─── Callout ─────────────────────────────────────────────────────────────── */
+  --od-callout-padding:         0.75rem 1rem;
+  --od-callout-gap:             0.75rem;
+  --od-callout-border-width:    4px;
+  --od-callout-margin:          1rem 0;
+  --od-callout-icon-size:       1.2rem;
+
+  /* ─── TOC ─────────────────────────────────────────────────────────────────── */
+  --od-toc-item-padding:        3px 12px;
+  --od-toc-nested-padding:      3px 24px;
+  --od-toc-active-border-width: 2px;
+
+  /* ─── Misc ────────────────────────────────────────────────────────────────── */
+  --od-radius:        6px;       /* Global border radius */
+  --od-transition:    200ms ease;
+
+  /* ─── Legacy aliases (keep for back-compat with theme overrides) ──────────── */
+  --od-color-bg:              var(--od-bg);
+  --od-color-surface:         var(--od-bg-surface);
+  --od-color-surface-2:       var(--od-bg-surface-2);
+  --od-color-border:          var(--od-border);
+  --od-color-text:            var(--od-text);
+  --od-color-text-muted:      var(--od-text-muted);
+  --od-color-accent:          var(--od-accent);
+  --od-color-accent-hover:    var(--od-accent-hover);
+  --od-color-code-bg:         var(--od-bg-code);
+  --od-color-code-inline-bg:  var(--od-bg-code-inline);
+  --od-color-callout-note:    var(--od-callout-note-color);
+  --od-color-callout-tip:     var(--od-callout-tip-color);
+  --od-color-callout-warning: var(--od-callout-warning-color);
+  --od-color-callout-important: var(--od-callout-important-color);
+  --od-font-size-base:        var(--od-text-base);
+  --od-font-size-code:        var(--od-text-code);
+  --od-font-size-h1:          var(--od-text-h1);
+  --od-font-size-h2:          var(--od-text-h2);
+  --od-font-size-h3:          var(--od-text-h3);
+  --od-font-weight-body:      var(--od-weight-body);
+  --od-font-weight-h1:        var(--od-weight-h1);
+  --od-font-weight-h2:        var(--od-weight-h2);
+  --od-font-weight-h3:        var(--od-weight-h3);
+  --od-font-mono:             var(--od-font-mono);
 }
 
+/* ─── Dark mode ───────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
-  --od-color-bg: #0f0f0f;
-  --od-color-surface: #1a1a1a;
-  --od-color-surface-2: #252525;
-  --od-color-text: #e5e5e5;
-  --od-color-text-muted: #9ca3af;
-  --od-color-border: #2a2a2a;
-  --od-color-accent: #58a6ff;
-  --od-color-accent-hover: #79b8ff;
-  --od-color-code-bg: #161b22;
-  --od-color-code-inline-bg: #1e2430;
-  --od-color-callout-note: #58a6ff;
-  --od-color-callout-tip: #3fb950;
-  --od-color-callout-warning: #f85149;
-  --od-color-callout-important: #a371f7;
+  --od-bg:             #0f0f0f;
+  --od-bg-surface:     #1a1a1a;
+  --od-bg-surface-2:   #252525;
+  --od-bg-code:        #161b22;
+  --od-bg-code-inline: #1e2430;
+  --od-border:         #2a2a2a;
+  --od-text:           #e5e5e5;
+  --od-text-muted:     #9ca3af;
+  --od-accent:         #58a6ff;
+  --od-accent-hover:   #79b8ff;
+  --od-callout-note-color:      #58a6ff;
+  --od-callout-tip-color:       #3fb950;
+  --od-callout-warning-color:   #f85149;
+  --od-callout-important-color: #a371f7;
+  --od-callout-note-bg:         rgba(88,166,255,0.08);
+  --od-callout-tip-bg:          rgba(63,185,80,0.08);
+  --od-callout-warning-bg:      rgba(248,81,73,0.08);
+  --od-callout-caution-bg:      rgba(248,81,73,0.08);
+  --od-callout-important-bg:    rgba(163,113,247,0.08);
 }
 
-/* ===== Reset ===== */
-*, *::before, *::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ─── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-html {
-  font-size: var(--od-font-size-base);
-}
+html { font-size: var(--od-text-base); }
 
-#od-viewer-root {
-  display: contents;
-}
+#od-viewer-root { display: contents; }
 
 body {
   font-family: var(--od-font-body);
-  font-size: var(--od-font-size-base);
-  font-weight: var(--od-font-weight-body);
+  font-size: var(--od-text-base);
+  font-weight: var(--od-weight-body);
   line-height: var(--od-line-height);
-  color: var(--od-color-text);
-  background: var(--od-color-bg);
+  color: var(--od-text);
+  background: var(--od-bg);
   height: 100vh;
-  overflow: hidden;
   overflow: hidden;
 }
 
-/* ===== Header ===== */
+/* =============================================================================
+   HEADER
+   .od-header            — fixed top bar
+   .od-header-left       — left slot (logo + sidebar toggle)
+   .od-header-center     — center slot (search)
+   .od-header-right      — right slot (theme toggle etc.)
+   .od-logo              — site name / branding link
+   .od-toggle-btn        — icon button (sidebar toggle, theme toggle)
+   .od-search-box        — search input wrapper
+   ============================================================================= */
 .od-header {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: var(--od-header-height);
-  background: var(--od-color-surface);
-  border-bottom: 1px solid var(--od-color-border);
+  background: var(--od-bg-surface);
+  border-bottom: 1px solid var(--od-border);
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: var(--od-header-padding);
   z-index: 100;
   gap: 12px;
 }
 
-.od-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 200px;
-}
-
-.od-header-center {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.od-header-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 200px;
-  justify-content: flex-end;
-}
+.od-header-left  { display: flex; align-items: center; gap: 8px; min-width: 200px; }
+.od-header-center { flex: 1; display: flex; justify-content: center; max-width: 480px; margin: 0 auto; }
+.od-header-right { display: flex; align-items: center; gap: 4px; min-width: 200px; justify-content: flex-end; }
 
 .od-logo {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--od-color-text);
+  font-family: var(--od-font-logo);
+  font-weight: var(--od-weight-logo);
+  font-size: var(--od-text-logo);
+  color: var(--od-text);
   text-decoration: none;
   white-space: nowrap;
 }
-
-.od-logo:hover {
-  color: var(--od-color-accent);
-}
+.od-logo:hover { color: var(--od-accent); }
 
 .od-toggle-btn,
 .od-theme-toggle {
@@ -156,42 +253,37 @@ body {
   border-radius: var(--od-radius);
   padding: 6px;
   cursor: pointer;
-  color: var(--od-color-text-muted);
+  color: var(--od-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: color var(--od-transition), background var(--od-transition);
 }
-
 .od-toggle-btn:hover,
-.od-theme-toggle:hover {
-  color: var(--od-color-text);
-  background: var(--od-color-surface-2);
-}
+.od-theme-toggle:hover { color: var(--od-text); background: var(--od-bg-surface-2); }
 
-/* Search box in header */
-.od-search-box {
-  width: 100%;
-}
-
+.od-search-box { width: 100%; }
 .od-search-box input {
   width: 100%;
   padding: 6px 12px;
-  border: 1px solid var(--od-color-border);
+  border: 1px solid var(--od-border);
   border-radius: var(--od-radius);
-  background: var(--od-color-bg);
-  color: var(--od-color-text);
-  font-size: 0.85rem;
+  background: var(--od-bg);
+  color: var(--od-text);
+  font-size: var(--od-text-sm);
   outline: none;
   transition: border-color var(--od-transition), box-shadow var(--od-transition);
 }
-
 .od-search-box input:focus {
-  border-color: var(--od-color-accent);
-  box-shadow: 0 0 0 2px rgba(9, 105, 218, 0.15);
+  border-color: var(--od-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--od-accent) 15%, transparent);
 }
 
-/* ===== Layout ===== */
+/* =============================================================================
+   LAYOUT
+   .od-layout            — grid container (sidebar + main)
+   .od-layout.left-closed — sidebar hidden state
+   ============================================================================= */
 .od-layout {
   display: grid;
   grid-template-columns: var(--od-sidebar-width) 1fr;
@@ -199,429 +291,335 @@ body {
   height: calc(100vh - var(--od-header-height));
   transition: grid-template-columns var(--od-transition);
 }
+.od-layout.left-closed { grid-template-columns: 0px 1fr; }
 
-.od-layout.left-closed {
-  grid-template-columns: 0px 1fr;
-}
-
-/* ===== Left Sidebar ===== */
+/* =============================================================================
+   SIDEBAR + NAVIGATION
+   .od-sidebar-left      — left sidebar panel
+   .od-nav               — navigation tree root
+   .od-nav a             — nav link
+   .od-nav a.active      — currently active page
+   .od-nav ul ul         — nested nav level
+   .od-nav-icon          — emoji/icon before nav item title
+   ============================================================================= */
 .od-sidebar-left {
-  background: var(--od-color-surface);
-  border-right: 1px solid var(--od-color-border);
+  background: var(--od-bg-surface);
+  border-right: 1px solid var(--od-border);
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px 8px;
+  padding: var(--od-sidebar-padding);
   min-width: 0;
   transition: padding var(--od-transition);
 }
+.left-closed .od-sidebar-left { padding: 0; border-right-color: transparent; }
 
-.left-closed .od-sidebar-left {
-  padding: 0;
-  border-right-color: transparent;
-}
-
-/* Nav */
-.od-nav ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.od-nav li {
-  margin: 1px 0;
-}
+.od-nav ul { list-style: none; margin: 0; padding: 0; }
+.od-nav li { margin: var(--od-nav-item-gap) 0; }
 
 .od-nav a {
   display: block;
-  padding: 5px 10px;
-  color: var(--od-color-text-muted);
+  padding: var(--od-nav-item-padding);
+  font-family: var(--od-font-nav);
+  font-size: var(--od-text-nav);
+  font-weight: var(--od-weight-nav);
+  color: var(--od-text-muted);
   text-decoration: none;
-  font-size: 0.8375rem;
-  border-radius: 6px;
-  transition: color 0.12s, background 0.12s;
+  border-radius: var(--od-radius);
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.4;
+  transition: color var(--od-transition), background var(--od-transition);
 }
-
-.od-nav a:hover {
-  color: var(--od-color-text);
-  background: var(--od-color-surface-2);
-}
-
+.od-nav a:hover { color: var(--od-text); background: var(--od-bg-surface-2); }
 .od-nav a.active {
-  color: var(--od-color-accent);
-  background: color-mix(in srgb, var(--od-color-accent) 10%, transparent);
-  font-weight: 500;
+  color: var(--od-accent);
+  background: color-mix(in srgb, var(--od-accent) 10%, transparent);
+  font-weight: var(--od-weight-nav-active);
 }
 
 .od-nav ul ul {
-  padding-left: 10px;
-  margin-left: 6px;
+  padding-left: var(--od-nav-nested-indent);
+  margin-left: var(--od-nav-nested-margin);
   margin-top: 1px;
-  border-left: 1px solid var(--od-color-border);
+  border-left: 1px solid var(--od-border);
 }
 
-/* ===== Main Content ===== */
+.od-nav-icon { margin-right: 0.25em; }
+
+/* =============================================================================
+   MAIN CONTENT AREA
+   .od-content           — scrollable content column
+   .od-content-wrap      — inner wrapper (max-width + bottom padding)
+   .od-article           — the rendered markdown body
+   .od-page-header       — page title + icon area
+   .od-page-icon         — large emoji/icon above page title
+   ============================================================================= */
 .od-content {
   overflow-y: auto;
-  padding: 2rem 3rem 0;
+  padding: var(--od-content-padding);
   min-width: 0;
   display: flex;
-  gap: 2rem;
+  gap: var(--od-content-gap);
 }
+.od-content-wrap { flex: 1; min-width: 0; padding-bottom: var(--od-content-bottom); }
+.od-article { max-width: var(--od-content-max); margin: 0 auto; }
 
-.od-content-wrap {
-  flex: 1;
-  min-width: 0;
-  padding-bottom: 6rem;
-}
+.od-page-header { margin-bottom: 0; }
+.od-page-icon { font-size: 4rem; line-height: 1; display: block; margin-bottom: 0.75rem; }
 
-.od-article {
-  max-width: var(--od-content-max);
-  margin: 0 auto;
-}
-
-/* Page header with icon */
-.od-page-header {
-  margin-bottom: 0;
-}
-
-.od-page-icon {
-  font-size: 4rem;
-  line-height: 1;
-  display: block;
-  margin-bottom: 0.75rem;
-}
-
-/* Nav icons */
-.od-nav-icon {
-  margin-right: 0.25em;
-}
-
-/* Typography */
+/* =============================================================================
+   ARTICLE TYPOGRAPHY
+   .od-article h1–h4     — headings
+   .od-article p         — paragraphs
+   .od-article a         — inline links
+   .od-article ul/ol/li  — lists
+   .od-article code      — inline code
+   .od-article pre       — code block wrapper
+   .od-article pre code  — code block content
+   .od-article blockquote — block quote
+   .od-article table     — data table
+   .od-article th/td     — table cells
+   .od-article img       — images
+   .od-article hr        — horizontal rule / divider
+   .od-figure            — figure with caption
+   .od-figure figcaption — image caption
+   ============================================================================= */
 .od-article h1 {
   font-family: var(--od-font-h1);
-  font-size: var(--od-font-size-h1);
-  font-weight: var(--od-font-weight-h1);
-  margin-bottom: 1rem;
+  font-size: var(--od-text-h1);
+  font-weight: var(--od-weight-h1);
+  line-height: var(--od-line-height-heading);
+  margin-top: var(--od-h1-margin-top);
+  margin-bottom: var(--od-h1-margin-bottom);
 }
-
 .od-article h2 {
   font-family: var(--od-font-h2);
-  font-size: var(--od-font-size-h2);
-  font-weight: var(--od-font-weight-h2);
-  margin-top: 2rem;
-  margin-bottom: 0.75rem;
+  font-size: var(--od-text-h2);
+  font-weight: var(--od-weight-h2);
+  line-height: var(--od-line-height-heading);
+  margin-top: var(--od-h2-margin-top);
+  margin-bottom: var(--od-h2-margin-bottom);
 }
-
 .od-article h3 {
   font-family: var(--od-font-h3);
-  font-size: var(--od-font-size-h3);
-  font-weight: var(--od-font-weight-h3);
-  margin-top: 1.5rem;
-  margin-bottom: 0.5rem;
+  font-size: var(--od-text-h3);
+  font-weight: var(--od-weight-h3);
+  line-height: var(--od-line-height-heading);
+  margin-top: var(--od-h3-margin-top);
+  margin-bottom: var(--od-h3-margin-bottom);
 }
-
 .od-article h4 {
-  font-size: 1rem;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
+  font-size: var(--od-text-h4);
+  font-weight: var(--od-weight-h4);
+  line-height: var(--od-line-height-heading);
+  margin-top: var(--od-h4-margin-top);
+  margin-bottom: var(--od-h4-margin-bottom);
 }
 
-.od-article p { margin-bottom: 1rem; }
+.od-article p { margin-bottom: var(--od-p-margin); }
 
-.od-article a {
-  color: var(--od-color-accent);
-  text-decoration: none;
-}
+.od-article a { color: var(--od-accent); text-decoration: none; }
+.od-article a:hover { text-decoration: underline; }
+.od-article a.wikilink { border-bottom: 1px dashed var(--od-accent); }
 
-.od-article a:hover {
-  text-decoration: underline;
-}
-
-.od-article a.wikilink {
-  border-bottom: 1px dashed var(--od-color-accent);
-}
-
-.od-article ul, .od-article ol {
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
-}
-
-.od-article li { margin-bottom: 0.25rem; }
+.od-article ul,
+.od-article ol { margin-bottom: var(--od-list-margin); padding-left: var(--od-list-indent); }
+.od-article li { margin-bottom: var(--od-li-gap); }
 
 .od-article code {
   font-family: var(--od-font-mono);
-  font-size: var(--od-font-size-code);
-  background: var(--od-color-code-inline-bg);
-  padding: 0.15em 0.35em;
-  border-radius: 3px;
+  font-size: var(--od-text-code);
+  background: var(--od-bg-code-inline);
+  padding: var(--od-code-inline-padding);
+  border-radius: var(--od-code-inline-radius);
 }
 
 .od-article pre {
-  background: var(--od-color-code-bg);
-  border: 1px solid var(--od-color-border);
+  background: var(--od-bg-code);
+  border: 1px solid var(--od-border);
   border-radius: var(--od-radius);
-  padding: 1rem;
+  padding: var(--od-code-block-padding);
   overflow-x: auto;
-  margin-bottom: 1rem;
+  margin: var(--od-code-block-margin);
   position: relative;
 }
-
-.od-copy-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--od-color-border);
-  border-radius: 5px;
-  background: var(--od-color-code-bg);
-  color: var(--od-color-text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
-}
-
-.od-article pre:hover .od-copy-btn { opacity: 1; }
-.od-copy-btn:hover { background: var(--od-color-surface); color: var(--od-color-text); }
-
 .od-article pre code {
   font-family: var(--od-font-mono);
-  font-size: var(--od-font-size-code);
+  font-size: var(--od-text-code);
+  line-height: var(--od-line-height-code);
   background: none;
   padding: 0;
-  line-height: 1.5;
+  border-radius: 0;
 }
 
 .od-article blockquote {
-  border-left: 3px solid var(--od-color-accent);
-  padding-left: 1rem;
-  color: var(--od-color-text-muted);
-  margin-bottom: 1rem;
+  border-left: var(--od-blockquote-border-width) solid var(--od-accent);
+  padding-left: var(--od-blockquote-padding-left);
+  color: var(--od-text-muted);
+  margin: var(--od-blockquote-margin);
 }
 
-.od-article table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 1rem;
-}
-
-.od-article th, .od-article td {
-  border: 1px solid var(--od-color-border);
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-}
-
-.od-article th {
-  background: var(--od-color-surface);
-  font-weight: 600;
-}
+.od-article table { width: 100%; border-collapse: collapse; margin: var(--od-table-margin); }
+.od-article th,
+.od-article td { border: 1px solid var(--od-border); padding: var(--od-table-cell-padding); text-align: left; }
+.od-article th { background: var(--od-bg-surface); font-weight: 600; }
 
 .od-article img {
   max-width: 100%;
   height: auto;
-  border-radius: var(--od-radius);
-  border: 1px solid var(--od-color-border);
+  border-radius: var(--od-image-border-radius);
+  border: 1px solid var(--od-border);
 }
 
-/* Figures and captions */
-.od-figure {
-  margin: 1.5rem 0;
-}
+.od-article hr { border: none; border-top: 1px solid var(--od-border); margin: var(--od-hr-margin); }
 
-.od-figure img {
-  display: block;
-}
-
+.od-figure { margin: 1.5rem 0; }
+.od-figure img { display: block; }
 .od-figure figcaption {
   text-align: center;
-  font-size: 0.875rem;
-  color: var(--od-color-text-muted);
+  font-size: var(--od-text-sm);
+  color: var(--od-text-muted);
   margin-top: 0.5rem;
 }
 
-.od-article hr {
-  border: none;
-  border-top: 1px solid var(--od-color-border);
-  margin: 2rem 0;
+/* =============================================================================
+   COPY BUTTON (code blocks)
+   .od-copy-btn          — copy-to-clipboard button overlaid on code blocks
+   ============================================================================= */
+.od-copy-btn {
+  position: absolute;
+  top: 8px; right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  border: 1px solid var(--od-border);
+  border-radius: 5px;
+  background: var(--od-bg-code);
+  color: var(--od-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
+.od-article pre:hover .od-copy-btn { opacity: 1; }
+.od-copy-btn:hover { background: var(--od-bg-surface); color: var(--od-text); }
 
-/* ===== Callouts / Admonitions ===== */
+/* =============================================================================
+   CALLOUTS / ADMONITIONS
+   .od-callout           — callout container
+   .od-callout-icon      — left icon
+   .od-callout-body      — text content area
+   .od-callout-note      — note style (blue)
+   .od-callout-tip       — tip style (green)
+   .od-callout-warning   — warning style (amber)
+   .od-callout-caution   — caution style (red)
+   .od-callout-danger    — danger style (red)
+   .od-callout-important — important style (purple)
+   ============================================================================= */
 .od-callout {
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  gap: var(--od-callout-gap);
+  padding: var(--od-callout-padding);
   border-radius: var(--od-radius);
-  border-left: 4px solid;
-  margin-bottom: 1rem;
+  border-left: var(--od-callout-border-width) solid;
+  margin: var(--od-callout-margin);
 }
+.od-callout-icon { font-size: var(--od-callout-icon-size); line-height: 1.5; flex-shrink: 0; }
+.od-callout-body { flex: 1; min-width: 0; }
+.od-callout-body p:last-child { margin-bottom: 0; }
 
-.od-callout-icon {
-  font-size: 1.2rem;
-  line-height: 1.5;
-  flex-shrink: 0;
-}
-
-.od-callout-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.od-callout-body p:last-child {
-  margin-bottom: 0;
-}
-
-/* Callout colors using CSS variables */
 .od-callout-info      { border-left-color: #93c5fd; background: #eff6ff; }
-.od-callout-note      { border-left-color: var(--od-color-callout-note); background: #f0f6ff; }
-.od-callout-tip       { border-left-color: var(--od-color-callout-tip); background: #ecfdf5; }
-.od-callout-warning   { border-left-color: var(--od-color-callout-warning); background: #fffbeb; }
+.od-callout-note      { border-left-color: var(--od-callout-note-color);      background: var(--od-callout-note-bg); }
+.od-callout-tip       { border-left-color: var(--od-callout-tip-color);       background: var(--od-callout-tip-bg); }
+.od-callout-warning   { border-left-color: var(--od-callout-warning-color);   background: var(--od-callout-warning-bg); }
 .od-callout-caution,
-.od-callout-danger    { border-left-color: #fca5a5; background: #fef2f2; }
-.od-callout-important { border-left-color: var(--od-color-callout-important); background: #f5f3ff; }
+.od-callout-danger    { border-left-color: #fca5a5;                           background: var(--od-callout-caution-bg); }
+.od-callout-important { border-left-color: var(--od-callout-important-color); background: var(--od-callout-important-bg); }
 
-[data-theme="dark"] .od-callout-info      { background: rgba(59,130,246,0.1);  border-left-color: rgba(147,197,253,0.5); }
-[data-theme="dark"] .od-callout-note      { background: rgba(107,114,128,0.1); border-left-color: rgba(209,213,219,0.5); }
-[data-theme="dark"] .od-callout-tip       { background: rgba(16,185,129,0.1);  border-left-color: rgba(110,231,183,0.5); }
-[data-theme="dark"] .od-callout-warning   { background: rgba(245,158,11,0.1);  border-left-color: rgba(252,211,77,0.5); }
-[data-theme="dark"] .od-callout-caution,
-[data-theme="dark"] .od-callout-danger    { background: rgba(239,68,68,0.1);   border-left-color: rgba(252,165,165,0.5); }
-[data-theme="dark"] .od-callout-important { background: rgba(139,92,246,0.1);  border-left-color: rgba(196,181,253,0.5); }
-
-/* ===== Table of Contents ===== */
+/* =============================================================================
+   TABLE OF CONTENTS (right sidebar)
+   .od-toc               — sticky TOC container
+   .od-toc-title         — "On this page" label
+   .od-toc-list          — list of section links
+   .od-toc-list li a     — individual TOC link
+   .od-toc-list li a.active — active section link
+   .od-toc-h3            — third-level heading (indented)
+   ============================================================================= */
 .od-toc {
   position: sticky;
   top: 0;
   flex-shrink: 0;
-  width: 200px;
+  width: var(--od-toc-width);
   max-height: calc(100vh - var(--od-header-height) - 4rem);
   overflow-y: auto;
   padding-top: 0.5rem;
 }
-
 .od-toc-title {
-  font-size: 0.75rem;
+  font-size: var(--od-text-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--od-color-text-muted);
+  color: var(--od-text-muted);
   margin-bottom: 0.5rem;
 }
-
-.od-toc-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border-left: 1px solid var(--od-color-border);
-}
-
-.od-toc-list li {
-  margin: 0;
-}
-
+.od-toc-list { list-style: none; padding: 0; margin: 0; border-left: 1px solid var(--od-border); }
+.od-toc-list li { margin: 0; }
 .od-toc-list li a {
   display: block;
-  padding: 3px 12px;
-  font-size: 0.8rem;
-  color: var(--od-color-text-muted);
+  padding: var(--od-toc-item-padding);
+  font-size: var(--od-text-xs);
+  color: var(--od-text-muted);
   text-decoration: none;
-  border-left: 2px solid transparent;
+  border-left: var(--od-toc-active-border-width) solid transparent;
   margin-left: -1px;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--od-transition), border-color var(--od-transition);
 }
+.od-toc-list li a:hover { color: var(--od-text); }
+.od-toc-list li a.active { color: var(--od-accent); border-left-color: var(--od-accent); }
+.od-toc-list li.od-toc-h3 a { padding: var(--od-toc-nested-padding); }
 
-.od-toc-list li a:hover {
-  color: var(--od-color-text);
-}
+@media (max-width: 1279px) { .od-toc { display: none; } }
 
-.od-toc-list li a.active {
-  color: var(--od-color-accent);
-  border-left-color: var(--od-color-accent);
-}
-
-.od-toc-list li.od-toc-h3 a {
-  padding-left: 24px;
-  font-size: 0.75rem;
-}
-
-@media (max-width: 1279px) {
-  .od-toc {
-    display: none;
-  }
-}
-
-/* Backlinks */
+/* =============================================================================
+   BACKLINKS
+   .od-backlinks         — "Referenced by" section at page bottom
+   ============================================================================= */
 .od-backlinks {
   margin-top: 3rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--od-color-border);
+  border-top: 1px solid var(--od-border);
   max-width: var(--od-content-max);
   margin-left: auto;
   margin-right: auto;
 }
-
 .od-backlinks h4 {
-  font-size: 0.8rem;
+  font-size: var(--od-text-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--od-color-text-muted);
+  color: var(--od-text-muted);
   margin-bottom: 0.5rem;
 }
+.od-backlinks ul { list-style: none; padding: 0; }
+.od-backlinks li { margin-bottom: 0.25rem; }
+.od-backlinks a { color: var(--od-accent); text-decoration: none; font-size: var(--od-text-sm); }
+.od-backlinks a:hover { text-decoration: underline; }
 
-.od-backlinks ul {
-  list-style: none;
-  padding: 0;
-}
-
-.od-backlinks li {
-  margin-bottom: 0.25rem;
-}
-
-.od-backlinks a {
-  color: var(--od-color-accent);
-  text-decoration: none;
-  font-size: 0.875rem;
-}
-
-.od-backlinks a:hover {
-  text-decoration: underline;
-}
-
-
-/* ===== Responsive ===== */
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
 @media (max-width: 768px) {
-  .od-header-center {
-    display: none;
-  }
-
-  .od-layout {
-    grid-template-columns: 0px 1fr !important;
-  }
-
+  .od-header-center { display: none; }
+  .od-layout { grid-template-columns: 0px 1fr !important; }
   .od-sidebar-left {
     position: fixed;
-    top: var(--od-header-height);
-    bottom: 0;
-    left: 0;
+    top: var(--od-header-height); bottom: 0; left: 0;
     width: var(--od-sidebar-width);
     z-index: 50;
     transition: transform var(--od-transition);
     transform: translateX(-100%);
   }
-
-  .od-layout:not(.left-closed) .od-sidebar-left {
-    transform: translateX(0);
-  }
-
-  .od-content {
-    padding: 1.5rem 1.5rem 0;
-  }
+  .od-layout:not(.left-closed) .od-sidebar-left { transform: translateX(0); }
+  .od-content { padding: var(--od-content-padding-mobile); }
 }
