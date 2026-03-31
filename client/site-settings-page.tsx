@@ -572,368 +572,150 @@ function OGImageSection() {
 }
 
 
-// ── OG Image Generator (Canvas) ──────────────────────────────────────────────
 
-type OGTemplate = 'gradient' | 'minimal' | 'dark' | 'image'
+// ── OG Image Section (upload + previews) ─────────────────────────────────────
 
-interface OGConfig {
-  template: OGTemplate
-  title: string
-  description: string
-  accentColor: string
-  bgColor: string
-  textColor: string
-  bgImageDataUrl: string | null
-  showLogo: boolean
-}
-
-const DEFAULT_OG_CONFIG: OGConfig = {
-  template: 'gradient',
-  title: '',
-  description: '',
-  accentColor: '#4f46e5',
-  bgColor: '#ffffff',
-  textColor: '#1a1a1a',
-  bgImageDataUrl: null,
-  showLogo: true,
-}
-
-const W = 1200
-const H = 630
-
-function hexToRgb(hex: string) {
-  const n = parseInt(hex.replace('#', ''), 16)
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
-}
-
-function lightenHex(hex: string, amt: number): string {
-  const { r, g, b } = hexToRgb(hex)
-  return `rgb(${Math.min(255, r + amt)},${Math.min(255, g + amt)},${Math.min(255, b + amt)})`
-}
-
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(' ')
-  const lines: string[] = []
-  let line = ''
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word
-    if (ctx.measureText(test).width > maxWidth && line) {
-      lines.push(line)
-      line = word
-    } else {
-      line = test
-    }
-  }
-  if (line) lines.push(line)
-  return lines
-}
-
-async function loadImg(src: string): Promise<HTMLImageElement> {
-  return new Promise((res, rej) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => res(img)
-    img.onerror = rej
-    img.src = src
-  })
-}
-
-async function renderOGCanvas(cfg: OGConfig, logoUrl: string | null): Promise<string> {
-  const canvas = document.createElement('canvas')
-  canvas.width = W; canvas.height = H
-  const ctx = canvas.getContext('2d')!
-
-  const title = cfg.title || 'Documentation'
-  const accent = cfg.accentColor
-
-  // ── Background ───────────────────────────────────────────────────────────
-  if (cfg.template === 'gradient') {
-    const grad = ctx.createLinearGradient(0, 0, W, H)
-    grad.addColorStop(0, accent)
-    grad.addColorStop(1, lightenHex(accent, 60))
-    ctx.fillStyle = grad
-    ctx.fillRect(0, 0, W, H)
-
-  } else if (cfg.template === 'minimal') {
-    ctx.fillStyle = cfg.bgColor || '#ffffff'
-    ctx.fillRect(0, 0, W, H)
-    // Accent left bar
-    ctx.fillStyle = accent
-    ctx.fillRect(0, 0, 14, H)
-
-  } else if (cfg.template === 'dark') {
-    ctx.fillStyle = '#0f0f0f'
-    ctx.fillRect(0, 0, W, H)
-    // Radial glow
-    const { r, g, b } = hexToRgb(accent)
-    const glow = ctx.createRadialGradient(W, 0, 0, W, 0, 500)
-    glow.addColorStop(0, `rgba(${r},${g},${b},0.25)`)
-    glow.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = glow
-    ctx.fillRect(0, 0, W, H)
-
-  } else if (cfg.template === 'image') {
-    ctx.fillStyle = '#1a1a1a'
-    ctx.fillRect(0, 0, W, H)
-    if (cfg.bgImageDataUrl) {
-      try {
-        const img = await loadImg(cfg.bgImageDataUrl)
-        ctx.drawImage(img, 0, 0, W, H)
-      } catch {}
-    }
-    // Dark gradient overlay (bottom-heavy)
-    const overlay = ctx.createLinearGradient(0, 0, 0, H)
-    overlay.addColorStop(0, 'rgba(0,0,0,0)')
-    overlay.addColorStop(0.4, 'rgba(0,0,0,0.35)')
-    overlay.addColorStop(1, 'rgba(0,0,0,0.85)')
-    ctx.fillStyle = overlay
-    ctx.fillRect(0, 0, W, H)
-  }
-
-  // ── Logo ─────────────────────────────────────────────────────────────────
-  let logoY = cfg.template === 'minimal' ? 80 : 64
-  if (cfg.showLogo && logoUrl) {
-    try {
-      const logo = await loadImg(logoUrl)
-      const logoX = cfg.template === 'minimal' ? 80 : 80
-      const logoSize = 52
-      // Rounded clip
-      ctx.save()
-      ctx.beginPath()
-      const r = 10
-      ctx.roundRect(logoX, logoY, logoSize, logoSize, r)
-      ctx.clip()
-      ctx.drawImage(logo, logoX, logoY, logoSize, logoSize)
-      ctx.restore()
-      logoY += logoSize + 28
-    } catch {}
-  }
-
-  // ── Text color ───────────────────────────────────────────────────────────
-  const isLight = cfg.template === 'gradient' || cfg.template === 'dark' || cfg.template === 'image'
-  const titleColor = isLight ? '#ffffff' : (cfg.textColor || '#1a1a1a')
-  const descColor  = isLight ? 'rgba(255,255,255,0.78)' : '#6b7280'
-
-  const padLeft = cfg.template === 'minimal' ? 100 : 80
-  const maxW    = W - padLeft - 80
-
-  // ── Title ────────────────────────────────────────────────────────────────
-  ctx.fillStyle = titleColor
-  ctx.font = `700 ${72}px -apple-system, "Segoe UI", sans-serif`
-  const titleLines = wrapText(ctx, title, maxW).slice(0, 2)
-  const lineH = 84
-  const textBlockH = titleLines.length * lineH + (cfg.description ? 36 + 38 : 0)
-  let textY = cfg.template === 'minimal'
-    ? Math.max(logoY, H / 2 - textBlockH / 2)
-    : H - textBlockH - 64
-
-  for (const line of titleLines) {
-    ctx.fillText(line, padLeft, textY + 72)
-    textY += lineH
-  }
-
-  // ── Description ──────────────────────────────────────────────────────────
-  if (cfg.description) {
-    textY += 16
-    ctx.fillStyle = descColor
-    ctx.font = `400 32px -apple-system, "Segoe UI", sans-serif`
-    const descLines = wrapText(ctx, cfg.description, maxW).slice(0, 2)
-    for (const line of descLines) {
-      ctx.fillText(line, padLeft, textY + 32)
-      textY += 42
-    }
-  }
-
-  return canvas.toDataURL('image/png')
-}
-
-const TEMPLATES: { id: OGTemplate; label: string }[] = [
-  { id: 'gradient', label: 'Gradient' },
-  { id: 'minimal',  label: 'Minimal'  },
-  { id: 'dark',     label: 'Dark'     },
-  { id: 'image',    label: 'Image BG' },
-]
-
-function OGImageGenerator({ siteTitle, faviconUrl }: { siteTitle: string; faviconUrl: string | null }) {
-  const bgFileRef = useRef<HTMLInputElement>(null)
-  const [cfg, setCfg] = useState<OGConfig>({ ...DEFAULT_OG_CONFIG, title: siteTitle })
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [rendering, setRendering] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const renderTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    setCfg(c => ({ ...c, title: c.title || siteTitle }))
-  }, [siteTitle])
-
-  // Debounced render whenever config changes
-  useEffect(() => {
-    if (renderTimer.current) clearTimeout(renderTimer.current)
-    setRendering(true)
-    renderTimer.current = setTimeout(async () => {
-      try {
-        const url = await renderOGCanvas(cfg, cfg.showLogo ? faviconUrl : null)
-        setPreviewUrl(url)
-        setSaved(false)
-      } catch (e) {
-        console.error('OG render error', e)
-      } finally {
-        setRendering(false)
-      }
-    }, 300)
-    return () => { if (renderTimer.current) clearTimeout(renderTimer.current) }
-  }, [cfg, faviconUrl])
-
-  async function handleSave() {
-    if (!previewUrl) return
-    setSaving(true)
-    try {
-      const blob = await fetch(previewUrl).then(r => r.blob())
-      const form = new FormData()
-      form.append('file', new File([blob], 'og-image.png', { type: 'image/png' }))
-      form.append('pagePath', '.')
-      form.append('type', 'og-image')
-      await fetch('/_opendoc/page-asset', { method: 'POST', body: form })
-      setSaved(true)
-    } finally { setSaving(false) }
-  }
-
+function TwitterCardPreview({ imageUrl, siteTitle }: { imageUrl: string | null; siteTitle: string }) {
   return (
-    <div className="od-ssp-favicon-layout">
-      {/* Left: controls */}
-      <div className="od-ssp-favicon-controls">
-
-        <div className="od-ssp-field">
-          <label className="od-ssp-label">Template</label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {TEMPLATES.map(t => (
-              <button key={t.id}
-                className={`od-ssp-btn-sm${cfg.template === t.id ? ' od-ssp-btn-active' : ''}`}
-                onClick={() => setCfg(c => ({ ...c, template: t.id }))}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#536471', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Twitter / X</div>
+      <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #cfd9de', width: 360 }}>
+        {imageUrl
+          ? <img src={imageUrl} style={{ width: '100%', aspectRatio: '1200/630', objectFit: 'cover', display: 'block' }} />
+          : <div style={{ width: '100%', aspectRatio: '1200/630', background: '#e7e7e7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 12, color: '#8899a6' }}>1200 × 630</span>
+            </div>}
+        <div style={{ padding: '10px 12px', background: '#fff' }}>
+          <div style={{ fontSize: 11, color: '#536471', marginBottom: 2 }}>localhost:3000</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#0f1419', lineHeight: 1.3 }}>{siteTitle || 'My Docs'}</div>
         </div>
-
-        <div className="od-ssp-field">
-          <label className="od-ssp-label">Title</label>
-          <input type="text" className="od-ssp-input"
-            placeholder={siteTitle || 'My Docs'}
-            value={cfg.title}
-            onChange={e => setCfg(c => ({ ...c, title: e.target.value }))} />
-        </div>
-
-        <div className="od-ssp-field">
-          <label className="od-ssp-label">Description <span className="od-ssp-value">(optional)</span></label>
-          <input type="text" className="od-ssp-input"
-            placeholder="The official documentation"
-            value={cfg.description}
-            onChange={e => setCfg(c => ({ ...c, description: e.target.value }))} />
-        </div>
-
-        <div className="od-ssp-field">
-          <label className="od-ssp-label">Accent color</label>
-          <input type="color" className="od-ssp-color"
-            value={cfg.accentColor}
-            onChange={e => setCfg(c => ({ ...c, accentColor: e.target.value }))} />
-        </div>
-
-        {cfg.template === 'minimal' && (
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Background</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="color" className="od-ssp-color"
-                value={cfg.bgColor}
-                onChange={e => setCfg(c => ({ ...c, bgColor: e.target.value }))} />
-              <input type="color" className="od-ssp-color"
-                value={cfg.textColor}
-                onChange={e => setCfg(c => ({ ...c, textColor: e.target.value }))} />
-              <span className="od-ssp-hint">bg / text</span>
-            </div>
-          </div>
-        )}
-
-        {cfg.template === 'image' && (
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Background image</label>
-            <input ref={bgFileRef} type="file" accept=".png,.jpg,.jpeg,.webp" hidden
-              onChange={e => {
-                const f = e.target.files?.[0]
-                if (!f) return
-                const reader = new FileReader()
-                reader.onload = ev => setCfg(c => ({ ...c, bgImageDataUrl: ev.target?.result as string }))
-                reader.readAsDataURL(f)
-                e.target.value = ''
-              }} />
-            <button className="od-ssp-btn-sm" onClick={() => bgFileRef.current?.click()}>
-              <Upload style={{ width: 12, height: 12 }} />
-              {cfg.bgImageDataUrl ? 'Replace image' : 'Upload image'}
-            </button>
-          </div>
-        )}
-
-        {faviconUrl && (
-          <div className="od-ssp-field">
-            <label className="od-ssp-radio-label" style={{ cursor: 'pointer' }}>
-              <input type="checkbox" checked={cfg.showLogo}
-                onChange={e => setCfg(c => ({ ...c, showLogo: e.target.checked }))} />
-              Show favicon as logo
-            </label>
-          </div>
-        )}
-
-        <Button onClick={handleSave} disabled={!previewUrl || saving} className="w-full">
-          {saving ? 'Saving…' : saved ? '✓ Saved as OG Image' : 'Save as OG Image'}
-        </Button>
-      </div>
-
-      {/* Right: preview */}
-      <div style={{ flex: 1, minWidth: 300 }}>
-        <PreviewLabel>Preview (1200×630)</PreviewLabel>
-        <div style={{
-          width: '100%', aspectRatio: '1200/630',
-          borderRadius: 8, overflow: 'hidden',
-          border: '1px solid var(--od-color-border, #e5e7eb)',
-          background: '#f0f0f0', position: 'relative',
-        }}>
-          {previewUrl
-            ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#9ca3af' }}>
-                Generating…
-              </div>}
-          {rendering && previewUrl && (
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.4)' }} />
-          )}
-        </div>
-        {saved && <p className="od-ssp-hint" style={{ marginTop: 8, color: 'var(--color-accent, #0969da)' }}>✓ Saved to site root.</p>}
       </div>
     </div>
   )
 }
 
-// ── OG Image tabs (upload | generate) ────────────────────────────────────────
-
-function OGImageTabs({ siteTitle, faviconUrl }: { siteTitle: string; faviconUrl: string | null }) {
-  const [tab, setTab] = useState<'upload' | 'generate'>('generate')
+function SlackPreview({ imageUrl, siteTitle }: { imageUrl: string | null; siteTitle: string }) {
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 2, marginBottom: 20, borderBottom: '1px solid var(--od-color-border, #e5e7eb)' }}>
-        {(['generate', 'upload'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '6px 14px', fontSize: 13, fontWeight: tab === t ? 600 : 400,
-            color: tab === t ? 'var(--color-accent, #0969da)' : 'var(--od-color-text-muted, #6b7280)',
-            background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--color-accent, #0969da)' : '2px solid transparent',
-            cursor: 'pointer', marginBottom: -1,
-          }}>
-            {t === 'generate' ? '✦ Generate' : '↑ Upload'}
-          </button>
-        ))}
+    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#536471', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Slack</div>
+      <div style={{ borderLeft: '3px solid #ddd', paddingLeft: 10, maxWidth: 360 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#1264a3', marginBottom: 3 }}>localhost:3000</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#1d1c1d', marginBottom: 6 }}>{siteTitle || 'My Docs'}</div>
+        {imageUrl
+          ? <img src={imageUrl} style={{ width: '100%', maxWidth: 360, aspectRatio: '1200/630', objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+          : <div style={{ width: '100%', maxWidth: 360, aspectRatio: '1200/630', background: '#f1f1f1', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 12, color: '#999' }}>no image</span>
+            </div>}
       </div>
-      {tab === 'generate'
-        ? <OGImageGenerator siteTitle={siteTitle} faviconUrl={faviconUrl} />
-        : <OGImageSection />}
+    </div>
+  )
+}
+
+function IMessagePreview({ imageUrl, siteTitle }: { imageUrl: string | null; siteTitle: string }) {
+  return (
+    <div style={{ fontFamily: '-apple-system, sans-serif' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#536471', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>iMessage</div>
+      <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e0e0e0', background: '#fff', width: 240 }}>
+        {imageUrl
+          ? <img src={imageUrl} style={{ width: '100%', aspectRatio: '1200/630', objectFit: 'cover', display: 'block' }} />
+          : <div style={{ width: '100%', aspectRatio: '1200/630', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 11, color: '#aaa' }}>1200 × 630</span>
+            </div>}
+        <div style={{ padding: '8px 10px' }}>
+          <div style={{ fontSize: 10, color: '#888', marginBottom: 1 }}>LOCALHOST:3000</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#000' }}>{siteTitle || 'My Docs'}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function OGImageSection({ siteTitle }: { siteTitle: string }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [currentUrl, setCurrentUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetch('/_opendoc/page?path=').then(r => r.json())
+      setCurrentUrl(data.ogImageUrl || null)
+    } catch {}
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function upload(file: File) {
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('pagePath', '.')
+      form.append('type', 'og-image')
+      await fetch('/_opendoc/page-asset', { method: 'POST', body: form })
+      await load()
+    } finally { setUploading(false) }
+  }
+
+  async function remove() {
+    await fetch('/_opendoc/page-asset', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pagePath: '.', type: 'og-image' }),
+    })
+    setCurrentUrl(null)
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: '3rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      {/* Left: upload */}
+      <div style={{ flex: '0 0 260px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p className="od-ssp-hint">
+          Recommended: <strong>1200 × 630 px</strong>, PNG or JPG.
+          This image appears when your pages are shared on social media, Slack, iMessage, and in Google search results.
+        </p>
+
+        <input ref={fileRef} type="file" accept=".png,.jpg,.jpeg,.webp" hidden
+          onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
+
+        {currentUrl ? (
+          <>
+            <div style={{
+              borderRadius: 8, overflow: 'hidden',
+              border: '1px solid var(--od-color-border, #e2e8f0)',
+              aspectRatio: '1200/630', background: '#f0f0f0',
+            }}>
+              <img src={currentUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="od-ssp-btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                <Upload style={{ width: 12, height: 12 }} />
+                {uploading ? 'Uploading…' : 'Replace'}
+              </button>
+              <button className="od-ssp-btn-sm od-ssp-btn-danger" onClick={remove}>Remove</button>
+            </div>
+          </>
+        ) : (
+          <div
+            className="od-ssp-dropzone"
+            style={{ aspectRatio: '1200/630' }}
+            onClick={() => fileRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('active') }}
+            onDragLeave={e => e.currentTarget.classList.remove('active')}
+            onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('active'); const f = e.dataTransfer.files[0]; if (f) upload(f) }}
+          >
+            <Upload style={{ width: 20, height: 20, color: 'var(--od-text-muted, #6b7280)' }} />
+            <span className="od-ssp-dropzone-label">Click or drag — PNG / JPG</span>
+            <span className="od-ssp-hint">1200 × 630 px</span>
+          </div>
+        )}
+      </div>
+
+      {/* Right: previews */}
+      <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', gap: 28 }}>
+        <TwitterCardPreview imageUrl={currentUrl} siteTitle={siteTitle} />
+        <SlackPreview       imageUrl={currentUrl} siteTitle={siteTitle} />
+        <IMessagePreview    imageUrl={currentUrl} siteTitle={siteTitle} />
+      </div>
     </div>
   )
 }
@@ -1015,7 +797,7 @@ export function SiteSettingsPage() {
         {/* OG Image */}
         <section className="od-ssp-section">
           <h2 className="od-ssp-section-heading">OG Image</h2>
-          <OGImageTabs siteTitle={savedTitle} faviconUrl={faviconUrl} />
+          <OGImageSection siteTitle={savedTitle} />
         </section>
 
       </div>
