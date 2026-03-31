@@ -837,6 +837,11 @@
     .od-ssp-btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
     .od-ssp-btn-danger { color: #dc2626; border-color: #fca5a5; }
     .od-ssp-btn-danger:hover { background: #fef2f2; }
+    .od-ssp-btn-active {
+      background: color-mix(in srgb, var(--color-accent, #0969da) 10%, transparent);
+      border-color: var(--color-accent, #0969da);
+      color: var(--color-accent, #0969da);
+    }
 
     /* Dropzone */
     .od-ssp-dropzone {

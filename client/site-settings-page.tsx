@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Upload, RefreshCcw } from 'lucide-react'
 import { Button } from './ui/button'
+import satori from 'satori'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -571,17 +572,438 @@ function OGImageSection() {
   )
 }
 
+// ── OG Image Generator (Satori) ───────────────────────────────────────────────
+
+type OGTemplate = 'gradient' | 'minimal' | 'dark' | 'image'
+
+interface OGConfig {
+  template: OGTemplate
+  title: string
+  description: string
+  accentColor: string
+  bgColor: string
+  textColor: string
+  bgImageUrl: string | null    // only for 'image' template
+  logoUrl: string | null       // favicon shown as logo
+}
+
+const DEFAULT_OG_CONFIG: OGConfig = {
+  template: 'gradient',
+  title: '',
+  description: '',
+  accentColor: '#4f46e5',
+  bgColor: '#ffffff',
+  textColor: '#1a1a1a',
+  bgImageUrl: null,
+  logoUrl: null,
+}
+
+// Font loader — fetches Inter WOFF2 from local server (served from node_modules)
+let cachedFonts: { name: string; data: ArrayBuffer; weight: number; style: 'normal' }[] | null = null
+async function loadSatoriFonts() {
+  if (cachedFonts) return cachedFonts
+  const [regular, bold] = await Promise.all([
+    fetch('/_opendoc/fonts/inter-regular.woff2').then(r => r.arrayBuffer()),
+    fetch('/_opendoc/fonts/inter-700.woff2').then(r => r.arrayBuffer()),
+  ])
+  cachedFonts = [
+    { name: 'Inter', data: regular, weight: 400, style: 'normal' },
+    { name: 'Inter', data: bold,    weight: 700, style: 'normal' },
+  ]
+  return cachedFonts
+}
+
+// Satori JSX templates (1200×630)
+function templateGradient(cfg: OGConfig): React.ReactNode {
+  return (
+    <div style={{
+      width: 1200, height: 630,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      background: `linear-gradient(135deg, ${cfg.accentColor} 0%, ${lighten(cfg.accentColor, 40)} 100%)`,
+      padding: '64px 80px',
+      fontFamily: 'Inter',
+    }}>
+      {cfg.logoUrl && (
+        <img src={cfg.logoUrl} width={56} height={56}
+          style={{ borderRadius: 10, marginBottom: 28, objectFit: 'contain' }} />
+      )}
+      <div style={{ fontSize: 72, fontWeight: 700, color: '#ffffff', lineHeight: 1.1, marginBottom: 20 }}>
+        {cfg.title || 'Documentation'}
+      </div>
+      {cfg.description && (
+        <div style={{ fontSize: 32, color: 'rgba(255,255,255,0.82)', lineHeight: 1.4 }}>
+          {cfg.description}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function templateMinimal(cfg: OGConfig): React.ReactNode {
+  return (
+    <div style={{
+      width: 1200, height: 630,
+      display: 'flex', flexDirection: 'column', justifyContent: 'center',
+      background: cfg.bgColor || '#ffffff',
+      padding: '80px 100px',
+      fontFamily: 'Inter',
+      borderLeft: `12px solid ${cfg.accentColor}`,
+    }}>
+      {cfg.logoUrl && (
+        <img src={cfg.logoUrl} width={48} height={48}
+          style={{ borderRadius: 8, marginBottom: 32, objectFit: 'contain' }} />
+      )}
+      <div style={{ fontSize: 68, fontWeight: 700, color: cfg.textColor || '#1a1a1a', lineHeight: 1.15, marginBottom: 24 }}>
+        {cfg.title || 'Documentation'}
+      </div>
+      {cfg.description && (
+        <div style={{ fontSize: 30, color: '#6b7280', lineHeight: 1.5 }}>
+          {cfg.description}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function templateDark(cfg: OGConfig): React.ReactNode {
+  return (
+    <div style={{
+      width: 1200, height: 630,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      background: '#0f0f0f',
+      padding: '64px 80px',
+      fontFamily: 'Inter',
+    }}>
+      {/* Glow accent */}
+      <div style={{
+        position: 'absolute', top: -100, right: -100,
+        width: 500, height: 500, borderRadius: 250,
+        background: cfg.accentColor,
+        opacity: 0.15,
+        filter: 'blur(80px)',
+      }} />
+      {cfg.logoUrl && (
+        <img src={cfg.logoUrl} width={52} height={52}
+          style={{ borderRadius: 10, marginBottom: 28, objectFit: 'contain' }} />
+      )}
+      <div style={{ fontSize: 70, fontWeight: 700, color: '#f0f0f0', lineHeight: 1.1, marginBottom: 20 }}>
+        {cfg.title || 'Documentation'}
+      </div>
+      {cfg.description && (
+        <div style={{ fontSize: 30, color: '#9ca3af', lineHeight: 1.4 }}>
+          {cfg.description}
+        </div>
+      )}
+      <div style={{
+        position: 'absolute', bottom: 48, right: 80,
+        fontSize: 20, color: cfg.accentColor, fontWeight: 600,
+      }}>
+        docs
+      </div>
+    </div>
+  )
+}
+
+function templateImageBg(cfg: OGConfig): React.ReactNode {
+  return (
+    <div style={{
+      width: 1200, height: 630,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      fontFamily: 'Inter',
+      position: 'relative',
+    }}>
+      {cfg.bgImageUrl && (
+        <img src={cfg.bgImageUrl} width={1200} height={630}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      )}
+      {/* Gradient overlay */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0) 100%)',
+      }} />
+      <div style={{ position: 'relative', padding: '0 80px 60px', zIndex: 1 }}>
+        {cfg.logoUrl && (
+          <img src={cfg.logoUrl} width={44} height={44}
+            style={{ borderRadius: 8, marginBottom: 20, objectFit: 'contain' }} />
+        )}
+        <div style={{ fontSize: 68, fontWeight: 700, color: '#ffffff', lineHeight: 1.1, marginBottom: 16 }}>
+          {cfg.title || 'Documentation'}
+        </div>
+        {cfg.description && (
+          <div style={{ fontSize: 28, color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>
+            {cfg.description}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Lighten a hex color by amount (0-100)
+function lighten(hex: string, amount: number): string {
+  const n = parseInt(hex.replace('#', ''), 16)
+  const r = Math.min(255, (n >> 16) + amount)
+  const g = Math.min(255, ((n >> 8) & 0xff) + amount)
+  const b = Math.min(255, (n & 0xff) + amount)
+  return `rgb(${r},${g},${b})`
+}
+
+function getTemplate(cfg: OGConfig): React.ReactNode {
+  switch (cfg.template) {
+    case 'gradient': return templateGradient(cfg)
+    case 'minimal':  return templateMinimal(cfg)
+    case 'dark':     return templateDark(cfg)
+    case 'image':    return templateImageBg(cfg)
+  }
+}
+
+// Convert SVG string → PNG data URL via canvas
+async function svgToPng(svg: string, width: number, height: number): Promise<string> {
+  const blob = new Blob([svg], { type: 'image/svg+xml' })
+  const url = URL.createObjectURL(blob)
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = url
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = width; canvas.height = height
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(img, 0, 0)
+  URL.revokeObjectURL(url)
+  return canvas.toDataURL('image/png')
+}
+
+const TEMPLATES: { id: OGTemplate; label: string }[] = [
+  { id: 'gradient', label: 'Gradient' },
+  { id: 'minimal',  label: 'Minimal' },
+  { id: 'dark',     label: 'Dark' },
+  { id: 'image',    label: 'Image BG' },
+]
+
+function OGImageGenerator({ siteTitle, faviconUrl }: { siteTitle: string; faviconUrl: string | null }) {
+  const bgFileRef = useRef<HTMLInputElement>(null)
+  const [cfg, setCfg] = useState<OGConfig>({
+    ...DEFAULT_OG_CONFIG,
+    title: siteTitle,
+    logoUrl: faviconUrl,
+  })
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [rendering, setRendering] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const renderTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Keep title/logo in sync when parent props change
+  useEffect(() => {
+    setCfg(c => ({ ...c, title: c.title || siteTitle, logoUrl: c.logoUrl ?? faviconUrl }))
+  }, [siteTitle, faviconUrl])
+
+  // Debounced render on any config change
+  useEffect(() => {
+    if (renderTimer.current) clearTimeout(renderTimer.current)
+    renderTimer.current = setTimeout(async () => {
+      setRendering(true)
+      try {
+        const fonts = await loadSatoriFonts()
+        const node = getTemplate(cfg)
+        const svg = await satori(node as React.ReactElement, { width: 1200, height: 630, fonts })
+        const png = await svgToPng(svg, 1200, 630)
+        setPreviewUrl(png)
+        setSaved(false)
+      } catch (e) {
+        console.error('OG render error', e)
+      } finally {
+        setRendering(false)
+      }
+    }, 400)
+    return () => { if (renderTimer.current) clearTimeout(renderTimer.current) }
+  }, [cfg])
+
+  async function handleSave() {
+    if (!previewUrl) return
+    setSaving(true)
+    try {
+      const blob = await fetch(previewUrl).then(r => r.blob())
+      const form = new FormData()
+      form.append('file', new File([blob], 'og-image.png', { type: 'image/png' }))
+      form.append('pagePath', '.')
+      form.append('type', 'og-image')
+      await fetch('/_opendoc/page-asset', { method: 'POST', body: form })
+      setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleBgImage(file: File) {
+    const url = URL.createObjectURL(file)
+    setCfg(c => ({ ...c, bgImageUrl: url, template: 'image' }))
+  }
+
+  return (
+    <div className="od-ssp-favicon-layout">
+      {/* Left: controls */}
+      <div className="od-ssp-favicon-controls">
+
+        {/* Template picker */}
+        <div className="od-ssp-field">
+          <label className="od-ssp-label">Template</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {TEMPLATES.map(t => (
+              <button key={t.id}
+                className={`od-ssp-btn-sm${cfg.template === t.id ? ' od-ssp-btn-active' : ''}`}
+                onClick={() => setCfg(c => ({ ...c, template: t.id }))}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="od-ssp-field">
+          <label className="od-ssp-label">Title</label>
+          <input type="text" className="od-ssp-input"
+            placeholder={siteTitle || 'My Docs'}
+            value={cfg.title}
+            onChange={e => setCfg(c => ({ ...c, title: e.target.value }))} />
+        </div>
+
+        {/* Description */}
+        <div className="od-ssp-field">
+          <label className="od-ssp-label">Description <span className="od-ssp-value">(optional)</span></label>
+          <input type="text" className="od-ssp-input"
+            placeholder="The official documentation"
+            value={cfg.description}
+            onChange={e => setCfg(c => ({ ...c, description: e.target.value }))} />
+        </div>
+
+        {/* Accent color */}
+        <div className="od-ssp-field">
+          <label className="od-ssp-label">Accent color</label>
+          <input type="color" className="od-ssp-color"
+            value={cfg.accentColor}
+            onChange={e => setCfg(c => ({ ...c, accentColor: e.target.value }))} />
+        </div>
+
+        {/* BG + text color for minimal */}
+        {cfg.template === 'minimal' && (
+          <>
+            <div className="od-ssp-field">
+              <label className="od-ssp-label">Background</label>
+              <input type="color" className="od-ssp-color"
+                value={cfg.bgColor}
+                onChange={e => setCfg(c => ({ ...c, bgColor: e.target.value }))} />
+            </div>
+            <div className="od-ssp-field">
+              <label className="od-ssp-label">Text color</label>
+              <input type="color" className="od-ssp-color"
+                value={cfg.textColor}
+                onChange={e => setCfg(c => ({ ...c, textColor: e.target.value }))} />
+            </div>
+          </>
+        )}
+
+        {/* BG image upload for image template */}
+        {cfg.template === 'image' && (
+          <div className="od-ssp-field">
+            <label className="od-ssp-label">Background image</label>
+            <input ref={bgFileRef} type="file" accept=".png,.jpg,.jpeg,.webp" hidden
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleBgImage(f); e.target.value = '' }} />
+            <button className="od-ssp-btn-sm" onClick={() => bgFileRef.current?.click()}>
+              <Upload style={{ width: 12, height: 12 }} />
+              {cfg.bgImageUrl ? 'Replace image' : 'Upload image'}
+            </button>
+          </div>
+        )}
+
+        {/* Logo / favicon toggle */}
+        <div className="od-ssp-field">
+          <label className="od-ssp-radio-label" style={{ cursor: 'pointer' }}>
+            <input type="checkbox"
+              checked={!!cfg.logoUrl}
+              onChange={e => setCfg(c => ({ ...c, logoUrl: e.target.checked ? (faviconUrl ?? null) : null }))} />
+            Show favicon as logo
+          </label>
+        </div>
+
+        <Button onClick={handleSave} disabled={!previewUrl || saving} className="w-full">
+          {saving ? 'Saving…' : saved ? '✓ Saved as OG Image' : 'Save as OG Image'}
+        </Button>
+      </div>
+
+      {/* Right: preview */}
+      <div style={{ flex: 1, minWidth: 300 }}>
+        <PreviewLabel>Preview (1200×630)</PreviewLabel>
+        <div style={{
+          width: '100%', aspectRatio: '1200/630',
+          borderRadius: 8, overflow: 'hidden',
+          border: '1px solid var(--od-color-border, #e5e7eb)',
+          background: '#f0f0f0',
+          position: 'relative',
+        }}>
+          {previewUrl
+            ? <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#9ca3af' }}>
+                {rendering ? 'Rendering…' : 'Preview will appear here'}
+              </div>}
+          {rendering && previewUrl && (
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 13, color: '#6b7280' }}>Rendering…</span>
+            </div>
+          )}
+        </div>
+        <p className="od-ssp-hint" style={{ marginTop: 8 }}>
+          Rendered with Satori. Exports as 1200×630 PNG.
+          {saved && <span style={{ color: 'var(--color-accent, #0969da)', marginLeft: 6 }}>✓ Saved to site root.</span>}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── OG Image tabs (upload | generate) ────────────────────────────────────────
+
+function OGImageTabs({ siteTitle, faviconUrl }: { siteTitle: string; faviconUrl: string | null }) {
+  const [tab, setTab] = useState<'upload' | 'generate'>('generate')
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 2, marginBottom: 20, borderBottom: '1px solid var(--od-color-border, #e5e7eb)' }}>
+        {(['generate', 'upload'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: '6px 14px', fontSize: 13, fontWeight: tab === t ? 600 : 400,
+            color: tab === t ? 'var(--color-accent, #0969da)' : 'var(--od-color-text-muted, #6b7280)',
+            background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--color-accent, #0969da)' : '2px solid transparent',
+            cursor: 'pointer', marginBottom: -1,
+          }}>
+            {t === 'generate' ? '✦ Generate' : '↑ Upload'}
+          </button>
+        ))}
+      </div>
+      {tab === 'generate'
+        ? <OGImageGenerator siteTitle={siteTitle} faviconUrl={faviconUrl} />
+        : <OGImageSection />}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function SiteSettingsPage() {
   const [siteTitle, setSiteTitle] = useState('')
   const [savedTitle, setSavedTitle] = useState('')
   const [savingTitle, setSavingTitle] = useState(false)
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/_opendoc/config.json')
       .then(r => r.json())
-      .then(cfg => { setSiteTitle(cfg.title ?? ''); setSavedTitle(cfg.title ?? '') })
+      .then(cfg => {
+        setSiteTitle(cfg.title ?? '')
+        setSavedTitle(cfg.title ?? '')
+      })
+      .catch(() => {})
+    fetch('/_opendoc/page?path=')
+      .then(r => r.json())
+      .then(data => { if (data.faviconUrl) setFaviconUrl(data.faviconUrl) })
       .catch(() => {})
   }, [])
 
@@ -640,7 +1062,7 @@ export function SiteSettingsPage() {
         {/* OG Image */}
         <section className="od-ssp-section">
           <h2 className="od-ssp-section-heading">OG Image</h2>
-          <OGImageSection />
+          <OGImageTabs siteTitle={savedTitle} faviconUrl={faviconUrl} />
         </section>
 
       </div>
