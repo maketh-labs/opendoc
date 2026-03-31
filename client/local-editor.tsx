@@ -121,7 +121,7 @@ export function LocalEditor() {
   const [saving, setSaving] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [commitMsg, setCommitMsg] = useState('')
-  const [rightPanel, setRightPanel] = useState<RightPanel>(null)
+  const [rightPanel, setRightPanel] = useState<RightPanel>(currentFile ? null : 'site-settings')
 
   const { status: gitStatus, refresh: refreshGit } = useGitStatus()
   const darkMode = useDarkMode()
@@ -133,15 +133,7 @@ export function LocalEditor() {
       setNavTree(nav)
       const allPages = flattenNav(nav).filter(p => p.filePath !== 'index.md')
       setPages(allPages)
-      // If no page is selected yet, default to index.md (root) or first available page
-      setCurrentFile(prev => {
-        if (!prev) {
-          const first = 'index.md'
-          window.history.replaceState({}, '', '/_')
-          return first
-        }
-        return prev
-      })
+      // Don't auto-navigate — if no page is selected, stay at /_ (site settings)
     } catch {}
   }, [])
 
@@ -236,9 +228,9 @@ export function LocalEditor() {
   }
 
   function switchPage(filePath: string) {
-    const url = (!filePath || filePath === 'index.md') ? '/_' : `/_/${filePath}`
-    window.history.pushState({}, '', url)
-    setCurrentFile(filePath || 'index.md')
+    window.history.pushState({}, '', filePath ? `/_/${filePath}` : '/_')
+    setCurrentFile(filePath)
+    if (filePath) setRightPanel(p => p === 'site-settings' ? null : p)
   }
 
   const handleCreatePage = useCallback(async (parentPath: string, name: string) => {
@@ -299,7 +291,11 @@ export function LocalEditor() {
           onCreatePage={handleCreatePage}
           onRefreshNav={refreshNav}
           collapsed={sidebarCollapsed}
-          onOpenSiteSettings={() => setRightPanel(p => p === 'site-settings' ? null : 'site-settings')}
+          onOpenSiteSettings={() => {
+            window.history.pushState({}, '', '/_')
+            setCurrentFile('')
+            setRightPanel('site-settings')
+          }}
         />
       ) : undefined}
       rightPanel={rightPanel}
