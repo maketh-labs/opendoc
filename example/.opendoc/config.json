@@ -1,3 +1,20 @@
 {
-  "title": "My Docs"
+  "title": "Example",
+  "faviconConfig": {
+    "darkMode": "same",
+    "appleTouchMode": "background",
+    "appleTouchBgColor": "#d95000",
+    "appleTouchMargin": 8,
+    "appName": "opendoc",
+    "manifestMode": "background",
+    "manifestBgColor": "#ffffff",
+    "manifestMargin": 4,
+    "manifestName": "",
+    "manifestShortName": "",
+    "themeColor": "#ad3e00",
+    "version": 7,
+    "bgColor": "",
+    "padding": 0,
+    "brightness": 0
+  }
 }
