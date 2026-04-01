@@ -19,22 +19,22 @@ function PageAssetSection({ label, icon, currentUrl, inherited, onUpload, onDele
     : '.png,.jpg,.jpeg,.webp'
 
   return (
-    <div className="od-ps-section">
-      <div className="od-ps-section-header">
+    <div className="mb-1">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text)] mb-2">
         {icon}
-        <span className="od-ps-section-title">{label}</span>
+        <span className="text-xs">{label}</span>
       </div>
       {currentUrl ? (
-        <div className="od-ps-preview">
+        <div className="flex flex-col gap-2">
           <img
             src={currentUrl}
             alt={label}
-            className={label === 'Favicon' ? 'od-ps-favicon-preview' : 'od-ps-og-preview'}
+            className={label === 'Favicon' ? 'w-8 h-8 rounded border border-[var(--color-border)] object-contain' : 'w-full max-h-[120px] rounded-[var(--border-radius)] border border-[var(--color-border)] object-cover'}
           />
           {inherited && (
-            <span className="od-ps-inherited">Inherited</span>
+            <span className="text-[0.7rem] text-[var(--color-muted)] italic">Inherited</span>
           )}
-          <div className="od-ps-actions">
+          <div className="flex gap-1.5">
             <input ref={fileRef} type="file" accept={accept} hidden onChange={e => {
               const f = e.target.files?.[0]
               if (f) onUpload(f)
@@ -51,7 +51,7 @@ function PageAssetSection({ label, icon, currentUrl, inherited, onUpload, onDele
           </div>
         </div>
       ) : (
-        <div className="od-ps-empty">
+        <div className="flex flex-col items-start gap-1.5">
           <input ref={fileRef} type="file" accept={accept} hidden onChange={e => {
             const f = e.target.files?.[0]
             if (f) onUpload(f)
@@ -60,7 +60,7 @@ function PageAssetSection({ label, icon, currentUrl, inherited, onUpload, onDele
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
             <Upload className="h-3 w-3" />{uploading ? 'Uploading…' : `Upload ${label.toLowerCase()}`}
           </Button>
-          <span className="od-ps-hint">No {label.toLowerCase()} set for this page</span>
+          <span className="text-[0.7rem] text-[var(--color-muted)]">No {label.toLowerCase()} set for this page</span>
         </div>
       )}
     </div>
@@ -85,7 +85,7 @@ export function PageSettingsPanel({ pagePath, onClose }: PageSettingsPanelProps)
   const fetchAssets = useCallback(async () => {
     try {
       const dirPath = pageDir === '.' ? '' : pageDir
-      const r = await fetch(`/_opendoc/page?path=${encodeURIComponent(dirPath)}`)
+      const r = await fetch(`/_opendoc/page/${dirPath}`)
       if (!r.ok) return
       const data = await r.json()
       setFaviconUrl(data.faviconUrl || null)
@@ -125,12 +125,12 @@ export function PageSettingsPanel({ pagePath, onClose }: PageSettingsPanelProps)
   }
 
   return (
-    <div className="od-page-settings">
-      <div className="od-page-settings-header">
-        <h3>Page Settings</h3>
-        <button className="od-close-btn" onClick={onClose} aria-label="Close panel">&times;</button>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] shrink-0">
+        <h3 className="text-[0.95rem] font-semibold">Page Settings</h3>
+        <button className="bg-transparent border-none text-[var(--color-muted)] cursor-pointer text-lg px-1.5 py-0.5 rounded-[var(--border-radius)] leading-none hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]" onClick={onClose} aria-label="Close panel">&times;</button>
       </div>
-      <div className="od-page-settings-body">
+      <div className="flex-1 overflow-y-auto p-4">
         <PageAssetSection
           label="Favicon"
           icon={<Globe className="h-4 w-4" />}
@@ -140,7 +140,7 @@ export function PageSettingsPanel({ pagePath, onClose }: PageSettingsPanelProps)
           onDelete={() => deleteAsset('favicon')}
           uploading={uploading}
         />
-        <div className="od-ps-separator" />
+        <div className="h-px bg-[var(--color-border)] my-3" />
         <PageAssetSection
           label="OG Image"
           icon={<Image className="h-4 w-4" />}

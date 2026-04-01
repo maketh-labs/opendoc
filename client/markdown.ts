@@ -3,7 +3,7 @@
 
 import { BlockNoteEditor, BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from '@blocknote/core'
 import type { Block } from '@blocknote/core'
-import { CalloutBlock, CALLOUT_TYPES, type CalloutType } from './callout-block'
+import { CalloutBlock, type CalloutType } from './callout-block'
 import { BookmarkBlock } from './bookmark-block'
 import { codeBlockOptions } from '@blocknote/code-block'
 

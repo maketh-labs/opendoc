@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Upload, RefreshCcw } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { Separator } from './ui/separator'
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -321,9 +321,9 @@ function PreviewLabel({ children }: { children: React.ReactNode }) {
 
 function SectionHeading({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--od-text, #111)', marginBottom: 4, ...style }}>
+    <h3 style={{ fontSize: 'var(--od-text-h3, 1.2rem)', fontWeight: 'var(--od-weight-h3, 600)', lineHeight: 'var(--od-line-height-heading, 1.2)', color: 'var(--od-text, #1a1a2e)', margin: 0, marginBottom: 6, ...style } as React.CSSProperties}>
       {children}
-    </div>
+    </h3>
   )
 }
 
@@ -339,7 +339,7 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    fetch('/_opendoc/page?path=')
+    fetch('/_opendoc/page')
       .then(r => r.json())
       .then(data => { if (data.faviconUrl) setRawUrl(data.faviconUrl) })
       .catch(() => {})
@@ -439,18 +439,18 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {/* ══ Section 1: Classic & SVG Favicons ══ */}
       <SectionHeading>Classic & SVG Favicons</SectionHeading>
-      <p className="od-ssp-hint" style={{ marginBottom: 12 }}>
+      <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal" style={{ marginBottom: 12 }}>
         Generates favicon.ico, favicon.svg, and favicon-96x96.png for all browsers.
       </p>
 
-      <div className="od-ssp-favicon-layout">
-        <div className="od-ssp-favicon-controls">
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Source image</label>
-            <p className="od-ssp-hint">SVG or PNG recommended. At least 512x512px for best results.</p>
+      <div className="flex gap-12 flex-wrap items-start">
+        <div className="flex-[0_0_260px] flex flex-col">
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Source image</label>
+            <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">SVG or PNG recommended. At least 512x512px for best results.</p>
             <input ref={fileRef} type="file" accept=".svg,.png" hidden
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
-            <div className="od-ssp-dropzone"
+            <div className="od-ssp-dropzone flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed border-[var(--od-border)] rounded-lg cursor-pointer transition-all duration-150 min-h-[80px] bg-[var(--od-bg-surface)] hover:border-[var(--od-accent)]"
               role="button"
               tabIndex={0}
               onClick={() => fileRef.current?.click()}
@@ -462,15 +462,15 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
               {rawUrl
                 ? <img src={rawUrl} alt="Favicon source" width={36} height={36} style={{ objectFit: 'contain', borderRadius: 4 }} />
                 : <Upload style={{ width: 20, height: 20, color: 'var(--od-text-muted, #6b7280)' }} />}
-              <span className="od-ssp-dropzone-label">{rawUrl ? 'Click or drag to replace' : 'Click or drag SVG / PNG here'}</span>
+              <span className="text-sm text-[var(--od-text-muted)] text-center">{rawUrl ? 'Click or drag to replace' : 'Click or drag SVG / PNG here'}</span>
             </div>
           </div>
 
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Dark mode favicon</label>
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Dark mode favicon</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {(['same', 'auto-invert', 'custom'] as const).map(opt => (
-                <label key={opt} className="od-ssp-radio-label">
+                <label key={opt} className="flex items-center gap-2 text-sm text-[var(--od-text)] cursor-pointer">
                   <input type="radio" name="darkMode" value={opt} checked={cfg.darkMode === opt}
                     onChange={() => { setCfg(c => ({ ...c, darkMode: opt })); setSaved(false) }} />
                   {opt === 'same' ? 'Same as light' : opt === 'auto-invert' ? 'Auto-invert colors' : 'Upload custom'}
@@ -490,32 +490,30 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
           </div>
         </div>
 
-        <div className="od-ssp-favicon-previews">
-          <div className="od-ssp-preview-pair">
+        <div className="flex-1 min-w-[300px] flex flex-col gap-8">
+          <div className="flex gap-8 flex-wrap">
             <div><PreviewLabel>Browser — Light</PreviewLabel><BrowserPreview favicon={processed.light} siteTitle={siteTitle} theme="light" /></div>
             <div><PreviewLabel>Browser — Dark</PreviewLabel><BrowserPreview favicon={displayedDarkFavicon} siteTitle={siteTitle} theme="dark" /></div>
           </div>
-          <div className="od-ssp-preview-pair">
+          <div className="flex gap-8 flex-wrap">
             <div><PreviewLabel>Google — Light</PreviewLabel><GooglePreview favicon={processed.light} siteTitle={siteTitle} theme="light" /></div>
             <div><PreviewLabel>Google — Dark</PreviewLabel><GooglePreview favicon={displayedDarkFavicon} siteTitle={siteTitle} theme="dark" /></div>
           </div>
         </div>
       </div>
 
-      <Separator className="my-8" />
-
       {/* ══ Section 2: Apple Touch Icon ══ */}
-      <SectionHeading style={{ marginTop: 8 }}>Apple Touch Icon</SectionHeading>
-      <p className="od-ssp-hint" style={{ marginBottom: 12 }}>
+      <SectionHeading style={{ marginTop: 32 }}>Apple Touch Icon</SectionHeading>
+      <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal" style={{ marginBottom: 12 }}>
         180x180 icon for iOS "Add to Home Screen".
       </p>
 
-      <div className="od-ssp-favicon-layout">
-        <div className="od-ssp-favicon-controls">
-          <div className="od-ssp-field">
+      <div className="flex gap-12 flex-wrap items-start">
+        <div className="flex-[0_0_260px] flex flex-col">
+          <div className="flex flex-col gap-1.5 mb-[18px]">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {(['as-is', 'background'] as const).map(opt => (
-                <label key={opt} className="od-ssp-radio-label">
+                <label key={opt} className="flex items-center gap-2 text-sm text-[var(--od-text)] cursor-pointer">
                   <input type="radio" name="appleTouchMode" value={opt} checked={cfg.appleTouchMode === opt}
                     onChange={() => { setCfg(c => ({ ...c, appleTouchMode: opt })); setSaved(false) }} />
                   {opt === 'as-is' ? 'Use icon as is' : 'Add a plain background and margins'}
@@ -525,49 +523,47 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
             {cfg.appleTouchMode === 'background' && (
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div>
-                  <label className="od-ssp-label">Background color</label>
+                  <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Background color</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input type="color" className="od-ssp-color" value={cfg.appleTouchBgColor}
+                    <input type="color" className="w-9 h-[34px] p-0.5 border border-[var(--od-border)] rounded-md cursor-pointer bg-transparent" value={cfg.appleTouchBgColor}
                       onChange={e => { setCfg(c => ({ ...c, appleTouchBgColor: e.target.value })); setSaved(false) }} />
                     <span style={{ fontSize: 12, color: 'var(--od-text-muted, #6b7280)' }}>{cfg.appleTouchBgColor}</span>
                   </div>
                 </div>
                 <div>
-                  <label className="od-ssp-label">Image margin <span className="od-ssp-value">{cfg.appleTouchMargin}%</span></label>
-                  <input type="range" min={0} max={40} step={1} value={cfg.appleTouchMargin} className="od-ssp-range"
+                  <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Image margin <span className="font-normal text-[var(--od-text-muted)]">{cfg.appleTouchMargin}%</span></label>
+                  <input type="range" min={0} max={40} step={1} value={cfg.appleTouchMargin} className="w-full max-w-[280px] accent-[var(--od-accent)] cursor-pointer"
                     onChange={e => { setCfg(c => ({ ...c, appleTouchMargin: +e.target.value })); setSaved(false) }} />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">App name</label>
-            <p className="od-ssp-hint">iOS home screen label.</p>
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">App name</label>
+            <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">iOS home screen label.</p>
             <Input placeholder={siteTitle || 'My Docs'} value={cfg.appName}
               onChange={e => { setCfg(c => ({ ...c, appName: e.target.value })); setSaved(false) }} />
           </div>
         </div>
 
-        <div className="od-ssp-favicon-previews">
+        <div className="flex-1 min-w-[300px] flex flex-col gap-8">
           <AppleTouchPreview favicon={processed.appleTouch} appName={appleName} />
         </div>
       </div>
 
-      <Separator className="my-8" />
-
       {/* ══ Section 3: Web App Manifest ══ */}
-      <SectionHeading style={{ marginTop: 8 }}>Web App Manifest</SectionHeading>
-      <p className="od-ssp-hint" style={{ marginBottom: 12 }}>
+      <SectionHeading style={{ marginTop: 32 }}>Web App Manifest</SectionHeading>
+      <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal" style={{ marginBottom: 12 }}>
         192x192 and 512x512 icons for Android "Add to Home Screen" and PWA install.
       </p>
 
-      <div className="od-ssp-favicon-layout">
-        <div className="od-ssp-favicon-controls">
-          <div className="od-ssp-field">
+      <div className="flex gap-12 flex-wrap items-start">
+        <div className="flex-[0_0_260px] flex flex-col">
+          <div className="flex flex-col gap-1.5 mb-[18px]">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {(['as-is', 'background'] as const).map(opt => (
-                <label key={opt} className="od-ssp-radio-label">
+                <label key={opt} className="flex items-center gap-2 text-sm text-[var(--od-text)] cursor-pointer">
                   <input type="radio" name="manifestMode" value={opt} checked={cfg.manifestMode === opt}
                     onChange={() => { setCfg(c => ({ ...c, manifestMode: opt })); setSaved(false) }} />
                   {opt === 'as-is' ? 'Use icon as is' : 'Add a plain background and margins'}
@@ -577,52 +573,52 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
             {cfg.manifestMode === 'background' && (
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div>
-                  <label className="od-ssp-label">Icon background color</label>
+                  <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Icon background color</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input type="color" className="od-ssp-color" value={cfg.manifestBgColor}
+                    <input type="color" className="w-9 h-[34px] p-0.5 border border-[var(--od-border)] rounded-md cursor-pointer bg-transparent" value={cfg.manifestBgColor}
                       onChange={e => { setCfg(c => ({ ...c, manifestBgColor: e.target.value })); setSaved(false) }} />
                     <span style={{ fontSize: 12, color: 'var(--od-text-muted, #6b7280)' }}>{cfg.manifestBgColor}</span>
                   </div>
                 </div>
                 <div>
-                  <label className="od-ssp-label">Image margin <span className="od-ssp-value">{cfg.manifestMargin}%</span></label>
-                  <input type="range" min={0} max={40} step={1} value={cfg.manifestMargin} className="od-ssp-range"
+                  <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Image margin <span className="font-normal text-[var(--od-text-muted)]">{cfg.manifestMargin}%</span></label>
+                  <input type="range" min={0} max={40} step={1} value={cfg.manifestMargin} className="w-full max-w-[280px] accent-[var(--od-accent)] cursor-pointer"
                     onChange={e => { setCfg(c => ({ ...c, manifestMargin: +e.target.value })); setSaved(false) }} />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Name</label>
-            <p className="od-ssp-hint">Full app name shown on the splash screen.</p>
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Name</label>
+            <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">Full app name shown on the splash screen.</p>
             <Input placeholder={siteTitle || 'My Docs'} value={cfg.manifestName}
               onChange={e => { setCfg(c => ({ ...c, manifestName: e.target.value })); setSaved(false) }} />
           </div>
 
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Short name</label>
-            <p className="od-ssp-hint">Shown below the icon on the home screen.</p>
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Short name</label>
+            <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">Shown below the icon on the home screen.</p>
             <Input placeholder={manifestName} value={cfg.manifestShortName}
               onChange={e => { setCfg(c => ({ ...c, manifestShortName: e.target.value })); setSaved(false) }} />
           </div>
 
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Background color</label>
-            <p className="od-ssp-hint">Splash screen background color.</p>
-            <input type="color" className="od-ssp-color" value={cfg.splashBgColor}
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Background color</label>
+            <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">Splash screen background color.</p>
+            <input type="color" className="w-9 h-[34px] p-0.5 border border-[var(--od-border)] rounded-md cursor-pointer bg-transparent" value={cfg.splashBgColor}
               onChange={e => { setCfg(c => ({ ...c, splashBgColor: e.target.value })); setSaved(false) }} />
           </div>
 
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Theme color</label>
-            <p className="od-ssp-hint">Color shown in the app switcher header bar.</p>
-            <input type="color" className="od-ssp-color" value={cfg.themeColor}
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Theme color</label>
+            <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">Color shown in the app switcher header bar.</p>
+            <input type="color" className="w-9 h-[34px] p-0.5 border border-[var(--od-border)] rounded-md cursor-pointer bg-transparent" value={cfg.themeColor}
               onChange={e => { setCfg(c => ({ ...c, themeColor: e.target.value })); setSaved(false) }} />
           </div>
         </div>
 
-        <div className="od-ssp-favicon-previews">
+        <div className="flex-1 min-w-[300px] flex flex-col gap-8">
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div>
               <PreviewLabel>Home</PreviewLabel>
@@ -640,20 +636,14 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
         </div>
       </div>
 
-      <Separator className="my-8" />
-
-      {/* ══ Cache version + Save ══ */}
-      <div className="od-ssp-field">
-        <label className="od-ssp-label">Cache version <span className="od-ssp-value">v{cfg.version}</span></label>
-        <p className="od-ssp-hint">Increment to force browsers to reload the cached favicon.</p>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button variant="outline" size="sm" onClick={() => { setCfg(c => ({ ...c, version: c.version + 1 })); setSaved(false) }}>
-            <RefreshCcw style={{ width: 12, height: 12 }} /> Bump version
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={!rawUrl || saving}>
-            {saving ? 'Saving...' : saved ? 'Saved' : 'Save Favicon'}
-          </Button>
-        </div>
+      {/* ══ Save ══ */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 32 }}>
+        <Button variant="ghost" size="sm" onClick={() => { setCfg(c => ({ ...c, version: c.version + 1 })); setSaved(false) }}>
+          <RefreshCcw style={{ width: 12, height: 12 }} /> Bust cache <span style={{ fontWeight: 400, color: 'var(--od-text-muted, #6b7280)' }}>v{cfg.version}</span>
+        </Button>
+        <Button onClick={handleSave} disabled={!rawUrl || saving}>
+          {saving ? 'Saving...' : saved ? 'Saved' : 'Save Favicon'}
+        </Button>
       </div>
     </div>
   )

@@ -38,9 +38,9 @@ function CodeBlockToolbar({ blockId, container, editor }: ToolbarEntry & { edito
   }, [editor, blockId])
 
   return (
-    <div className="od-cb-toolbar" contentEditable={false}>
+    <div className="od-cb-toolbar absolute top-1.5 right-2 flex items-center gap-1 z-10 opacity-0 transition-opacity duration-[120ms] pointer-events-none" contentEditable={false}>
       <select
-        className="od-cb-lang-select"
+        className="h-6 px-1.5 border border-[var(--color-border)] rounded bg-[var(--color-surface)] text-[var(--color-text)] text-[0.7rem] font-inherit cursor-pointer outline-none max-w-[130px] focus:border-[var(--color-accent)]"
         value={language}
         onChange={handleLanguageChange}
         aria-label="Code language"
@@ -49,7 +49,7 @@ function CodeBlockToolbar({ blockId, container, editor }: ToolbarEntry & { edito
           <option key={l.id} value={l.id}>{l.name}</option>
         ))}
       </select>
-      <button className="od-cb-copy-btn" onClick={handleCopy} title="Copy code">
+      <button className="flex items-center justify-center w-6 h-6 border border-[var(--color-border)] rounded bg-[var(--color-surface)] text-[var(--od-color-text-muted)] cursor-pointer transition-all duration-[120ms] shrink-0 hover:bg-[var(--od-color-surface-2)] hover:text-[var(--color-text)]" onClick={handleCopy} title="Copy code">
         {copied ? (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />

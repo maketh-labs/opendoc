@@ -32,14 +32,14 @@ export function SiteSettingsPage() {
   const titleDirty = siteTitle !== savedTitle
 
   return (
-    <div className="od-ssp-wrap">
-      <div className="od-ssp-content">
-        <h1 className="od-ssp-heading">Site Settings</h1>
+    <div className="flex-1 overflow-y-auto bg-[var(--od-bg)]">
+      <div className="max-w-[860px] mx-auto px-10 pt-12 pb-20">
+        <h1 className="text-[length:var(--od-text-h1,2.5rem)] font-[number:var(--od-weight-h1,700)] leading-[var(--od-line-height-heading,1.2)] text-[var(--od-text)] mb-8">Site Settings</h1>
 
-        <section className="od-ssp-section">
-          <h2 className="od-ssp-section-heading">General</h2>
-          <div className="od-ssp-field">
-            <label className="od-ssp-label">Site title</label>
+        <section className="mb-8">
+          <h2 className="text-[length:var(--od-text-h2,1.5rem)] font-[number:var(--od-weight-h2,600)] leading-[var(--od-line-height-heading,1.2)] text-[var(--od-text)] mb-5">General</h2>
+          <div className="flex flex-col gap-1.5 mb-[18px]">
+            <label className="text-sm font-medium text-[var(--od-text)] flex items-center gap-1.5">Site title</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <Input
                 type="text"
@@ -59,15 +59,15 @@ export function SiteSettingsPage() {
 
         <Separator className="mt-8 mb-10" />
 
-        <section className="od-ssp-section">
-          <h2 className="od-ssp-section-heading">Favicon</h2>
+        <section className="mb-8">
+          <h2 className="text-[length:var(--od-text-h2,1.5rem)] font-[number:var(--od-weight-h2,600)] leading-[var(--od-line-height-heading,1.2)] text-[var(--od-text)] mb-5">Favicon</h2>
           <FaviconSection siteTitle={savedTitle} />
         </section>
 
         <Separator className="mt-8 mb-10" />
 
-        <section className="od-ssp-section">
-          <h2 className="od-ssp-section-heading">OG Image</h2>
+        <section className="mb-8">
+          <h2 className="text-[length:var(--od-text-h2,1.5rem)] font-[number:var(--od-weight-h2,600)] leading-[var(--od-line-height-heading,1.2)] text-[var(--od-text)] mb-5">OG Image</h2>
           <OGImageSection siteTitle={savedTitle} />
         </section>
       </div>

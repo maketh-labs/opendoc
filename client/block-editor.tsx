@@ -227,11 +227,11 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
   }, [editor])
 
   return (
-    <div className="od-editor-content" ref={editorWrapperRef}>
+    <div className="w-full flex flex-col" ref={editorWrapperRef}>
       {pageHeader}
       <div style={{ position: 'relative' }}>
         {editorEmpty && (
-          <div className="od-editor-empty-hint">Start writing...</div>
+          <div className="absolute top-3 left-[54px] text-[var(--od-color-text-muted)] pointer-events-none text-[length:var(--od-font-size,16px)] leading-[var(--od-line-height,1.7)] opacity-50 z-[1] select-none">Start writing...</div>
         )}
         <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false}>
           <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />

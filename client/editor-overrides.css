@@ -1,0 +1,197 @@
+/* ── Editor overrides ─────────────────────────────────────────────────────
+   This file is imported AFTER BlockNote CSS so our rules win without !important.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* BlockNote theme variable mapping */
+.bn-container {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: var(--od-color-text, #1a1a1a);
+  --bn-colors-menu-background: var(--od-color-surface, #f5f5f5);
+  --bn-colors-menu-text: var(--od-color-text, #1a1a1a);
+  --bn-colors-hovered-background: var(--od-color-surface-2, #ebebeb);
+  --bn-colors-selected-background: var(--od-color-accent, #2563eb);
+  --bn-colors-side-menu: var(--od-color-text-muted, #6b7280);
+  --bn-colors-border: var(--od-color-border, #e5e7eb);
+  --bn-border-radius: var(--od-radius, 6px);
+  --bn-font-family: var(--od-font-body, var(--font-body));
+}
+
+.bn-editor {
+  background-color: transparent !important;
+  color: var(--od-color-text, #1a1a1a);
+  font-family: var(--od-font-body, var(--font-body));
+  font-size: var(--od-font-size);
+  line-height: var(--od-line-height);
+}
+
+/* Per-block hover highlight */
+.bn-block-outer:hover > .bn-block {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 4px;
+}
+[data-theme="dark"] .bn-block-outer:hover > .bn-block {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.bn-block-content[data-content-type=codeBlock] {
+  font-family: var(--od-font-mono, var(--font-mono));
+}
+.bn-inline-content code {
+  font-family: var(--od-font-mono, var(--font-mono));
+  background: var(--od-color-surface, #f5f5f5);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+  font-size: 0.875em;
+}
+
+.ProseMirror { outline: none; }
+.ProseMirror-focused { outline: none; }
+
+/* ── Heading sizes — override BlockNote's --level variable ────────────── */
+[data-content-type="heading"]                          { --level: 2rem; }
+[data-content-type="heading"][data-level="2"]          { --level: 1.5rem; }
+[data-content-type="heading"][data-level="3"]          { --level: 1.2rem; }
+[data-content-type="heading"][data-level="4"]          { --level: 1rem; }
+.bn-block-content[data-content-type="heading"][data-level="1"] { font-weight: 700; }
+.bn-block-content[data-content-type="heading"][data-level="2"] { font-weight: 600; }
+.bn-block-content[data-content-type="heading"][data-level="3"] { font-weight: 600; }
+.bn-block-content[data-content-type="heading"][data-level="4"] { font-weight: 600; }
+
+/* ── Links ────────────────────────────────────────────────────────────── */
+.bn-editor a { color: var(--od-color-accent); text-decoration: none; }
+.bn-editor a:hover { text-decoration: underline; }
+
+/* ── Inline code ──────────────────────────────────────────────────────── */
+.bn-editor .bn-inline-content code {
+  font-family: var(--od-font-mono);
+  font-size: 0.875em;
+  background: var(--od-color-surface);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+
+/* ── Code block ───────────────────────────────────────────────────────── */
+.bn-block-content[data-content-type="codeBlock"] {
+  background: var(--od-color-surface);
+  border: 1px solid var(--od-color-border);
+  border-radius: var(--od-radius);
+  padding: 1rem;
+  overflow-x: auto;
+}
+.bn-block-content[data-content-type="codeBlock"] * {
+  font-family: var(--od-font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* ── Blockquote ───────────────────────────────────────────────────────── */
+.bn-block-content[data-content-type="quote"],
+.bn-block-content[data-content-type="blockquote"] {
+  border-left: 3px solid var(--od-color-accent);
+  padding-left: 1rem;
+  color: var(--od-color-text-muted);
+}
+
+/* ── Lists ────────────────────────────────────────────────────────────── */
+.bn-block-content[data-content-type="bulletListItem"],
+.bn-block-content[data-content-type="numberedListItem"],
+.bn-block-content[data-content-type="checkListItem"] {
+  margin-bottom: 0.25rem;
+}
+
+/* ── Images ───────────────────────────────────────────────────────────── */
+.bn-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--od-radius);
+  border: 1px solid var(--od-color-border);
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────── */
+.bn-editor table { width: 100%; border-collapse: collapse; }
+.bn-editor th, .bn-editor td {
+  border: 1px solid var(--od-color-border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.bn-editor th { background: var(--od-color-surface); font-weight: 600; }
+
+/* ── HR ───────────────────────────────────────────────────────────────── */
+.bn-editor hr {
+  border: none;
+  border-top: 1px solid var(--od-color-border);
+  margin: 2rem 0;
+}
+
+/* ── Drag-over highlight ──────────────────────────────────────────────── */
+.od-drag-over .bn-editor {
+  outline: 2px dashed var(--od-color-accent, #6366f1);
+  outline-offset: -4px;
+  border-radius: var(--od-radius);
+  background: color-mix(in srgb, var(--od-color-accent, #6366f1) 4%, transparent);
+}
+
+/* ── Block spacing ────────────────────────────────────────────────────── */
+.bn-block-outer { margin-bottom: 2px; }
+.bn-block-content[data-content-type="paragraph"] { min-height: 1.5rem; }
+.bn-block-content[data-content-type="heading"][data-level="1"] { margin-top: 2rem; }
+.bn-block-content[data-content-type="heading"][data-level="2"] { margin-top: 1.5rem; }
+.bn-block-content[data-content-type="heading"][data-level="3"] { margin-top: 1rem; }
+
+/* ── Callout type colors ──────────────────────────────────────────────── */
+.od-callout-info      { background: #eff6ff; border-color: #93c5fd; }
+.od-callout-note      { background: #f9fafb; border-color: #d1d5db; }
+.od-callout-tip       { background: #ecfdf5; border-color: #6ee7b7; }
+.od-callout-warning   { background: #fffbeb; border-color: #fcd34d; }
+.od-callout-caution   { background: #fef2f2; border-color: #fca5a5; }
+.od-callout-important { background: #f5f3ff; border-color: #c4b5fd; }
+
+[data-theme="dark"] .od-callout-info      { background: rgba(59,130,246,0.1); border-color: rgba(147,197,253,0.3); }
+[data-theme="dark"] .od-callout-note      { background: rgba(107,114,128,0.1); border-color: rgba(209,213,219,0.3); }
+[data-theme="dark"] .od-callout-tip       { background: rgba(16,185,129,0.1); border-color: rgba(110,231,183,0.3); }
+[data-theme="dark"] .od-callout-warning   { background: rgba(245,158,11,0.1); border-color: rgba(252,211,77,0.3); }
+[data-theme="dark"] .od-callout-caution   { background: rgba(239,68,68,0.1); border-color: rgba(252,165,165,0.3); }
+[data-theme="dark"] .od-callout-important { background: rgba(139,92,246,0.1); border-color: rgba(196,181,253,0.3); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .od-callout-info      { background: rgba(59,130,246,0.1); border-color: rgba(147,197,253,0.3); }
+  :root:not([data-theme="light"]) .od-callout-note      { background: rgba(107,114,128,0.1); border-color: rgba(209,213,219,0.3); }
+  :root:not([data-theme="light"]) .od-callout-tip       { background: rgba(16,185,129,0.1); border-color: rgba(110,231,183,0.3); }
+  :root:not([data-theme="light"]) .od-callout-warning   { background: rgba(245,158,11,0.1); border-color: rgba(252,211,77,0.3); }
+  :root:not([data-theme="light"]) .od-callout-caution   { background: rgba(239,68,68,0.1); border-color: rgba(252,165,165,0.3); }
+  :root:not([data-theme="light"]) .od-callout-important { background: rgba(139,92,246,0.1); border-color: rgba(196,181,253,0.3); }
+}
+
+/* ── Code block toolbar visibility ────────────────────────────────────── */
+[data-content-type="codeBlock"]:hover ~ .od-cb-toolbar,
+[data-content-type="codeBlock"]:focus-within ~ .od-cb-toolbar,
+[data-id]:hover .od-cb-toolbar,
+[data-id]:focus-within .od-cb-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Checkbox styling ─────────────────────────────────────────────────── */
+.bn-block-content[data-content-type="checkListItem"] input[type="checkbox"] {
+  width: 16px; height: 16px;
+  cursor: pointer;
+  accent-color: var(--od-color-accent);
+}
+.bn-block-content[data-content-type="checkListItem"][data-checked="true"] .bn-inline-content {
+  color: var(--od-color-text-muted);
+  text-decoration: line-through;
+}
+
+/* ── Numbered list ────────────────────────────────────────────────────── */
+.bn-block-content[data-content-type="numberedListItem"]::before {
+  min-width: 24px;
+  padding-right: 4px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Shiki dual-theme ─────────────────────────────────────────────────── */
+.bn-container .shiki span { color: var(--shiki-light); }
+.bn-container[data-color-scheme="dark"] .shiki span { color: var(--shiki-dark); }
+
+/* ── Side menu alignment fix ──────────────────────────────────────────── */
+.bn-side-menu { align-items: center !important; }

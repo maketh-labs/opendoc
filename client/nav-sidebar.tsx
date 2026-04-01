@@ -7,7 +7,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import type { NavNode } from './editor-utils'
-import { saveOrder, movePageApi, fetchOrder, deletePageApi, renamePageApi, duplicatePageApi, flattenNav } from './editor-utils'
+import { saveOrder, movePageApi, fetchOrder, deletePageApi, renamePageApi, duplicatePageApi, flattenNav, showToast } from './editor-utils'
 
 export interface NavSidebarProps {
   nav: NavNode
@@ -78,19 +78,28 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
       setContextMenu(prev => prev ? { ...prev, confirmingDelete: true } : null)
     } else if (action === 'delete') {
       setContextMenu(null)
-      await deletePageApi(nodePath)
-      await onRefreshNav()
-      // If deleted page is currently open, navigate to first available page
-      const filePath = nodePath ? `${nodePath}/index.md` : 'index.md'
-      if (currentFile === filePath || currentFile.startsWith(nodePath + '/')) {
-        const pages = flattenNav(nav)
-        const firstAvailable = pages.find(p => !p.filePath.startsWith(nodePath + '/') && p.filePath !== filePath)
-        if (firstAvailable) onNavigate(firstAvailable.filePath)
+      try {
+        await deletePageApi(nodePath)
+        await onRefreshNav()
+        // If deleted page is currently open, navigate away
+        const filePath = nodePath ? `${nodePath}/index.md` : 'index.md'
+        if (nodePath && (currentFile === filePath || currentFile.startsWith(nodePath + '/'))) {
+          const pages = flattenNav(nav).filter(p =>
+            !p.filePath.startsWith(nodePath + '/') && p.filePath !== filePath
+          )
+          if (pages.length) onNavigate(pages[0].filePath)
+        }
+      } catch (e) {
+        showToast((e as Error).message || 'Delete failed', 'error')
       }
     } else if (action === 'duplicate') {
       setContextMenu(null)
-      await duplicatePageApi(nodePath)
-      await onRefreshNav()
+      try {
+        await duplicatePageApi(nodePath)
+        await onRefreshNav()
+      } catch (e) {
+        showToast((e as Error).message || 'Duplicate failed', 'error')
+      }
     }
   }, [contextMenu, currentFile, nav, onNavigate, onRefreshNav, handleStartCreate])
 
@@ -99,12 +108,15 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
     const parent = parentDir(oldPath)
     const newPath = parent === '.' ? newSlug : `${parent}/${newSlug}`
     if (newPath === oldPath) return
-    await renamePageApi(oldPath, newPath)
-    await onRefreshNav()
-    // If renamed page is currently open, navigate to new path
-    const oldFile = `${oldPath}/index.md`
-    if (currentFile === oldFile) {
-      onNavigate(`${newPath}/index.md`)
+    try {
+      await renamePageApi(oldPath, newPath)
+      await onRefreshNav()
+      const oldFile = `${oldPath}/index.md`
+      if (currentFile === oldFile) {
+        onNavigate(`${newPath}/index.md`)
+      }
+    } catch (e) {
+      showToast((e as Error).message || 'Rename failed', 'error')
     }
   }, [currentFile, onNavigate, onRefreshNav])
 
@@ -127,72 +139,75 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
     const draggedFolder = folderName(draggedPath)
     const sourceParent = parentDir(draggedPath)
 
-    if (zone.type === 'between') {
-      const targetParent = zone.parentPath
+    try {
+      if (zone.type === 'between') {
+        const targetParent = zone.parentPath
 
-      if (sourceParent === targetParent) {
-        // Same-level reorder
-        const currentOrder = await fetchOrder(targetParent)
-        // Get siblings from nav tree
-        const siblings = targetParent === '.'
-          ? nav.children.map(c => folderName(c.path))
-          : findNode(nav, targetParent)?.children.map(c => folderName(c.path)) ?? []
+        if (sourceParent === targetParent) {
+          // Same-level reorder
+          const [currentOrder, siblings] = await Promise.all([
+            fetchOrder(targetParent),
+            Promise.resolve(
+              targetParent === '.'
+                ? nav.children.map(c => folderName(c.path))
+                : findNode(nav, targetParent)?.children.map(c => folderName(c.path)) ?? []
+            ),
+          ])
 
-        // Use currentOrder as base, fallback to nav order for unlisted
-        const ordered = currentOrder.length > 0 ? [...currentOrder] : [...siblings]
-        // Ensure all siblings are in the list
-        for (const s of siblings) {
-          if (!ordered.includes(s)) ordered.push(s)
+          const ordered = currentOrder.length > 0 ? [...currentOrder] : [...siblings]
+          for (const s of siblings) {
+            if (!ordered.includes(s)) ordered.push(s)
+          }
+
+          const fromIdx = ordered.indexOf(draggedFolder)
+          if (fromIdx !== -1) ordered.splice(fromIdx, 1)
+          let insertIdx = zone.index
+          if (fromIdx !== -1 && fromIdx < insertIdx) insertIdx--
+          ordered.splice(insertIdx, 0, draggedFolder)
+
+          await saveOrder(targetParent, ordered)
+        } else {
+          // Cross-level move
+          const newPath = targetParent === '.' ? draggedFolder : `${targetParent}/${draggedFolder}`
+          await movePageApi(draggedPath, newPath)
+
+          // Update both orders in parallel
+          const [srcOrder, destOrder] = await Promise.all([
+            fetchOrder(sourceParent),
+            fetchOrder(targetParent),
+          ])
+          destOrder.splice(zone.index, 0, draggedFolder)
+          await Promise.all([
+            saveOrder(sourceParent, srcOrder.filter(n => n !== draggedFolder)),
+            saveOrder(targetParent, destOrder),
+          ])
         }
+      } else if (zone.type === 'onto') {
+        if (draggedPath === zone.targetPath) return
+        if (zone.targetPath.startsWith(draggedPath + '/')) return
 
-        const fromIdx = ordered.indexOf(draggedFolder)
-        if (fromIdx !== -1) ordered.splice(fromIdx, 1)
-        // Insert at target index, adjust if needed
-        let insertIdx = zone.index
-        if (fromIdx !== -1 && fromIdx < insertIdx) insertIdx--
-        ordered.splice(insertIdx, 0, draggedFolder)
-
-        await saveOrder(targetParent, ordered)
-      } else {
-        // Cross-level move: move folder then update both orders
-        const newPath = targetParent === '.' ? draggedFolder : `${targetParent}/${draggedFolder}`
+        const newPath = `${zone.targetPath}/${draggedFolder}`
         await movePageApi(draggedPath, newPath)
 
-        // Remove from source order
-        const srcOrder = await fetchOrder(sourceParent)
-        const filtered = srcOrder.filter(n => n !== draggedFolder)
-        await saveOrder(sourceParent, filtered)
-
-        // Add to destination order at correct position
-        const destOrder = await fetchOrder(targetParent)
-        destOrder.splice(zone.index, 0, draggedFolder)
-        await saveOrder(targetParent, destOrder)
+        const [srcOrder, destOrder] = await Promise.all([
+          fetchOrder(sourceParent),
+          fetchOrder(zone.targetPath),
+        ])
+        destOrder.push(draggedFolder)
+        await Promise.all([
+          saveOrder(sourceParent, srcOrder.filter(n => n !== draggedFolder)),
+          saveOrder(zone.targetPath, destOrder),
+        ])
       }
       await onRefreshNav()
-    } else if (zone.type === 'onto') {
-      // Move into target as child
-      if (draggedPath === zone.targetPath) return
-      // Don't allow dropping into own descendants
-      if (zone.targetPath.startsWith(draggedPath + '/')) return
-
-      const newPath = `${zone.targetPath}/${draggedFolder}`
-      await movePageApi(draggedPath, newPath)
-
-      // Remove from source order
-      const srcOrder = await fetchOrder(sourceParent)
-      await saveOrder(sourceParent, srcOrder.filter(n => n !== draggedFolder))
-
-      // Add to destination order
-      const destOrder = await fetchOrder(zone.targetPath)
-      destOrder.push(draggedFolder)
-      await saveOrder(zone.targetPath, destOrder)
-
+    } catch (e) {
+      showToast((e as Error).message || 'Move failed', 'error')
       await onRefreshNav()
     }
   }, [draggedPath, nav, onRefreshNav])
 
   return (
-    <aside className={`od-sidebar-left${collapsed ? ' od-sidebar-collapsed' : ''}`}>
+    <aside className={`od-sidebar-left w-[260px] min-w-[260px] bg-[var(--od-color-surface)] border-r border-[var(--od-color-border)] overflow-y-auto shrink-0 transition-all duration-200 flex flex-col${collapsed ? ' od-sidebar-collapsed !w-0 !min-w-0 !overflow-hidden !border-r-transparent' : ''}`}>
       {!collapsed && (
         <>
           <div className="flex items-center justify-between px-3 py-2 border-b text-sm font-semibold">
@@ -220,7 +235,6 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
                   <InlineNewPageInput
                     onConfirm={(name) => handleConfirmCreate('', name)}
                     onCancel={handleCancelCreate}
-                    depth={0}
                   />
                 )}
                 {nav.children.map((child, idx) => (
@@ -309,10 +323,9 @@ function findNode(root: NavNode, path: string): NavNode | null {
   return null
 }
 
-function InlineNewPageInput({ onConfirm, onCancel, depth }: {
+function InlineNewPageInput({ onConfirm, onCancel }: {
   onConfirm: (name: string) => void
   onCancel: () => void
-  depth: number
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState('')
@@ -602,7 +615,6 @@ function NavItem({
             <InlineNewPageInput
               onConfirm={(name) => onConfirmCreate(nodePath, name)}
               onCancel={onCancelCreate}
-              depth={depth + 1}
             />
           )}
           {node.children.map((child, idx) => (

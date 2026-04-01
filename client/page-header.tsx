@@ -44,9 +44,9 @@ export function PageHeader({ title, icon, onTitleChange, onIconChange, darkMode 
   }, [onIconChange])
 
   return (
-    <div className="od-page-header">
+    <div className="od-page-header w-full px-[54px] mb-2">
       {icon && (
-        <div className="od-page-icon-wrap">
+        <div className="relative">
           <Button
             ref={buttonRef}
             variant="ghost"
@@ -56,7 +56,7 @@ export function PageHeader({ title, icon, onTitleChange, onIconChange, darkMode 
             {icon}
           </Button>
           {pickerOpen && (
-            <div ref={pickerRef} className="od-emoji-picker">
+            <div ref={pickerRef} className="absolute top-full left-0 z-[100] mt-1">
               <Picker
                 data={data}
                 onEmojiSelect={handleEmojiSelect}
@@ -70,7 +70,7 @@ export function PageHeader({ title, icon, onTitleChange, onIconChange, darkMode 
       )}
       <textarea
         ref={textareaRef}
-        className="od-page-title"
+        className="od-page-title block w-full font-[family-name:var(--od-font-body)] text-[2.5rem] font-bold leading-[1.2] text-[var(--od-color-text)] bg-transparent border-none outline-none resize-none p-0 m-0 overflow-hidden"
         value={title}
         placeholder="Untitled"
         onChange={e => onTitleChange(e.target.value)}

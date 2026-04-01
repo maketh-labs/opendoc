@@ -21,13 +21,13 @@ export const ThemeIcon = () => (
 
 export function EditorShell({ header, nav, children, rightPanel, onRightClose, pagePath }: EditorShellProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="flex flex-col h-screen">
       {header}
-      <div className="od-editor-body">
+      <div className="flex flex-1 overflow-hidden">
         {nav}
-        <div className="od-wysiwyg-wrap">{children}</div>
+        <div className="od-wysiwyg-wrap flex-1 overflow-y-auto flex py-16 px-8 bg-[var(--od-color-bg)]">{children}</div>
         <aside
-          className={`od-editor-right${rightPanel ? ' open' : ''}`}
+          className={`od-editor-right shrink-0 border-l transition-all duration-200 ${rightPanel ? 'open w-[var(--od-theme-panel-width)] border-l-[var(--color-border)] overflow-y-auto' : 'w-0 overflow-hidden border-transparent'}`}
           id="editor-right-panel"
         >
           {rightPanel === 'theme' && <ThemePanel onClose={onRightClose} />}

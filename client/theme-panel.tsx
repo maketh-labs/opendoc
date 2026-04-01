@@ -34,16 +34,16 @@ function Section({ title, icon, defaultOpen, children }: {
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false)
   return (
-    <div className="od-tp-section">
+    <div>
       <button
-        className="od-tp-section-header"
+        className="flex items-center gap-1.5 w-full py-2 bg-transparent border-none cursor-pointer text-[0.82rem] font-semibold text-[var(--color-text)] font-inherit text-left hover:text-[var(--color-accent)]"
         onClick={() => setOpen(!open)}
       >
-        <span className="od-tp-section-icon">{icon}</span>
-        <span className="od-tp-section-title">{title}</span>
-        <span className={`od-tp-chevron ${open ? 'open' : ''}`}>&#9654;</span>
+        <span className="text-[0.9rem]">{icon}</span>
+        <span className="flex-1">{title}</span>
+        <span className={`text-[0.55rem] text-[var(--color-muted)] transition-transform duration-150 ${open ? 'rotate-90' : ''}`}>&#9654;</span>
       </button>
-      {open && <div className="od-tp-section-body">{children}</div>}
+      {open && <div className="pb-1">{children}</div>}
     </div>
   )
 }
@@ -65,13 +65,14 @@ function ColorPair({ label, lightVar, darkVar, onChange }: {
   }, [lightVar, darkVar])
 
   return (
-    <div className="od-tp-row">
-      <label className="od-tp-label">{label}</label>
-      <div className="od-tp-color-pair">
-        <div className="od-tp-color-input">
-          <span className="od-tp-color-mode-label">L</span>
+    <div className="flex items-center gap-2 mb-1.5">
+      <label className="text-xs text-[var(--color-muted)] min-w-[70px] shrink-0">{label}</label>
+      <div className="flex gap-1.5 items-center">
+        <div className="flex items-center gap-[3px]">
+          <span className="text-[0.6rem] text-[var(--color-muted)] font-semibold">L</span>
           <input
             type="color"
+            className="od-color-swatch"
             value={normalizeColor(light)}
             onChange={e => {
               setLight(e.target.value)
@@ -80,10 +81,11 @@ function ColorPair({ label, lightVar, darkVar, onChange }: {
             }}
           />
         </div>
-        <div className="od-tp-color-input">
-          <span className="od-tp-color-mode-label">D</span>
+        <div className="flex items-center gap-[3px]">
+          <span className="text-[0.6rem] text-[var(--color-muted)] font-semibold">D</span>
           <input
             type="color"
+            className="od-color-swatch"
             value={normalizeColor(dark)}
             onChange={e => {
               setDark(e.target.value)
@@ -154,14 +156,14 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
   }, [])
 
   return (
-    <div className="od-tp-font-config">
-      <div className="od-tp-font-label">{label}</div>
+    <div className="mb-2.5 py-1.5 border-b border-[var(--color-border)] last:border-b-0">
+      <div className="text-[0.78rem] font-semibold text-[var(--color-text)] mb-1.5">{label}</div>
       {familyVar && (
-        <div className="od-tp-row" ref={suggestRef}>
-          <label className="od-tp-label-sm">Family</label>
-          <div className="od-tp-font-family-wrap">
+        <div className="flex items-center gap-2 mb-1.5" ref={suggestRef}>
+          <label className="text-[0.7rem] text-[var(--color-muted)] min-w-[55px] shrink-0">Family</label>
+          <div className="relative flex-1">
             <Input
-              className="od-tp-input"
+              className="w-full py-1 px-2 border border-[var(--color-border)] rounded-[var(--border-radius)] bg-[var(--color-surface)] text-[var(--color-text)] text-xs outline-none font-inherit focus:border-[var(--color-accent)]"
               value={family}
               placeholder="inherit"
               onFocus={() => setShowSuggestions(true)}
@@ -172,11 +174,11 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
               }}
             />
             {showSuggestions && (
-              <div className="od-tp-suggestions">
+              <div className="absolute top-full left-0 right-0 z-10 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-[var(--border-radius)] shadow-md mt-0.5">
                 {FONT_SUGGESTIONS.map(f => (
                   <button
                     key={f}
-                    className="od-tp-suggestion"
+                    className="block w-full py-1 px-2.5 text-[0.73rem] text-left border-none bg-transparent text-[var(--color-text)] cursor-pointer font-inherit hover:bg-[var(--color-surface)]"
                     onMouseDown={e => {
                       e.preventDefault()
                       setFamily(f)
@@ -194,14 +196,14 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
         </div>
       )}
       {sizeVar && (
-        <div className="od-tp-row">
-          <label className="od-tp-label-sm">Size</label>
+        <div className="flex items-center gap-2 mb-1.5">
+          <label className="text-[0.7rem] text-[var(--color-muted)] min-w-[55px] shrink-0">Size</label>
           <SizeInput varName={sizeVar} defaultVal="" onChange={onChange} />
         </div>
       )}
       {weightVar && (
-        <div className="od-tp-row">
-          <label className="od-tp-label-sm">Weight</label>
+        <div className="flex items-center gap-2 mb-1.5">
+          <label className="text-[0.7rem] text-[var(--color-muted)] min-w-[55px] shrink-0">Weight</label>
           <Select
             value={weight}
             onValueChange={v => {
@@ -210,7 +212,7 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
               onChange()
             }}
           >
-            <SelectTrigger className="od-tp-select">
+            <SelectTrigger className="py-1 px-2 border border-[var(--color-border)] rounded-[var(--border-radius)] bg-[var(--color-surface)] text-[var(--color-text)] text-xs outline-none font-inherit cursor-pointer">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -222,10 +224,10 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
         </div>
       )}
       {lineHeightVar && (
-        <div className="od-tp-row">
-          <label className="od-tp-label-sm">Line height</label>
+        <div className="flex items-center gap-2 mb-1.5">
+          <label className="text-[0.7rem] text-[var(--color-muted)] min-w-[55px] shrink-0">Line height</label>
           <Input
-            className="od-tp-input od-tp-input-sm"
+            className="w-full max-w-[80px] py-1 px-2 border border-[var(--color-border)] rounded-[var(--border-radius)] bg-[var(--color-surface)] text-[var(--color-text)] text-xs outline-none font-inherit focus:border-[var(--color-accent)]"
             type="number"
             step="0.05"
             min="1"
@@ -280,10 +282,10 @@ function SizeInput({ varName, defaultVal, onChange }: {
   }
 
   return (
-    <div className="od-tp-size-input">
+    <div className="flex gap-1 items-stretch flex-1">
       <input
         type="number"
-        className="od-tp-input od-tp-input-num"
+        className="od-tp-input-num w-16 min-w-0 shrink-0 [appearance:textfield] py-1 px-2 border border-[var(--color-border)] rounded-[var(--border-radius)] bg-[var(--color-surface)] text-[var(--color-text)] text-xs outline-none font-inherit"
         value={num}
         step="0.05"
         min="0"
@@ -294,7 +296,7 @@ function SizeInput({ varName, defaultVal, onChange }: {
         }}
       />
       <select
-        className="od-tp-input od-tp-select-unit"
+        className="w-[58px] min-w-0 shrink-0 pr-1 cursor-pointer py-1 px-2 border border-[var(--color-border)] rounded-[var(--border-radius)] bg-[var(--color-surface)] text-[var(--color-text)] text-xs outline-none font-inherit"
         value={unit}
         onChange={e => { setUnit(e.target.value); emit(num, e.target.value) }}
       >
@@ -321,16 +323,16 @@ function SliderRow({ label, varName, min, max, unit, step, onChange }: {
   })
 
   return (
-    <div className="od-tp-row">
-      <label className="od-tp-label">{label}</label>
-      <div className="od-tp-slider-wrap">
+    <div className="flex items-center gap-2 mb-1.5">
+      <label className="text-xs text-[var(--color-muted)] min-w-[70px] shrink-0">{label}</label>
+      <div className="flex items-center gap-2 flex-1">
         <input
           type="range"
           min={min}
           max={max}
           step={step ?? 1}
           value={val}
-          className="od-tp-slider"
+          className="flex-1 h-1 cursor-pointer accent-[var(--color-accent)]"
           onChange={e => {
             const v = Number(e.target.value)
             setVal(v)
@@ -338,7 +340,7 @@ function SliderRow({ label, varName, min, max, unit, step, onChange }: {
             onChange()
           }}
         />
-        <span className="od-tp-slider-value">{val}{unit}</span>
+        <span className="text-[0.7rem] text-[var(--color-muted)] min-w-[40px] text-right">{val}{unit}</span>
       </div>
     </div>
   )
@@ -410,16 +412,16 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
   }
 
   return (
-    <div className="od-theme-panel">
-      <div className="od-theme-panel-header">
-        <h3>Theme</h3>
-        <button className="od-close-btn" onClick={onClose} aria-label="Close panel">&times;</button>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] shrink-0">
+        <h3 className="text-[0.95rem] font-semibold">Theme</h3>
+        <button className="bg-transparent border-none text-[var(--color-muted)] cursor-pointer text-lg px-1.5 py-0.5 rounded-[var(--border-radius)] leading-none hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]" onClick={onClose} aria-label="Close panel">&times;</button>
       </div>
 
       {/* Preset selector */}
-      <div className="od-tp-preset-row">
+      <div className="px-4 py-2 shrink-0">
         <Select value={preset} onValueChange={handlePresetChange}>
-          <SelectTrigger className="od-tp-select od-tp-preset-select">
+          <SelectTrigger className="w-full py-1 px-2 border border-[var(--color-border)] rounded-[var(--border-radius)] bg-[var(--color-surface)] text-[var(--color-text)] text-xs outline-none font-inherit cursor-pointer">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -431,27 +433,27 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
         </Select>
       </div>
 
-      <div className="od-tp-separator" />
+      <div className="h-px bg-[var(--color-border)] my-1" />
 
       {/* Scrollable sections */}
-      <div className="od-tp-scroll">
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
 
         {/* Colors */}
         <Section title="Colors" icon="&#127912;" defaultOpen={true}>
           <ColorPair label="Background" lightVar="--od-color-bg" darkVar="--od-color-bg" onChange={markDirty} />
           <ColorPair label="Surface" lightVar="--od-color-surface" darkVar="--od-color-surface" onChange={markDirty} />
           <ColorPair label="Border" lightVar="--od-color-border" darkVar="--od-color-border" onChange={markDirty} />
-          <div className="od-tp-sub-separator" />
+          <div className="h-px bg-[var(--color-border)] my-1.5 opacity-50" />
           <ColorPair label="Text" lightVar="--od-color-text" darkVar="--od-color-text" onChange={markDirty} />
           <ColorPair label="Muted text" lightVar="--od-color-text-muted" darkVar="--od-color-text-muted" onChange={markDirty} />
-          <div className="od-tp-sub-separator" />
+          <div className="h-px bg-[var(--color-border)] my-1.5 opacity-50" />
           <ColorPair label="Accent" lightVar="--od-color-accent" darkVar="--od-color-accent" onChange={markDirty} />
           <ColorPair label="Accent hover" lightVar="--od-color-accent-hover" darkVar="--od-color-accent-hover" onChange={markDirty} />
-          <div className="od-tp-sub-separator" />
+          <div className="h-px bg-[var(--color-border)] my-1.5 opacity-50" />
           <ColorPair label="Code bg" lightVar="--od-color-code-bg" darkVar="--od-color-code-bg" onChange={markDirty} />
         </Section>
 
-        <div className="od-tp-separator" />
+        <div className="h-px bg-[var(--color-border)] my-1" />
 
         {/* Typography */}
         <Section title="Typography" icon="&#9997;&#65039;">
@@ -492,13 +494,13 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
           />
         </Section>
 
-        <div className="od-tp-separator" />
+        <div className="h-px bg-[var(--color-border)] my-1" />
 
         {/* Elements */}
         <Section title="Elements" icon="&#129521;">
           <SliderRow label="Border radius" varName="--od-radius" min={0} max={16} unit="px" onChange={markDirty} />
-          <div className="od-tp-sub-separator" />
-          <div className="od-tp-font-label">Callout colors</div>
+          <div className="h-px bg-[var(--color-border)] my-1.5 opacity-50" />
+          <div className="text-[0.78rem] font-semibold text-[var(--color-text)] mb-1.5">Callout colors</div>
           <ColorPair label="Note" lightVar="--od-color-callout-note" darkVar="--od-color-callout-note" onChange={markDirty} />
           <ColorPair label="Tip" lightVar="--od-color-callout-tip" darkVar="--od-color-callout-tip" onChange={markDirty} />
           <ColorPair label="Warning" lightVar="--od-color-callout-warning" darkVar="--od-color-callout-warning" onChange={markDirty} />
@@ -508,9 +510,9 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
       </div>
 
       {/* Action bar */}
-      <div className="od-tp-action-bar">
-        <Button variant="ghost" className="od-btn od-btn-ghost" onClick={handleReset}>Reset to default</Button>
-        <Button variant="default" className="od-btn od-btn-primary" onClick={handleSave} disabled={!dirty}>
+      <div className="flex gap-2 px-4 py-2.5 border-t border-[var(--color-border)] shrink-0 justify-between">
+        <Button variant="ghost" onClick={handleReset}>Reset to default</Button>
+        <Button variant="default" onClick={handleSave} disabled={!dirty}>
           Save
         </Button>
       </div>

@@ -33,9 +33,9 @@ export const CalloutBlock = createReactBlockSpec(
       }
 
       return (
-        <div className={`od-callout od-callout-${ct}`}>
+        <div className={`od-callout-${ct} flex items-start gap-3 py-3 px-4 rounded-[var(--od-radius,6px)] border-l-4 my-0.5`}>
           <button
-            className="od-callout-icon"
+            className="text-lg leading-[1.5] shrink-0 bg-transparent border-none cursor-pointer p-0 rounded select-none transition-transform duration-100 hover:scale-[1.2]"
             contentEditable={false}
             onClick={cycleType}
             title={`${label} — click to change type`}
@@ -43,7 +43,7 @@ export const CalloutBlock = createReactBlockSpec(
           >
             {icon}
           </button>
-          <div className="od-callout-content" ref={contentRef} />
+          <div className="flex-1 min-w-0" ref={contentRef} />
         </div>
       )
     },

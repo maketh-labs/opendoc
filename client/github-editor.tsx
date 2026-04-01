@@ -9,6 +9,7 @@ import {
   getCurrentPagePath, getCommitMessage, type SiteConfig,
 } from './editor-utils'
 import { markdownToBlocks } from './markdown'
+import { Button } from './ui/button'
 import {
   checkRepoAccess, fetchFileFromGitHub,
   commitFile, openPullRequest,
@@ -54,7 +55,10 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
         originalContentRef.current = md
         setInitialBlocks(blocks)
       })
-      .catch(e => showToast(`Failed to load file: ${e.message}`, 'error'))
+      .catch(e => {
+        showToast(`Failed to load file: ${e.message}`, 'error')
+        setInitialBlocks([])
+      })
   }, [])
 
   const onContentChange = useCallback((md: string) => {
@@ -107,40 +111,40 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
   const isWrite = repoAccess === 'write'
 
   const header = (
-    <div className="editor-header">
-      <span className="od-breadcrumb">
-        <span className="od-breadcrumb-muted">{repo}</span>
-        <span className="od-breadcrumb-sep">/</span>
+    <div className="flex items-center gap-2 h-10 px-4 bg-[var(--color-bg)] border-b border-[var(--color-border)] shrink-0">
+      <span className="flex items-center gap-1 text-sm">
+        <span className="text-[var(--color-muted)]">{repo}</span>
+        <span className="text-[var(--color-muted)]">/</span>
         <span>{pagePath}</span>
       </span>
-      <span className="spacer" />
-      <div className="od-save-btn-group">
-        <button className="od-save-primary" onClick={() => handleSave(false)} disabled={saving}>
+      <span className="flex-1" />
+      <div className="relative inline-flex">
+        <Button variant="default" size="sm" className="h-7 text-xs rounded-r-none" onClick={() => handleSave(false)} disabled={saving}>
           {saving
             ? <><span className="od-spinner" />Saving…</>
             : isDirty
               ? `${isWrite ? 'Save' : 'Suggest Edit'}`
               : isWrite ? 'Saved' : 'Suggest Edit'
           }
-        </button>
+        </Button>
         {isWrite && (
           <>
-            <button className="od-save-dropdown-trigger" onClick={() => setShowDropdown(d => !d)}>
-              <svg viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
+            <Button variant="default" size="sm" className="h-7 px-1.5 rounded-l-none border-l border-l-primary-foreground/20" onClick={() => setShowDropdown(d => !d)}>
+              <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </Button>
             {showDropdown && (
-              <div className="od-save-dropdown">
-                <button className="od-save-option" onClick={() => handleSave(true)}>Open Pull Request</button>
+              <div className="absolute top-full right-0 mt-1 bg-popover border rounded-md shadow-md z-50 min-w-[160px]">
+                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md" onClick={() => handleSave(true)}>Open Pull Request</button>
               </div>
             )}
           </>
         )}
       </div>
-      <button className="btn btn-sm" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>Change Repo</button>
-      <button className="btn btn-sm" onClick={() => { localStorage.removeItem('github_token'); localStorage.removeItem('github_repo'); window.location.reload() }}>Logout</button>
-      <button className="od-toggle-themes" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
+      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { localStorage.removeItem('github_repo'); window.location.reload() }}>Change Repo</Button>
+      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { localStorage.removeItem('github_token'); localStorage.removeItem('github_repo'); window.location.reload() }}>Logout</Button>
+      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
         <ThemeIcon />
-      </button>
+      </Button>
     </div>
   )
 
@@ -163,7 +167,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
           }
         />
       ) : (
-        <div className="od-editor-loading">Loading…</div>
+        <div className="flex items-center justify-center flex-1 text-[var(--color-muted)] text-sm">Loading…</div>
       )}
     </EditorShell>
   )

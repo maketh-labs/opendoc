@@ -52,7 +52,7 @@ function LocalEditorHeader({
   darkMode: { theme: 'light' | 'dark'; toggle: () => void }
 }) {
   return (
-    <div className="editor-header">
+    <div className="flex items-center gap-2 h-10 px-4 bg-[var(--color-bg)] border-b border-[var(--color-border)] shrink-0">
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onToggleSidebar} title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
         <PanelLeft className="h-4 w-4" />
       </Button>
@@ -68,7 +68,7 @@ function LocalEditorHeader({
       ) : (
         <span className="text-xs text-muted-foreground">{currentFile}</span>
       )}
-      <span className="spacer" />
+      <span className="flex-1" />
       <Badge variant="outline" className={`text-xs font-normal ${saving ? 'text-muted-foreground' : isDirty ? 'text-muted-foreground' : 'text-green-600 dark:text-green-400'}`}>
         {saving ? <><span className="od-spinner" />Saving…</> : isDirty ? 'Unsaved' : '✓ Saved'}
       </Badge>
@@ -161,6 +161,10 @@ export function LocalEditor() {
         setIsDirty(false)
         setInitialBlocks(blocks)
       })
+      .catch(e => {
+        console.error('Failed to load page:', e)
+        if (!cancelled.current) setInitialBlocks([])
+      })
 
     return () => { cancelled.current = true }
   }, [currentFile])
@@ -231,7 +235,8 @@ export function LocalEditor() {
   }
 
   function switchPage(filePath: string) {
-    window.history.pushState({}, '', filePath ? `/_/${filePath}` : '/_')
+    const urlPath = filePath.replace(/\/?index\.md$/, '')
+    window.history.pushState({}, '', urlPath ? `/_/${urlPath}` : '/_')
     setCurrentFile(filePath)
     if (filePath) setRightPanel(p => p === 'site-settings' ? null : p)
   }
@@ -325,7 +330,7 @@ export function LocalEditor() {
           }
         />
       ) : (
-        <div className="od-editor-loading">Loading...</div>
+        <div className="flex items-center justify-center flex-1 text-[var(--color-muted)] text-sm">Loading...</div>
       )}
     </EditorShell>
   )

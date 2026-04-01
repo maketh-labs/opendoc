@@ -48,12 +48,6 @@ export const calloutPlugin: Plugin<[], Root> = () => {
         value: '', // placeholder, we'll build it
       };
 
-      // Build the inner content by collecting text from remaining children
-      // We need to use a different approach - mark the node for rehype processing
-      // Instead, transform to HTML directly using remark's html node type
-      const innerMd = bodyChildren;
-
-      // Actually, let's use the data.hName/hProperties approach for remark-rehype
       const calloutNode: any = {
         type: 'blockquote',
         children: [

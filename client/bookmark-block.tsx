@@ -20,7 +20,7 @@ async function fetchMeta(url: string): Promise<BookmarkMeta | null> {
   }
 }
 
-export const bookmarkBlockConfig = {
+const bookmarkBlockConfig = {
   type: "bookmark" as const,
   propSchema: {
     url: { default: "" },
@@ -67,10 +67,10 @@ export const BookmarkBlock = createReactBlockSpec(bookmarkBlockConfig, {
 
     if (loading) {
       return (
-        <div className="od-bookmark od-bookmark-loading" contentEditable={false}>
-          <div className="od-bookmark-info">
-            <div className="od-bookmark-title-skeleton" />
-            <div className="od-bookmark-desc-skeleton" />
+        <div className="flex items-stretch border border-[var(--od-color-border)] rounded-[var(--od-radius)] overflow-hidden no-underline text-inherit min-h-[72px] my-0.5 bg-[var(--od-color-surface)]" contentEditable={false}>
+          <div className="flex-1 py-3 px-4 flex flex-col gap-1 min-w-0">
+            <div className="bg-[var(--od-color-border)] rounded h-4 w-3/5 animate-[od-shimmer_1.2s_ease-in-out_infinite]" />
+            <div className="bg-[var(--od-color-border)] rounded h-3 w-4/5 mt-1 animate-[od-shimmer_1.2s_ease-in-out_infinite]" />
           </div>
         </div>
       )
@@ -78,33 +78,34 @@ export const BookmarkBlock = createReactBlockSpec(bookmarkBlockConfig, {
 
     return (
       <a
-        className="od-bookmark"
+        className="flex items-stretch border border-[var(--od-color-border)] rounded-[var(--od-radius)] overflow-hidden no-underline text-inherit transition-all duration-150 cursor-pointer select-none min-h-[72px] my-0.5 hover:border-[var(--od-color-text-muted)] hover:shadow-sm"
         href={displayMeta.url}
         target="_blank"
         rel="noopener noreferrer"
         contentEditable={false}
         onClick={e => e.stopPropagation()}
       >
-        <div className="od-bookmark-info">
-          <div className="od-bookmark-title">{displayMeta.title || displayMeta.url}</div>
+        <div className="flex-1 py-3 px-4 flex flex-col gap-1 min-w-0">
+          <div className="text-sm font-medium text-[var(--od-color-text)] whitespace-nowrap overflow-hidden text-ellipsis">{displayMeta.title || displayMeta.url}</div>
           {displayMeta.description && (
-            <div className="od-bookmark-desc">{displayMeta.description.slice(0, 120)}{displayMeta.description.length > 120 ? "..." : ""}</div>
+            <div className="text-xs text-[var(--od-color-text-muted)] line-clamp-2">{displayMeta.description.slice(0, 120)}{displayMeta.description.length > 120 ? "..." : ""}</div>
           )}
-          <div className="od-bookmark-meta">
+          <div className="flex items-center gap-1.5 mt-auto pt-1">
             {displayMeta.favicon && (
               <img
-                className="od-bookmark-favicon"
+                className="w-3.5 h-3.5 rounded-sm shrink-0"
                 src={displayMeta.favicon}
                 alt=""
                 onError={e => { (e.target as HTMLImageElement).style.display = "none" }}
               />
             )}
-            <span className="od-bookmark-domain">{displayMeta.domain}</span>
+            <span className="text-xs text-[var(--od-color-text-muted)]">{displayMeta.domain}</span>
           </div>
         </div>
         {displayMeta.imageUrl && (
-          <div className="od-bookmark-cover">
+          <div className="shrink-0 w-40 overflow-hidden">
             <img
+              className="w-full h-full object-cover block rounded-none border-none"
               src={displayMeta.imageUrl}
               alt={displayMeta.title}
               onError={e => { (e.target as HTMLElement).parentElement!.style.display = "none" }}

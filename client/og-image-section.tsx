@@ -64,7 +64,7 @@ export function OGImageSection({ siteTitle }: { siteTitle: string }) {
 
   const load = useCallback(async () => {
     try {
-      const data = await fetch('/_opendoc/page?path=').then(r => r.json())
+      const data = await fetch('/_opendoc/page').then(r => r.json())
       setCurrentUrl(data.ogImageUrl || null)
     } catch {}
   }, [])
@@ -95,7 +95,7 @@ export function OGImageSection({ siteTitle }: { siteTitle: string }) {
   return (
     <div style={{ display: 'flex', gap: '3rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
       <div style={{ flex: '0 0 260px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <p className="od-ssp-hint">
+        <p className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">
           Recommended: <strong>1200 × 630 px</strong>, PNG or JPG.
           Shown when pages are shared on social media, Slack, iMessage, and in Google search results.
         </p>
@@ -115,7 +115,7 @@ export function OGImageSection({ siteTitle }: { siteTitle: string }) {
             </div>
           </>
         ) : (
-          <div className="od-ssp-dropzone" style={{ aspectRatio: '1200/630' }}
+          <div className="od-ssp-dropzone flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed border-[var(--od-border)] rounded-lg cursor-pointer transition-all duration-150 min-h-[80px] bg-[var(--od-bg-surface)] hover:border-[var(--od-accent)]" style={{ aspectRatio: '1200/630' }}
             role="button"
             tabIndex={0}
             onClick={() => fileRef.current?.click()}
@@ -125,8 +125,8 @@ export function OGImageSection({ siteTitle }: { siteTitle: string }) {
             onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('active'); const f = e.dataTransfer.files[0]; if (f) upload(f) }}
           >
             <Upload style={{ width: 20, height: 20, color: 'var(--od-text-muted, #6b7280)' }} />
-            <span className="od-ssp-dropzone-label">Click or drag — PNG / JPG</span>
-            <span className="od-ssp-hint">1200 × 630 px</span>
+            <span className="text-sm text-[var(--od-text-muted)] text-center">Click or drag — PNG / JPG</span>
+            <span className="text-[0.78rem] text-[var(--od-text-muted)] m-0 leading-normal">1200 × 630 px</span>
           </div>
         )}
       </div>

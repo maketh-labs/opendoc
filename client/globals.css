@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── shadcn base tokens ──────────────────────────────────────────────────── */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -46,9 +47,203 @@
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
   }
-}
-
-@layer base {
   * { @apply border-border; }
   body { @apply bg-background text-foreground; }
+}
+
+/* ── Editor CSS variables ────────────────────────────────────────────────── */
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f8f8f8;
+  --color-text: #1a1a1a;
+  --color-muted: #666666;
+  --color-accent: #0066ff;
+  --color-accent-hover: #0052cc;
+  --color-border: #e5e5e5;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --border-radius: 6px;
+  --od-content-max: 900px;
+  --od-theme-panel-width: 320px;
+  --od-transition: 200ms ease;
+  --od-color-surface: #f5f5f5;
+  --od-color-surface-2: #ebebeb;
+  --od-color-text-muted: #6b7280;
+  --od-color-border: #e5e7eb;
+  --od-color-accent: #2563eb;
+  --od-color-accent-hover: #1d4ed8;
+  --od-color-text: #1a1a1a;
+  --od-bg: #ffffff;
+  --od-bg-surface: #f8f9fa;
+  --od-bg-surface-2: #e9ecef;
+  --od-border: #e1e4e8;
+  --od-text: #1a1a2e;
+  --od-text-muted: #6b7280;
+  --od-accent: #0969da;
+  --od-accent-hover: #0550ae;
+  --od-text-h1: 2rem;
+  --od-text-h2: 1.4rem;
+  --od-text-h3: 1.1rem;
+  --od-weight-h1: 700;
+  --od-weight-h2: 600;
+  --od-weight-h3: 600;
+  --od-line-height-heading: 1.2;
+  --od-color-bg: #ffffff;
+  --od-radius: 6px;
+  --od-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --od-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --od-font-size: 16px;
+  --od-line-height: 1.7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #111111;
+    --color-surface: #1a1a1a;
+    --color-text: #e5e5e5;
+    --color-muted: #9ca3af;
+    --color-accent: #60a5fa;
+    --color-accent-hover: #93c5fd;
+    --color-border: #2a2a2a;
+    --od-color-bg: #111111;
+    --od-color-surface: #1a1a1a;
+    --od-color-surface-2: #252525;
+    --od-color-text: #e5e5e5;
+    --od-color-text-muted: #9ca3af;
+    --od-color-border: #2a2a2a;
+    --od-color-accent: #60a5fa;
+    --od-bg: #0f0f0f;
+    --od-bg-surface: #1a1a1a;
+    --od-bg-surface-2: #252525;
+    --od-border: #2a2a2a;
+    --od-text: #e5e5e5;
+    --od-text-muted: #9ca3af;
+    --od-accent: #58a6ff;
+    --od-accent-hover: #79b8ff;
+  }
+}
+
+[data-theme="dark"] {
+  --color-bg: #111111;
+  --color-surface: #1a1a1a;
+  --color-text: #e5e5e5;
+  --color-muted: #9ca3af;
+  --color-accent: #60a5fa;
+  --color-accent-hover: #93c5fd;
+  --color-border: #2a2a2a;
+  --od-color-bg: #111111;
+  --od-color-surface: #1a1a1a;
+  --od-color-surface-2: #252525;
+  --od-color-text: #e5e5e5;
+  --od-color-text-muted: #9ca3af;
+  --od-color-border: #2a2a2a;
+  --od-color-accent: #60a5fa;
+  --od-bg: #0f0f0f;
+  --od-bg-surface: #1a1a1a;
+  --od-bg-surface-2: #252525;
+  --od-border: #2a2a2a;
+  --od-text: #e5e5e5;
+  --od-text-muted: #9ca3af;
+  --od-accent: #58a6ff;
+  --od-accent-hover: #79b8ff;
+}
+
+/* ── Body (not rendered by React) ────────────────────────────────────────── */
+body {
+  font-family: var(--font-body);
+  color: var(--od-color-text, #1a1a1a);
+  background: var(--od-color-bg, #ffffff);
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Toast (created via DOM in editor-utils.ts, not JSX) ─────────────────── */
+.od-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  font-size: 0.85rem;
+  color: #fff;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  animation: od-toast-in 0.2s ease-out;
+}
+.od-toast.success { background: #16a34a; }
+.od-toast.warning { background: #ca8a04; }
+.od-toast.error { background: #dc2626; }
+.od-toast a { color: #fff; text-decoration: underline; font-weight: 500; }
+
+/* ── Spinner (used via innerHTML) ────────────────────────────────────────── */
+.od-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: od-spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────────────── */
+@keyframes od-toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes od-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes od-shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── Page title placeholder ──────────────────────────────────────────────── */
+.od-page-title::placeholder {
+  color: var(--od-color-text-muted);
+}
+
+/* ── Number input spinner hiders ─────────────────────────────────────────── */
+.od-tp-input-num::-webkit-outer-spin-button,
+.od-tp-input-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ── Color input sizing ──────────────────────────────────────────────────── */
+input[type="color"].od-color-swatch {
+  width: 28px; height: 22px;
+  border: 1px solid var(--color-border, #e5e5e5);
+  border-radius: 3px; padding: 1px; cursor: pointer; background: none;
+}
+
+/* ── Dropzone active state (applied via DOM classList) ────────────────────── */
+.od-ssp-dropzone.active {
+  border-color: var(--od-accent, #0969da);
+  background: color-mix(in srgb, var(--od-accent, #0969da) 5%, transparent);
+}
+
+/* ── Responsive overrides ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .od-wysiwyg-wrap { padding: 2rem 1rem; }
+  .od-page-header { padding: 0 12px; }
+  .od-page-title { font-size: 1.75rem; }
+  .od-editor-right.open {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    z-index: 50;
+    background: var(--color-bg);
+  }
+  .od-sidebar-left {
+    position: fixed;
+    top: 40px; left: 0; bottom: 0;
+    z-index: 40;
+    transform: translateX(0);
+  }
+  .od-sidebar-collapsed { transform: translateX(-100%); }
 }

@@ -49,11 +49,6 @@ function createProcessor(wikilinkOpts: WikilinkOptions = {}) {
 
 const defaultProcessor = createProcessor();
 
-export async function render(markdown: string): Promise<string> {
-  const result = await defaultProcessor.process(markdown);
-  return String(result);
-}
-
 // Cache a reusable stringify processor — it has no per-call options
 const stringifyProcessor = unified().use(rehypeStringify, { allowDangerousHtml: true });
 

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-export type DarkModeHook = { theme: 'light' | 'dark'; toggle: () => void }
 
-export interface GitStatus {
+interface GitStatus {
   isRepo: boolean
   branch?: string
   remote?: string
