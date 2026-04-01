@@ -1,14 +1,14 @@
 // Singleton markdown parser — avoids creating a new BlockNote editor per parse call
 // and lets the parent resolve blocks *before* mounting BlockEditor (no flash/race)
 
-import { BlockNoteEditor, BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from '@blocknote/core'
+import { BlockNoteEditor, BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core'
 import type { Block } from '@blocknote/core'
 import { CalloutBlock, type CalloutType } from './callout-block'
 import { BookmarkBlock } from './bookmark-block'
-import { codeBlockOptions } from '@blocknote/code-block'
 
+// Use default codeBlock (no Shiki) — parser only needs structure, not highlighting
 const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, codeBlock: createCodeBlockSpec(codeBlockOptions), callout: CalloutBlock(), bookmark: BookmarkBlock() },
+  blockSpecs: { ...defaultBlockSpecs, callout: CalloutBlock(), bookmark: BookmarkBlock() },
 })
 
 let _editor: typeof BlockNoteEditor.prototype | null = null

@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkMath from 'remark-math';
 import remarkRehype from 'remark-rehype';
-import rehypeHighlight from 'rehype-highlight';
+import rehypeShiki from '@shikijs/rehype';
 import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
 import { wikilinkPlugin, type WikilinkOptions } from './wikilinks';
@@ -40,7 +40,10 @@ function createProcessor(wikilinkOpts: WikilinkOptions = {}) {
     .use(calloutPlugin)
     .use(wikilinkPlugin, wikilinkOpts)
     .use(remarkRehype, { allowDangerousHtml: true })
-    .use(rehypeHighlight, { detect: true })
+    .use(rehypeShiki, {
+      themes: { light: 'github-light', dark: 'github-dark' },
+      defaultColor: 'light',
+    })
     .use(rehypeKatex)
     .use(tocPlugin)
     .use(imagePlugin)

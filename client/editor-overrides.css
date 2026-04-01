@@ -82,6 +82,7 @@
   font-family: var(--od-font-mono);
   font-size: 0.85rem;
   line-height: 1.5;
+  color: var(--od-color-text);
 }
 
 /* ── Blockquote ───────────────────────────────────────────────────────── */
@@ -161,15 +162,6 @@
   :root:not([data-theme="light"]) .od-callout-important { background: rgba(139,92,246,0.1); border-color: rgba(196,181,253,0.3); }
 }
 
-/* ── Code block toolbar visibility ────────────────────────────────────── */
-[data-content-type="codeBlock"]:hover ~ .od-cb-toolbar,
-[data-content-type="codeBlock"]:focus-within ~ .od-cb-toolbar,
-[data-id]:hover .od-cb-toolbar,
-[data-id]:focus-within .od-cb-toolbar {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* ── Checkbox styling ─────────────────────────────────────────────────── */
 .bn-block-content[data-content-type="checkListItem"] input[type="checkbox"] {
   width: 16px; height: 16px;
@@ -189,9 +181,21 @@
   flex-shrink: 0;
 }
 
-/* ── Shiki dual-theme ─────────────────────────────────────────────────── */
-.bn-container .shiki span { color: var(--shiki-light); }
-.bn-container[data-color-scheme="dark"] .shiki span { color: var(--shiki-dark); }
+
+/* ── Shiki dual-theme switching ────────────────────────────────────────── */
+/* Light colors are inline (defaultColor:'light'). Dark via --shiki-dark. */
+[data-theme="dark"] .shiki,
+[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shiki,
+  :root:not([data-theme="light"]) .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
 
 /* ── Side menu alignment fix ──────────────────────────────────────────── */
 .bn-side-menu { align-items: center !important; }

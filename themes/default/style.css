@@ -453,6 +453,20 @@ body {
   border-radius: 0;
 }
 
+/* Shiki dual-theme: light colors are inline, dark via --shiki-dark */
+[data-theme="dark"] .shiki,
+[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shiki,
+  :root:not([data-theme="light"]) .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
+
 .od-article blockquote {
   border-left: var(--od-blockquote-border-width) solid var(--od-accent);
   padding-left: var(--od-blockquote-padding-left);

@@ -51,19 +51,6 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // Serve highlight.js CSS
-  if (pathname === '/_opendoc/hljs-light.css' || pathname === '/_opendoc/hljs-dark.css') {
-    const file = pathname === '/_opendoc/hljs-light.css' ? 'hljs-github.css' : 'hljs-github-dark.css'
-    try {
-      const css = await readFile(join(ctx.projectRoot, 'themes', 'default', file), 'utf-8')
-      res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=86400' })
-      res.end(css)
-    } catch {
-      res.writeHead(404); res.end()
-    }
-    return true
-  }
-
   // Serve viewer bundle JS — built at startup
   if (pathname === '/client/viewer.tsx' || pathname === '/client/viewer.ts') {
     const js = ctx.getViewerBundleJs()
