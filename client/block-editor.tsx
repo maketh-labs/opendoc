@@ -1,5 +1,9 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react'
-import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems } from '@blocknote/react'
+import {
+  useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems,
+  SideMenuController, AddBlockButton, DragHandleButton, DragHandleMenu,
+  RemoveBlockItem, BlockColorsItem, BlockTypeSelect,
+} from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import { filterSuggestionItems } from '@blocknote/core/extensions'
 import type { Block } from '@blocknote/core'
@@ -232,8 +236,20 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
         {editorEmpty && (
           <div className="absolute top-3 left-[54px] text-[var(--od-color-text-muted)] pointer-events-none text-[length:var(--od-font-size,16px)] leading-[var(--od-line-height,1.7)] opacity-50 z-[1] select-none">Start writing...</div>
         )}
-        <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false}>
+        <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false} sideMenu={false}>
           <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
+          <SideMenuController sideMenu={(props) => (
+            <div className="bn-side-menu" style={{ display: 'flex', alignItems: 'center' }}>
+              <AddBlockButton {...props} />
+              <DragHandleButton {...props} dragHandleMenu={(menuProps) => (
+                <DragHandleMenu {...menuProps}>
+                  <BlockTypeSelect />
+                  <BlockColorsItem>Colors</BlockColorsItem>
+                  <RemoveBlockItem>Delete</RemoveBlockItem>
+                </DragHandleMenu>
+              )} />
+            </div>
+          )} />
         </BlockNoteView>
       </div>
     </div>

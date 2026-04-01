@@ -42,7 +42,7 @@ function pathFromUrl(pathname: string): string {
 }
 
 async function fetchPage(path: string): Promise<PageData> {
-  const res = await fetch(`/_opendoc/page?path=${encodeURIComponent(path)}`)
+  const res = await fetch(`/_opendoc/page/${path}`)
   if (!res.ok) throw new Error(`Page fetch failed: ${res.status}`)
   return res.json()
 }
@@ -112,7 +112,9 @@ function NavTree({ nav, currentPath, onNavigate, searchQuery }: {
 
   return (
     <ul>
-      <NavItem node={filtered} currentPath={currentPath} onNavigate={onNavigate} />
+      {filtered.children.map(child => (
+        <NavItem key={child.path} node={child} currentPath={currentPath} onNavigate={onNavigate} />
+      ))}
     </ul>
   )
 }

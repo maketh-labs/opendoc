@@ -183,17 +183,14 @@
 
 
 /* ── Shiki dual-theme switching ────────────────────────────────────────── */
-/* Light colors are inline (defaultColor:'light'). Dark via --shiki-dark. */
-[data-theme="dark"] .shiki,
+/* Light colors are inline (defaultColor:'light'). Dark via --shiki-dark.
+   Only switch text color — background is handled by the code block container. */
 [data-theme="dark"] .shiki span {
   color: var(--shiki-dark) !important;
-  background-color: var(--shiki-dark-bg) !important;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .shiki,
   :root:not([data-theme="light"]) .shiki span {
     color: var(--shiki-dark) !important;
-    background-color: var(--shiki-dark-bg) !important;
   }
 }
 
