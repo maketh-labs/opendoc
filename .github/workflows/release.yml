@@ -32,6 +32,9 @@ jobs:
     name: Publish to npm
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -49,28 +52,39 @@ jobs:
             chmod +x npm/$pkg/bin/opendoc 2>/dev/null || true
           done
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          registry-url: 'https://registry.npmjs.org'
+
       - uses: oven-sh/setup-bun@v2
 
-      - name: Setup npm auth
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+      - name: Install dependencies
+        run: bun install
 
       # Publish platform packages first
       - name: Publish platform packages
         run: |
           for pkg in opendoc-darwin-arm64 opendoc-darwin-x64 opendoc-linux-x64 opendoc-linux-arm64 opendoc-win32-x64; do
             cd npm/$pkg
-            npm publish --access public || true
+            npm publish --provenance --access public || true
             cd ../..
           done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Then publish main package
       - name: Publish main package
-        run: npm publish --access public
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release:
     name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4

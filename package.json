@@ -1,6 +1,6 @@
 {
   "name": "opendoc",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Git-native docs and wiki. Replaces GitBook and Obsidian. MCP-native.",
   "homepage": "https://opendoc.sh",
   "repository": "https://github.com/maketh-labs/opendoc",
@@ -14,18 +14,12 @@
     "build:binary": "bun build --compile src/cli.ts --outfile opendoc",
     "prepublishOnly": "bun run scripts/build.ts"
   },
-  "optionalDependencies": {
-    "opendoc-darwin-arm64": "0.1.0",
-    "opendoc-darwin-x64": "0.1.0",
-    "opendoc-linux-x64": "0.1.0",
-    "opendoc-linux-arm64": "0.1.0",
-    "opendoc-win32-x64": "0.1.0"
-  },
   "files": [
     "bin/",
     "src/",
     "themes/",
     "client/",
+    "tailwind.config.js",
     "README.md"
   ],
   "devDependencies": {
