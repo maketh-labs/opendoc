@@ -2,17 +2,22 @@
 import { BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from '@blocknote/core'
 import { codeBlockOptions } from '@blocknote/code-block'
 import { createParser } from 'prosemirror-highlight/shiki'
+import { createHighlighter } from 'shiki'
 import { CalloutBlock } from './callout-block'
 import { BookmarkBlock } from './bookmark-block'
 import { YoutubeBlock } from './youtube-block'
 
-// ─── Shiki dual-theme ────────────────────────────────────────────────────────
-// prosemirror-highlight's createParser accepts a Shiki options object.
-// We pre-create the parser with dual themes and cache it globally so
-// BlockNote picks it up instead of creating its own single-theme parser.
+// ─── Shiki with full grammars + dual themes ──────────────────────────────────
+// BlockNote's codeBlockOptions uses @shikijs/langs-precompiled (simplified grammars).
+// We replace the highlighter with full Shiki so the editor highlights identically
+// to the viewer (which uses @shikijs/rehype with full grammars).
+// Languages load lazily — only fetched when a code block uses that language.
 const _g = globalThis as any
 _g[Symbol.for('blocknote.shikiHighlighterPromise')] =
-  codeBlockOptions.createHighlighter().then((h: any) => {
+  createHighlighter({
+    themes: ['github-light', 'github-dark'],
+    langs: [],
+  }).then((h: any) => {
     _g[Symbol.for('blocknote.shikiParser')] = createParser(h, {
       themes: { light: 'github-light', dark: 'github-dark' },
       defaultColor: 'light',
