@@ -91,6 +91,15 @@ export async function init(targetDir: string) {
     ok(`order.json`)
   }
 
+  // CLAUDE.md — AI agent conventions
+  const claudePath = join(dir, 'CLAUDE.md')
+  if (!await exists(claudePath)) {
+    await writeFile(claudePath, CLAUDE_MD_CONTENT)
+    ok('CLAUDE.md')
+  } else {
+    info('CLAUDE.md already exists — skipped')
+  }
+
   // Initialize git if not already in a repo
   try {
     execSync('git rev-parse --git-dir', { cwd: dir, stdio: 'ignore' })
@@ -108,3 +117,49 @@ export async function init(targetDir: string) {
   log(`  ${CYAN}${BOLD}bunx opendoc serve _${RESET}${DIM}  →  http://localhost:3000/_  (editor)${RESET}`)
   log('')
 }
+
+const CLAUDE_MD_CONTENT = `# OpenDoc Conventions
+
+This file describes the content model for AI agents working in this repo.
+
+## Page Structure
+
+| Rule | Detail |
+|------|--------|
+| One page = one folder | Every page is an \`index.md\` inside a named folder |
+| Folder name = slug | \`getting-started/index.md\` → URL \`/getting-started\` |
+| Title from heading | First \`# Heading\` in the file is the page title |
+| No bare \`.md\` files | Never create a loose \`.md\` file — always \`folder/index.md\` |
+
+## Nav Ordering
+
+- Default order: alphabetical by folder name
+- Override: add \`order.json\` in any folder with an array of child folder names
+- Unlisted folders are appended after ordered items
+
+## Reserved / Internal — Do Not Edit
+
+| Path | Purpose |
+|------|---------|
+| \`context.md\` | Auto-generated compressed version for MCP |
+| \`context-mini.md\` | Auto-generated ultra-compressed version |
+| \`assets/\` | Images and attachments (never rendered as pages) |
+| \`.opendoc/\` | Config and build output |
+
+## Reserved Names
+
+- \`_\` — reserved (editor route prefix)
+- \`.opendoc\` — internal config
+- Folders starting with \`.\` — ignored by the walker
+
+## Favicon & OG Image
+
+- Place \`favicon.ico\`, \`favicon.svg\`, \`favicon.png\`, \`og-image.png/jpg/webp\` directly in a page folder
+- Inherits upward — root-level files are site-wide defaults
+
+## Wikilinks
+
+- \`[[page-name]]\` links to another page by folder name
+- Backlinks are tracked automatically
+`
+
