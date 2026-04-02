@@ -50,20 +50,18 @@ export async function init(targetDir: string) {
   const hasContent = alreadyExists && await exists(join(dir, 'getting-started', 'index.md'))
 
   if (hasContent) {
-    log(`${DIM}  Found existing content — skipping scaffold, only creating .opendoc/config.json${RESET}`)
+    log(`${DIM}  Found existing content — skipping scaffold, only creating opendoc.json${RESET}`)
     log('')
   }
 
-  // Create directory structure
-  await mkdir(join(dir, '.opendoc'), { recursive: true })
-
   // Write config
-  const configPath = join(dir, '.opendoc', 'config.json')
+  const configPath = join(dir, 'opendoc.json')
   if (!await exists(configPath)) {
+    await mkdir(dir, { recursive: true })
     await writeFile(configPath, JSON.stringify({ title }, null, 2) + '\n')
-    ok(`.opendoc/config.json`)
+    ok(`opendoc.json`)
   } else {
-    info(`.opendoc/config.json already exists — skipped`)
+    info(`opendoc.json already exists — skipped`)
   }
 
   if (!hasContent) {
@@ -89,6 +87,15 @@ export async function init(targetDir: string) {
     // order.json
     await writeFile(join(dir, 'order.json'), JSON.stringify(['getting-started'], null, 2) + '\n')
     ok(`order.json`)
+  }
+
+  // .gitignore
+  const gitignorePath = join(dir, '.gitignore')
+  if (!await exists(gitignorePath)) {
+    await writeFile(gitignorePath, GITIGNORE_CONTENT)
+    ok('.gitignore')
+  } else {
+    info('.gitignore already exists — skipped')
   }
 
   // CLAUDE.md — AI agent conventions
@@ -118,6 +125,16 @@ export async function init(targetDir: string) {
   log('')
 }
 
+const GITIGNORE_CONTENT = `.DS_Store
+node_modules/
+dist/
+*.swp
+*.swo
+*~
+.env
+.env.*
+`
+
 const CLAUDE_MD_CONTENT = `# OpenDoc Conventions
 
 This file describes the content model for AI agents working in this repo.
@@ -144,12 +161,11 @@ This file describes the content model for AI agents working in this repo.
 | \`context.md\` | Auto-generated compressed version for MCP |
 | \`context-mini.md\` | Auto-generated ultra-compressed version |
 | \`assets/\` | Images and attachments (never rendered as pages) |
-| \`.opendoc/\` | Config and build output |
+| \`dist/\` | Static site build output |
 
 ## Reserved Names
 
 - \`_\` — reserved (editor route prefix)
-- \`.opendoc\` — internal config
 - Folders starting with \`.\` — ignored by the walker
 
 ## Favicon & OG Image

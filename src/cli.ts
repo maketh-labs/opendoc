@@ -35,7 +35,7 @@ OpenDoc — git-native docs and wiki
 
 Usage:
   bunx opendoc serve [dir]    Start dev server (:3000) + MCP server (:3001)
-  bunx opendoc build [dir]    Build static site to .opendoc/dist
+  bunx opendoc build [dir]    Build static site to dist/
   bunx opendoc init [dir]     Create a new docs project
 
 Examples:

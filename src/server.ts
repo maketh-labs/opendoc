@@ -47,6 +47,21 @@ const routeHandlers: RouteHandler[] = [
   handleFetchMeta,
 ];
 
+export async function findAvailablePort(startPort: number): Promise<number> {
+  let port = startPort;
+  while (true) {
+    const inUse = await new Promise<boolean>((resolve) => {
+      const socket = new (require('net').Socket)();
+      socket.once('connect', () => { socket.destroy(); resolve(true); });
+      socket.once('error', () => { socket.destroy(); resolve(false); });
+      socket.connect(port, '127.0.0.1');
+    });
+    if (!inUse) return port;
+    console.log(`  Port ${port} in use, trying ${port + 1}...`);
+    port++;
+  }
+}
+
 export async function startServer(rootDir: string, port: number = 3000) {
   const config = await ensureConfig(rootDir);
   const editorPath = getEditorPath(config);
@@ -82,7 +97,7 @@ export async function startServer(rootDir: string, port: number = 3000) {
   try {
     fsWatch(rootDir, { recursive: true }, (_, filename) => {
       if (!filename) return;
-      if (filename.includes('node_modules') || filename.includes('.opendoc')) return;
+      if (filename.includes('node_modules') || filename.startsWith('dist/')) return;
       // Rebuild on .md changes and order.json changes
       const isMarkdown = extname(filename) === '.md';
       const isOrder = filename.endsWith('order.json');
@@ -173,11 +188,15 @@ export async function startServer(rootDir: string, port: number = 3000) {
     }
   }
 
-  server.listen(port, () => {
-    const url = `http://localhost:${port}`;
-    console.log(`\n  OpenDoc running at ${url}\n`);
-    const open = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-    Bun.spawn([open, url], { stderr: 'ignore' });
+  const actualPort = await findAvailablePort(port);
+  await new Promise<void>((resolve) => {
+    server.listen(actualPort, () => {
+      const url = `http://localhost:${actualPort}`;
+      console.log(`\n  OpenDoc running at ${url}\n`);
+      const open = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+      Bun.spawn([open, url], { stderr: 'ignore' });
+      resolve();
+    });
   });
 
   await startMcpServer(rootDir);

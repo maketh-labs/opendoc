@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, unlink } from 'fs/promises'
+import { readFile, writeFile, unlink } from 'fs/promises'
 import { join, resolve } from 'path'
 import { readBodyRaw, isWithinRoot, MIME_TYPES, type RouteHandler } from './types'
 
@@ -9,7 +9,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   if (pathname === '/_opendoc/theme.css') {
     let css = ctx.getStyles()
     try {
-      const userTheme = await readFile(join(ctx.rootDir, '.opendoc', 'theme.css'), 'utf-8')
+      const userTheme = await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8')
       if (userTheme) css += '\n' + userTheme
     } catch {}
     res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
@@ -20,9 +20,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   // Save user theme overrides
   if (pathname === '/_opendoc/theme' && req.method === 'PUT') {
     const body = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
-    const dir = join(ctx.rootDir, '.opendoc')
-    await mkdir(dir, { recursive: true })
-    await writeFile(join(dir, 'theme.css'), body.css || '', 'utf-8')
+    await writeFile(join(ctx.rootDir, 'theme.css'), body.css || '', 'utf-8')
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
     return true
@@ -31,7 +29,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   // Get user theme overrides
   if (pathname === '/_opendoc/theme' && req.method === 'GET') {
     try {
-      const css = await readFile(join(ctx.rootDir, '.opendoc', 'theme.css'), 'utf-8')
+      const css = await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8')
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ css }))
     } catch {
@@ -44,7 +42,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   // Delete user theme overrides
   if (pathname === '/_opendoc/theme' && req.method === 'DELETE') {
     try {
-      await unlink(join(ctx.rootDir, '.opendoc', 'theme.css'))
+      await unlink(join(ctx.rootDir, 'theme.css'))
     } catch {}
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
@@ -150,7 +148,7 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
 
   // Serve dist files
   if (pathname.startsWith('/dist/')) {
-    const distPath = join(ctx.rootDir, '.opendoc', pathname.slice(1))
+    const distPath = join(ctx.rootDir, pathname.slice(1))
     try {
       const content = await readFile(distPath, 'utf-8')
       const ext = pathname.split('.').pop()

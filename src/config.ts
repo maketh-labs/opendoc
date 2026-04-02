@@ -2,10 +2,20 @@ import { join } from 'path';
 import type { OpenDocConfig } from './types';
 
 export async function ensureConfig(rootDir: string): Promise<OpenDocConfig> {
-  const configPath = join(rootDir, '.opendoc', 'config.json');
+  const configPath = join(rootDir, 'opendoc.json');
   const file = Bun.file(configPath);
   if (await file.exists()) {
     return await file.json();
+  }
+
+  // Migrate from legacy .opendoc/config.json
+  const legacyPath = join(rootDir, '.opendoc', 'config.json');
+  const legacyFile = Bun.file(legacyPath);
+  if (await legacyFile.exists()) {
+    const config = await legacyFile.json();
+    await Bun.write(configPath, JSON.stringify(config, null, 2) + '\n');
+    console.log('Migrated .opendoc/config.json → opendoc.json');
+    return config;
   }
 
   // Create default config
@@ -13,10 +23,8 @@ export async function ensureConfig(rootDir: string): Promise<OpenDocConfig> {
     title: 'My Docs',
     editorPath: '/_',
   };
-  const { mkdir } = await import('fs/promises');
-  await mkdir(join(rootDir, '.opendoc'), { recursive: true });
   await Bun.write(configPath, JSON.stringify(defaultConfig, null, 2) + '\n');
-  console.log('Created .opendoc/config.json with defaults');
+  console.log('Created opendoc.json with defaults');
   return defaultConfig;
 }
 

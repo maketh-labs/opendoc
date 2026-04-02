@@ -46,7 +46,7 @@ async function copyDirRecursive(src: string, dest: string): Promise<void> {
 export async function build(rootDir: string): Promise<void> {
   const config = await ensureConfig(rootDir);
   const editorPath = getEditorPath(config);
-  const distDir = join(rootDir, '.opendoc', 'dist');
+  const distDir = join(rootDir, 'dist');
   const pages = await getAllPages(rootDir);
   const navTree = await walkDir(rootDir);
   const backlinks = await buildBacklinks(rootDir);
