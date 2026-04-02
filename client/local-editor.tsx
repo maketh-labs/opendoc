@@ -148,7 +148,18 @@ export function LocalEditor() {
     const cancelled = { current: false }
 
     localLoadFile(currentFile)
-      .catch(() => '# New Page\n')
+      .catch(() => {
+        // Check if this page exists in the nav tree — if not, redirect to site settings
+        const knownPages = flattenNav(navTree)
+        if (!knownPages.some(p => p.filePath === currentFile)) {
+          if (!cancelled.current) {
+            window.history.replaceState({}, '', '/_')
+            setCurrentFile('')
+          }
+          throw new Error('skip')
+        }
+        return '# New Page\n'
+      })
       .then(async text => {
         if (cancelled.current) return
         const { title, icon, body } = extractPageMeta(text)
@@ -162,8 +173,9 @@ export function LocalEditor() {
         setInitialBlocks(blocks)
       })
       .catch(e => {
+        if (e?.message === 'skip') return
         console.error('Failed to load page:', e)
-        if (!cancelled.current) setInitialBlocks([])
+        if (!cancelled.current) setInitialBlocks([{ type: 'paragraph', content: [] } as any])
       })
 
     return () => { cancelled.current = true }

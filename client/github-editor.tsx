@@ -57,7 +57,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
       })
       .catch(e => {
         showToast(`Failed to load file: ${e.message}`, 'error')
-        setInitialBlocks([])
+        setInitialBlocks([{ type: 'paragraph', content: [] } as any])
       })
   }, [])
 

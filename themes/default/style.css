@@ -453,11 +453,22 @@ body {
   border-radius: 0;
 }
 
-/* Shiki dual-theme: light colors are inline, dark via --shiki-dark */
+/* Shiki dual-theme: light colors are inline, dark switched via CSS vars.
+   --shiki-dark is set inline by Shiki on each span for the dark theme color. */
+[data-theme="dark"] .shiki,
+[data-theme="dark"] pre.shiki {
+  background-color: var(--od-bg-code) !important;
+  color: var(--shiki-dark, var(--od-text)) !important;
+}
 [data-theme="dark"] .shiki span {
   color: var(--shiki-dark) !important;
 }
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shiki,
+  :root:not([data-theme="light"]) pre.shiki {
+    background-color: var(--od-bg-code) !important;
+    color: var(--shiki-dark, var(--od-text)) !important;
+  }
   :root:not([data-theme="light"]) .shiki span {
     color: var(--shiki-dark) !important;
   }

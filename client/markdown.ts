@@ -1,15 +1,10 @@
 // Singleton markdown parser — avoids creating a new BlockNote editor per parse call
 // and lets the parent resolve blocks *before* mounting BlockEditor (no flash/race)
 
-import { BlockNoteEditor, BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core'
+import { BlockNoteEditor } from '@blocknote/core'
 import type { Block } from '@blocknote/core'
-import { CalloutBlock, type CalloutType } from './callout-block'
-import { BookmarkBlock } from './bookmark-block'
-
-// Use default codeBlock (no Shiki) — parser only needs structure, not highlighting
-const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, callout: CalloutBlock(), bookmark: BookmarkBlock() },
-})
+import { type CalloutType } from './callout-block'
+import { schema } from './schema'
 
 let _editor: typeof BlockNoteEditor.prototype | null = null
 
@@ -101,14 +96,14 @@ export async function markdownToBlocks(markdown: string): Promise<Block[]> {
             return {
               type: "youtube" as const,
               props: { url, caption: "" },
-              content: [],
+              content: undefined,
               children: [],
             }
           }
           return {
             type: "bookmark" as const,
             props: { url, title: "", description: "", favicon: "", domain: "", imageUrl: "" },
-            content: [],
+            content: undefined,
             children: [],
           }
         }
@@ -116,6 +111,11 @@ export async function markdownToBlocks(markdown: string): Promise<Block[]> {
       })
       blocks.push(...enriched)
     }
+  }
+
+  // BlockNote requires initialContent to be a non-empty array
+  if (blocks.length === 0) {
+    blocks.push({ type: 'paragraph', content: [] } as any)
   }
 
   return blocks as unknown as Block[]

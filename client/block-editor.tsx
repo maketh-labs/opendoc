@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react'
+import React, { useRef, useEffect, useCallback } from 'react'
 import {
   useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems,
   SideMenuController, AddBlockButton, DragHandleButton, DragHandleMenu,
@@ -10,7 +10,7 @@ import type { Block } from '@blocknote/core'
 import { blocksToMarkdown } from './markdown'
 import { CALLOUT_TYPES, type CalloutType } from './callout-block'
 import { getEmbedUrl } from './youtube-block'
-import { schema } from './editor'
+import { schema } from './schema'
 
 interface BlockEditorProps {
   initialBlocks: Block[]
@@ -161,19 +161,9 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
   usePasteHandler(editor, uploadFile)
   useDragDropHandler(editorWrapperRef, editor, uploadFile)
 
-  const [editorEmpty, setEditorEmpty] = useState(() => {
-    if (!initialBlocks.length) return true
-    if (initialBlocks.length === 1 && initialBlocks[0].type === 'paragraph') {
-      const c = initialBlocks[0].content
-      if (!c || (Array.isArray(c) && c.length === 0)) return true
-    }
-    return false
-  })
-
   const handleChange = useCallback(() => {
     const md = blocksToMarkdown(editor.document as any[])
     onContentChange(md)
-    setEditorEmpty(md.trim() === '')
   }, [editor, onContentChange])
 
   const getSlashMenuItems = useCallback(async (query: string) => {
@@ -233,9 +223,6 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
     <div className="w-full flex flex-col" ref={editorWrapperRef}>
       {pageHeader}
       <div style={{ position: 'relative' }}>
-        {editorEmpty && (
-          <div className="absolute top-3 left-[54px] text-[var(--od-color-text-muted)] pointer-events-none text-[length:var(--od-font-size,16px)] leading-[var(--od-line-height,1.7)] opacity-50 z-[1] select-none">Start writing...</div>
-        )}
         <BlockNoteView editor={editor} theme={theme} onChange={handleChange} slashMenu={false} sideMenu={false}>
           <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
           <SideMenuController sideMenu={(props) => (

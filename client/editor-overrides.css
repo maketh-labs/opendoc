@@ -38,7 +38,7 @@
 }
 .bn-inline-content code {
   font-family: var(--od-font-mono, var(--font-mono));
-  background: var(--od-color-surface, #f5f5f5);
+  background: var(--od-bg-code-inline, var(--od-color-surface, #f0f2f5));
   border-radius: 3px;
   padding: 0.1em 0.3em;
   font-size: 0.875em;
@@ -48,10 +48,10 @@
 .ProseMirror-focused { outline: none; }
 
 /* ── Heading sizes — override BlockNote's --level variable ────────────── */
-[data-content-type="heading"]                          { --level: 2rem; }
-[data-content-type="heading"][data-level="2"]          { --level: 1.5rem; }
-[data-content-type="heading"][data-level="3"]          { --level: 1.2rem; }
-[data-content-type="heading"][data-level="4"]          { --level: 1rem; }
+[data-content-type="heading"]                          { --level: var(--od-text-h1, 2.5rem); }
+[data-content-type="heading"][data-level="2"]          { --level: var(--od-text-h2, 1.5rem); }
+[data-content-type="heading"][data-level="3"]          { --level: var(--od-text-h3, 1.2rem); }
+[data-content-type="heading"][data-level="4"]          { --level: var(--od-text-h4, 1rem); }
 .bn-block-content[data-content-type="heading"][data-level="1"] { font-weight: 700; }
 .bn-block-content[data-content-type="heading"][data-level="2"] { font-weight: 600; }
 .bn-block-content[data-content-type="heading"][data-level="3"] { font-weight: 600; }
@@ -65,24 +65,37 @@
 .bn-editor .bn-inline-content code {
   font-family: var(--od-font-mono);
   font-size: 0.875em;
-  background: var(--od-color-surface);
+  background: var(--od-bg-code-inline, var(--od-color-surface));
   padding: 0.15em 0.35em;
   border-radius: 3px;
 }
 
 /* ── Code block ───────────────────────────────────────────────────────── */
 .bn-block-content[data-content-type="codeBlock"] {
-  background: var(--od-color-surface);
+  background: var(--od-bg-code, var(--od-color-surface));
+  color: var(--od-color-text);
   border: 1px solid var(--od-color-border);
   border-radius: var(--od-radius);
   padding: 1rem;
   overflow-x: auto;
 }
-.bn-block-content[data-content-type="codeBlock"] * {
+.bn-block-content[data-content-type="codeBlock"] pre,
+.bn-block-content[data-content-type="codeBlock"] code {
   font-family: var(--od-font-mono);
   font-size: 0.85rem;
   line-height: 1.5;
-  color: var(--od-color-text);
+}
+
+/* ── Code block language selector ────────────────────────────────────── */
+.bn-block-content[data-content-type="codeBlock"] > div > select {
+  color: var(--od-color-text-muted);
+  opacity: 0;
+  font-family: var(--od-font-body, var(--font-body));
+  font-size: 0.75rem;
+}
+.bn-block-content[data-content-type="codeBlock"]:hover > div > select,
+.bn-block-content[data-content-type="codeBlock"] > div > select:focus {
+  opacity: 1;
 }
 
 /* ── Blockquote ───────────────────────────────────────────────────────── */
@@ -115,7 +128,7 @@
   padding: 0.5rem 0.75rem;
   text-align: left;
 }
-.bn-editor th { background: var(--od-color-surface); font-weight: 600; }
+.bn-editor th { background: var(--od-bg-surface, var(--od-color-surface)); font-weight: 600; }
 
 /* ── HR ───────────────────────────────────────────────────────────────── */
 .bn-editor hr {
@@ -183,12 +196,21 @@
 
 
 /* ── Shiki dual-theme switching ────────────────────────────────────────── */
-/* Light colors are inline (defaultColor:'light'). Dark via --shiki-dark.
-   Only switch text color — background is handled by the code block container. */
+/* Shiki outputs inline style="background-color:#fff;color:#24292e" on .shiki
+   elements (light theme default). Override both bg and text in dark mode.
+   --shiki-dark is set inline by Shiki on each span for the dark theme color. */
+[data-theme="dark"] .shiki {
+  background-color: var(--od-bg-code, var(--od-color-surface)) !important;
+  color: var(--shiki-dark) !important;
+}
 [data-theme="dark"] .shiki span {
   color: var(--shiki-dark) !important;
 }
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shiki {
+    background-color: var(--od-bg-code, var(--od-color-surface)) !important;
+    color: var(--shiki-dark) !important;
+  }
   :root:not([data-theme="light"]) .shiki span {
     color: var(--shiki-dark) !important;
   }
