@@ -1,11 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { createServer } from 'http';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { readFile, writeFile, mkdir, access } from 'fs/promises';
+import { join, resolve, relative } from 'path';
 import { z } from 'zod';
 import { walkDir, getAllPages } from './walker';
 import { buildBacklinks } from './backlinks';
+import { compress, compressMini } from './compressor';
 import simpleGit from 'simple-git';
 import type { ContextTier, SearchResult } from './types';
 
@@ -16,6 +17,51 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
   });
 
   const git = simpleGit(rootDir);
+
+  function validatePath(pagePath: string): string | null {
+    if (pagePath.includes('..')) return 'Path must not contain ".."';
+    const resolved = resolve(rootDir, pagePath);
+    if (!resolved.startsWith(resolve(rootDir))) return 'Path escapes root directory';
+    const segments = pagePath.replace(/^\//, '').split('/');
+    for (const seg of segments) {
+      if (seg.startsWith('_') || seg.startsWith('.')) return `Reserved path segment: "${seg}"`;
+    }
+    return null;
+  }
+
+  async function isGitRepo(): Promise<boolean> {
+    try {
+      await git.status();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function rebuildContext(pagePath: string): Promise<void> {
+    const indexPath = join(rootDir, pagePath, 'index.md');
+    try {
+      const markdown = await readFile(indexPath, 'utf-8');
+      await writeFile(join(rootDir, pagePath, 'context.md'), compress(markdown));
+      await writeFile(join(rootDir, pagePath, 'context-mini.md'), compressMini(markdown));
+    } catch { /* skip if file missing */ }
+  }
+
+  function generateCommitMsg(pagePath: string, before: string | undefined, after: string): string {
+    const parts = pagePath.replace(/^\//, '').split('/');
+    const section = parts.filter(p => p).join('/') || 'home';
+    let description = 'update';
+    if (before != null) {
+      const beforeLines = before.split('\n').length;
+      const afterLines = after.split('\n').length;
+      if (afterLines > beforeLines + 5) description = 'expand content';
+      else if (beforeLines > afterLines + 5) description = 'trim content';
+      else if (before !== after) description = 'revise content';
+    } else {
+      description = 'create page';
+    }
+    return `docs(${section}): ${description}`;
+  }
 
   const fileMap: Record<ContextTier, string> = {
     full: 'index.md',
@@ -140,6 +186,91 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
 
       const message = `docs(${section}): ${description}`;
       return { content: [{ type: 'text' as const, text: JSON.stringify({ message }) }] };
+    }
+  );
+
+  server.tool(
+    'write_page',
+    'Create or update a documentation page at the given path',
+    {
+      path: z.string().describe('Page path relative to root (e.g. "getting-started")'),
+      content: z.string().describe('Markdown content for the page'),
+    },
+    async ({ path: pagePath, content }) => {
+      const err = validatePath(pagePath);
+      if (err) return { content: [{ type: 'text' as const, text: JSON.stringify({ error: err }) }], isError: true };
+
+      const dirPath = join(rootDir, pagePath);
+      const filePath = join(dirPath, 'index.md');
+
+      let before: string | undefined;
+      try {
+        before = await readFile(filePath, 'utf-8');
+      } catch { /* new file */ }
+
+      await mkdir(dirPath, { recursive: true });
+      await writeFile(filePath, content);
+
+      await rebuildContext(pagePath);
+
+      let committed = false;
+      let message = '';
+      if (await isGitRepo()) {
+        message = generateCommitMsg(pagePath, before, content);
+        const commitMsg = `${message}\n\nCo-Authored-By: opendoc-mcp <mcp@opendoc.sh>`;
+        await git.add([
+          join(pagePath, 'index.md'),
+          join(pagePath, 'context.md'),
+          join(pagePath, 'context-mini.md'),
+        ]);
+        await git.commit(commitMsg);
+        committed = true;
+      }
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ path: pagePath, committed, message }) }] };
+    }
+  );
+
+  server.tool(
+    'create_page',
+    'Scaffold a new documentation page (fails if page already exists)',
+    {
+      path: z.string().describe('Page path relative to root (e.g. "guides/advanced")'),
+      title: z.string().optional().describe('Page title (defaults to folder name)'),
+    },
+    async ({ path: pagePath, title }) => {
+      const err = validatePath(pagePath);
+      if (err) return { content: [{ type: 'text' as const, text: JSON.stringify({ error: err }) }], isError: true };
+
+      const dirPath = join(rootDir, pagePath);
+      const filePath = join(dirPath, 'index.md');
+
+      try {
+        await access(filePath);
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ error: `Page already exists: ${pagePath}` }) }], isError: true };
+      } catch { /* good — file doesn't exist */ }
+
+      const pageName = title || pagePath.split('/').filter(Boolean).pop() || 'Untitled';
+      const content = `# ${pageName}\n`;
+
+      await mkdir(dirPath, { recursive: true });
+      await writeFile(filePath, content);
+
+      await rebuildContext(pagePath);
+
+      let committed = false;
+      if (await isGitRepo()) {
+        const message = `docs(${pagePath.replace(/^\//, '') || 'home'}): create page\n\nCo-Authored-By: opendoc-mcp <mcp@opendoc.sh>`;
+        await git.add([
+          join(pagePath, 'index.md'),
+          join(pagePath, 'context.md'),
+          join(pagePath, 'context-mini.md'),
+        ]);
+        await git.commit(message);
+        committed = true;
+      }
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ path: pagePath, created: true, committed }) }] };
     }
   );
 
