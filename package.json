@@ -12,7 +12,12 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "build:binary": "bun build --compile src/cli.ts --outfile opendoc",
-    "prepublishOnly": "bun run scripts/build.ts"
+    "prepublishOnly": "bun run scripts/build.ts",
+    "test": "bun test tests/unit tests/integration",
+    "test:unit": "bun test tests/unit",
+    "test:integration": "bun test tests/integration",
+    "test:e2e": "bun test tests/e2e",
+    "test:all": "bun test tests/"
   },
   "files": [
     "bin/",
