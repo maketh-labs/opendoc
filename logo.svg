@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+  <rect width="800" height="500" fill="#FFFFFF"/>
+
+  <!-- Icon Mark: [doc] -->
+  <text font-family="Inter, -apple-system, sans-serif" font-size="72" letter-spacing="-2" text-anchor="middle" x="400" y="200">
+    <tspan font-weight="300" fill="#4F46E5">[</tspan><tspan font-weight="700" fill="#4F46E5">doc</tspan><tspan font-weight="300" fill="#4F46E5">]</tspan>
+  </text>
+
+  <!-- Wordmark: open[doc] -->
+  <text font-family="Inter, -apple-system, sans-serif" font-size="52" letter-spacing="-1.5" text-anchor="middle" x="400" y="300">
+    <tspan font-weight="300" fill="#1E1B4B">open</tspan><tspan font-weight="300" fill="#4F46E5">[</tspan><tspan font-weight="700" fill="#4F46E5">doc</tspan><tspan font-weight="300" fill="#4F46E5">]</tspan>
+  </text>
+
+  <!-- Tagline -->
+  <text font-family="Inter, -apple-system, sans-serif" font-size="16" font-weight="400" fill="#6B7280" letter-spacing="0.5" text-anchor="middle" x="400" y="370">No server, no database, no lock-ins. Just docs.</text>
+</svg>

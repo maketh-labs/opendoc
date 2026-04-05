@@ -58,8 +58,10 @@ export function getStoredRepo() { return localStorage.getItem('github_repo') }
 export function getCurrentPagePath(): string | null {
   const pathname = window.location.pathname
   const prefix = '/_/'
-  if (pathname.startsWith(prefix)) return pathname.slice(prefix.length) || null
-  return null
+  if (!pathname.startsWith(prefix)) return null
+  const path = pathname.slice(prefix.length)
+  if (!path) return null
+  return `${path}/index.md`
 }
 
 export interface NavNode {
@@ -88,13 +90,13 @@ export const isLocal =
   window.location.hostname.endsWith('.local')
 
 export async function localLoadFile(path: string): Promise<string> {
-  const r = await fetch(`/_opendoc/file?path=${encodeURIComponent(path)}`)
+  const r = await fetch(`/_opendoc/file/${path}`)
   if (!r.ok) throw new Error(`Failed to load ${path}: ${r.status}`)
   return r.text()
 }
 
 export async function localSaveFile(path: string, content: string): Promise<void> {
-  const r = await fetch(`/_opendoc/file?path=${encodeURIComponent(path)}`, {
+  const r = await fetch(`/_opendoc/file/${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
@@ -103,17 +105,18 @@ export async function localSaveFile(path: string, content: string): Promise<void
 }
 
 export async function fetchOrder(dir: string): Promise<string[]> {
-  const r = await fetch(`/_opendoc/order?dir=${encodeURIComponent(dir)}`)
+  const r = await fetch(`/_opendoc/order/${dir}`)
   if (!r.ok) return []
   return r.json()
 }
 
 export async function saveOrder(dir: string, order: string[]): Promise<void> {
-  await fetch('/_opendoc/order?dir=' + encodeURIComponent(dir), {
+  const r = await fetch(`/_opendoc/order/${dir}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dir, order }),
+    body: JSON.stringify({ order }),
   })
+  if (!r.ok) throw new Error('Failed to save page order')
 }
 
 export async function movePageApi(from: string, to: string): Promise<void> {
@@ -126,7 +129,7 @@ export async function movePageApi(from: string, to: string): Promise<void> {
 }
 
 export async function deletePageApi(path: string): Promise<void> {
-  const r = await fetch(`/_opendoc/file?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+  const r = await fetch(`/_opendoc/file/${path}`, { method: 'DELETE' })
   if (!r.ok) throw new Error('Failed to delete page')
 }
 

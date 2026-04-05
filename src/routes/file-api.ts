@@ -35,9 +35,9 @@ async function appendToOrder(dir: string, slug: string): Promise<void> {
 }
 
 export const handleOrderApi: RouteHandler = async (req, res, url, ctx) => {
-  if (url.pathname !== '/_opendoc/order') return false
+  if (!url.pathname.startsWith('/_opendoc/order/')) return false
 
-  const dir = url.searchParams.get('dir') ?? '.'
+  const dir = decodeURIComponent(url.pathname.slice('/_opendoc/order/'.length)) || '.'
   const fullDir = resolve(ctx.rootDir, dir)
   if (!isWithinRoot(ctx.rootDir, fullDir)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' })
@@ -60,15 +60,8 @@ export const handleOrderApi: RouteHandler = async (req, res, url, ctx) => {
   }
 
   if (req.method === 'PUT') {
-    const body = JSON.parse(await readBody(req))
-    const { dir: bodyDir, order } = body
-    const targetDir = resolve(ctx.rootDir, bodyDir ?? dir)
-    if (!isWithinRoot(ctx.rootDir, targetDir)) {
-      res.writeHead(403, { 'Content-Type': 'text/plain' })
-      res.end('Forbidden')
-      return true
-    }
-    await Bun.write(join(targetDir, 'order.json'), JSON.stringify(order, null, 2) + '\n')
+    const { order } = JSON.parse(await readBody(req))
+    await Bun.write(join(fullDir, 'order.json'), JSON.stringify(order, null, 2) + '\n')
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
     return true
@@ -214,9 +207,9 @@ export const handleDuplicateApi: RouteHandler = async (req, res, url, ctx) => {
 }
 
 export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
-  if (url.pathname !== '/_opendoc/file') return false
+  if (!url.pathname.startsWith('/_opendoc/file/')) return false
 
-  const filePath = url.searchParams.get('path')
+  const filePath = decodeURIComponent(url.pathname.slice('/_opendoc/file/'.length))
   if (!filePath) {
     res.writeHead(400, { 'Content-Type': 'text/plain' })
     res.end('Missing path')

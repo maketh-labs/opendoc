@@ -166,10 +166,18 @@ function Viewer() {
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('od-left-open') !== 'false')
   const contentRef = useRef<HTMLElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
+  const navRef = useRef<NavNode | null>(null)
+  const [siteTitle, setSiteTitle] = useState('')
 
   // Navigate to a URL
   const navigateTo = useCallback(async (url: string, pushState = true) => {
-    const path = pathFromUrl(url)
+    let path = pathFromUrl(url)
+    if (!path && navRef.current) {
+      const n = navRef.current
+      const first = n.path && n.path !== '.' ? n.path : n.children?.[0]?.path
+      if (first && first !== '.') path = first
+    }
+    if (!path) return
     setLoading(true)
     showProgress()
     try {
@@ -210,8 +218,13 @@ function Viewer() {
   // Initial load
   useEffect(() => {
     async function load() {
-      const navData = await fetchNav()
+      const [navData, configRes] = await Promise.all([
+        fetchNav(),
+        fetch('/_opendoc/config.json').then(r => r.ok ? r.json() : null).catch(() => null)
+      ])
       setNav(navData)
+      navRef.current = navData
+      if (configRes?.title) setSiteTitle(configRes.title)
 
       // If at root, show first page content without changing URL
       let targetPath = currentPath
@@ -236,7 +249,12 @@ function Viewer() {
   // Handle popstate
   useEffect(() => {
     const handler = (e: PopStateEvent) => {
-      navigateTo(e.state?.url || window.location.href, false)
+      if (!e.state && window.location.hash) {
+        const target = document.getElementById(window.location.hash.slice(1))
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+      navigateTo(e.state?.url || window.location.pathname, false)
     }
     window.addEventListener('popstate', handler)
     return () => window.removeEventListener('popstate', handler)
@@ -255,7 +273,14 @@ function Viewer() {
         const url = new URL(href, window.location.origin)
         if (url.origin !== window.location.origin) return
         if (href.startsWith('/_opendoc') || href.startsWith('/__reload')) return
-        if (href.startsWith('#')) return
+        if (href.startsWith('#')) {
+          e.preventDefault()
+          const id = href.slice(1)
+          const target = document.getElementById(id)
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          history.pushState(null, '', href)
+          return
+        }
       } catch { return }
       if (e.metaKey || e.ctrlKey || e.shiftKey) return
       e.preventDefault()
@@ -328,7 +353,7 @@ function Viewer() {
         }} />
         <header className="od-header">
           <div className="od-header-left">
-            <a href="/" className="od-logo">OpenDoc</a>
+            <a href="/" className="od-logo">{siteTitle}</a>
           </div>
         </header>
       </>
@@ -364,7 +389,7 @@ function Viewer() {
               e.preventDefault()
               navigateTo('/')
             }}
-          >OpenDoc</a>
+          >{siteTitle}</a>
         </div>
         <div className="od-header-center">
           <div className="od-search-box">

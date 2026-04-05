@@ -11,11 +11,16 @@ export interface BacklinksIndex {
 }
 
 export interface FaviconConfig {
-  bgColor: string
-  padding: number
-  brightness: number
   darkMode: 'auto-invert' | 'same' | 'custom'
+  appleTouchMode: 'as-is' | 'background'
+  appleTouchBgColor: string
+  appleTouchMargin: number
   appName: string
+  manifestMode: 'as-is' | 'background'
+  manifestBgColor: string
+  manifestMargin: number
+  manifestName: string
+  manifestShortName: string
   themeColor: string
   version: number
 }

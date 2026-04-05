@@ -318,8 +318,10 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
     }
   });
 
-  httpServer.listen(port, () => {
-    console.log(`MCP server running on http://localhost:${port}`);
+  const { findAvailablePort } = await import('./server');
+  const actualPort = await findAvailablePort(port);
+  httpServer.listen(actualPort, () => {
+    console.log(`MCP server running on http://localhost:${actualPort}`);
   });
 
   return httpServer;

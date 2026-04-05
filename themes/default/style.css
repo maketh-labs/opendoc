@@ -194,7 +194,7 @@
 /* ─── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-html { font-size: var(--od-text-base); }
+html { font-size: var(--od-text-base); overflow: hidden; }
 
 #od-viewer-root { display: contents; }
 
@@ -362,7 +362,7 @@ body {
   display: flex;
   gap: var(--od-content-gap);
 }
-.od-content-wrap { flex: 1; min-width: 0; padding-bottom: var(--od-content-bottom); }
+.od-content-wrap { flex: 1; min-width: 0; padding-bottom: var(--od-content-bottom); align-self: flex-start; }
 .od-article { max-width: var(--od-content-max); margin: 0 auto; }
 
 .od-page-header { margin-bottom: 0; }

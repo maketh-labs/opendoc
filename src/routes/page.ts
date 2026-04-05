@@ -8,9 +8,11 @@ import { resolvePageAssets } from '../walker'
 import type { RouteHandler } from './types'
 
 export const handlePage: RouteHandler = async (_req, res, url, ctx) => {
-  if (url.pathname !== '/_opendoc/page') return false
+  // Match /_opendoc/page or /_opendoc/page/... but not /_opendoc/page-asset
+  if (url.pathname !== '/_opendoc/page' && !url.pathname.startsWith('/_opendoc/page/')) return false
+  if (url.pathname.startsWith('/_opendoc/page-')) return false
 
-  const path = url.searchParams.get('path') || ''
+  const path = decodeURIComponent(url.pathname.slice('/_opendoc/page'.length).replace(/^\//, ''))
   const page = path === '' ? '.' : path
 
   const indexPath = join(ctx.rootDir, page, 'index.md')
