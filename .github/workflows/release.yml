@@ -6,8 +6,28 @@ on:
       - "v*"
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run unit tests
+        run: bun test tests/unit
+
+      - name: Run integration tests
+        run: bun test tests/integration
+
   build:
     name: Build binaries
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +81,29 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      # Sync version from git tag into all package.json files
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Publishing version: $VERSION"
+          # Update main package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
+            pkg.version = '$VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          # Update platform package.json files
+          for pkg in opendoc-darwin-arm64 opendoc-darwin-x64 opendoc-linux-x64 opendoc-linux-arm64 opendoc-win32-x64; do
+            node -e "
+              const fs = require('fs');
+              const path = 'npm/$pkg/package.json';
+              const p = JSON.parse(fs.readFileSync(path, 'utf-8'));
+              p.version = '$VERSION';
+              fs.writeFileSync(path, JSON.stringify(p, null, 2) + '\n');
+            "
+          done
 
       # Publish platform packages first
       - name: Publish platform packages
