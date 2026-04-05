@@ -166,6 +166,13 @@ export async function build(rootDir: string): Promise<void> {
   // Write public config.json to dist/_opendoc/
   await writeFile(join(opendocDir, 'config.json'), JSON.stringify(buildPublicConfig(config, editorPath), null, 2));
 
+  // Copy 404/index.html to dist/404.html for static hosting platforms
+  const notFoundSrc = join(distDir, '404', 'index.html');
+  if (await fileExists(notFoundSrc)) {
+    await copyFile(notFoundSrc, join(distDir, '404.html'));
+    summary.push('  404.html (copied from 404/index.html)');
+  }
+
   // Print summary
   console.log(`\nBuild summary:`);
   console.log(`  ${pages.length} pages → index.html`);

@@ -188,7 +188,17 @@ function Viewer() {
       if (pushState) history.pushState({ url }, '', url)
       contentRef.current?.scrollTo(0, 0)
     } catch {
-      window.location.href = url
+      // Try loading the 404 page; fall back to a hard navigation if that also fails
+      try {
+        const notFound = await fetchPage('404')
+        setPage(notFound)
+        setCurrentPath('404')
+        document.title = 'Page Not Found'
+        if (pushState) history.pushState({ url }, '', url)
+        contentRef.current?.scrollTo(0, 0)
+      } catch {
+        window.location.href = url
+      }
     } finally {
       setLoading(false)
       finishProgress()

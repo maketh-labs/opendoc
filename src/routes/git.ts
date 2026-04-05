@@ -8,7 +8,7 @@ export const handleGitStatus: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/git-status' || req.method !== 'GET') return false
 
   try {
-    const git = simpleGit(ctx.rootDir)
+    const git = simpleGit(ctx.rootDir, { config: ['--no-optional-locks'] })
     const isRepo = await git.checkIsRepo()
     if (!isRepo) {
       res.writeHead(200, { 'Content-Type': 'application/json' })

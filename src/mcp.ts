@@ -16,7 +16,7 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
     version: '0.1.0',
   });
 
-  const git = simpleGit(rootDir);
+  const git = simpleGit(rootDir, { config: ['--no-optional-locks'] });
 
   function validatePath(pagePath: string): string | null {
     if (pagePath.includes('..')) return 'Path must not contain ".."';
@@ -31,8 +31,7 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
 
   async function isGitRepo(): Promise<boolean> {
     try {
-      await git.status();
-      return true;
+      return await git.checkIsRepo();
     } catch {
       return false;
     }
