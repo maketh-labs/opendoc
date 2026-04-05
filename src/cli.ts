@@ -34,16 +34,16 @@ switch (command) {
 OpenDoc — git-native docs and wiki
 
 Usage:
-  bunx opendoc serve [dir]    Start dev server (:3000) + MCP server (:3001)
-  bunx opendoc build [dir]    Build static site to dist/
-  bunx opendoc init [dir]     Create a new docs project
+  bunx @maketh-labs/opendoc serve [dir]    Start dev server (:3000) + MCP server (:3001)
+  bunx @maketh-labs/opendoc build [dir]    Build static site to dist/
+  bunx @maketh-labs/opendoc init [dir]     Create a new docs project
 
 Examples:
-  bunx opendoc serve           Serve current directory
-  bunx opendoc serve ./docs    Serve ./docs
-  bunx opendoc build ./docs    Build ./docs to static site
-  bunx opendoc init ./docs     Create a new docs project in ./docs
-  bunx opendoc init            Initialize in the current directory
+  bunx @maketh-labs/opendoc serve           Serve current directory
+  bunx @maketh-labs/opendoc serve ./docs    Serve ./docs
+  bunx @maketh-labs/opendoc build ./docs    Build ./docs to static site
+  bunx @maketh-labs/opendoc init ./docs     Create a new docs project in ./docs
+  bunx @maketh-labs/opendoc init            Initialize in the current directory
 `);
     process.exit(command === 'help' || command === '--help' || command === '-h' ? 0 : 1);
 }

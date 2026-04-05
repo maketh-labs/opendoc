@@ -1,5 +1,5 @@
 {
-  "name": "opendoc",
+  "name": "@maketh-labs/opendoc",
   "version": "0.0.1",
   "description": "Git-native docs and wiki. Replaces GitBook and Obsidian. MCP-native.",
   "homepage": "https://opendoc.sh",
