@@ -52,6 +52,14 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
+/** Draw image centered in a square, preserving aspect ratio */
+function drawContain(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, boxW: number, boxH: number) {
+  const scale = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight)
+  const w = img.naturalWidth * scale
+  const h = img.naturalHeight * scale
+  ctx.drawImage(img, x + (boxW - w) / 2, y + (boxH - h) / 2, w, h)
+}
+
 /** Render icon at exact size — for browser favicons */
 function renderIconCanvas(
   img: HTMLImageElement,
@@ -62,7 +70,7 @@ function renderIconCanvas(
   const canvas = document.createElement('canvas')
   canvas.width = size; canvas.height = size
   const ctx = canvas.getContext('2d')!
-  ctx.drawImage(img, 0, 0, size, size)
+  drawContain(ctx, img, 0, 0, size, size)
   if (dark && darkMode === 'auto-invert') {
     const imageData = ctx.getImageData(0, 0, size, size)
     const d = imageData.data
@@ -91,9 +99,9 @@ function renderPaddedCanvas(
     ctx.fillRect(0, 0, size, size)
     const pad = Math.round(size * margin / 100)
     const drawSize = size - pad * 2
-    if (drawSize > 0) ctx.drawImage(img, pad, pad, drawSize, drawSize)
+    if (drawSize > 0) drawContain(ctx, img, pad, pad, drawSize, drawSize)
   } else {
-    ctx.drawImage(img, 0, 0, size, size)
+    drawContain(ctx, img, 0, 0, size, size)
   }
   return canvas
 }
