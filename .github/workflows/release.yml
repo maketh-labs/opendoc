@@ -105,7 +105,7 @@ jobs:
             "
           done
 
-      # Publish platform packages first
+      # Publish platform packages first (using OIDC trusted publishing)
       - name: Publish platform packages
         run: |
           for pkg in opendoc-darwin-arm64 opendoc-darwin-x64 opendoc-linux-x64 opendoc-linux-arm64 opendoc-win32-x64; do
@@ -113,14 +113,10 @@ jobs:
             npm publish --provenance --access public || true
             cd ../..
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Then publish main package
       - name: Publish main package
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release:
     name: Create GitHub Release
