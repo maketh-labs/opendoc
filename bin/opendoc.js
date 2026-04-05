@@ -8,11 +8,11 @@ const require = createRequire(import.meta.url)
 
 // Platform → optional package name
 const PLATFORMS = {
-  "darwin arm64": "opendoc-darwin-arm64",
-  "darwin x64":   "opendoc-darwin-x64",
-  "linux x64":    "opendoc-linux-x64",
-  "linux arm64":  "opendoc-linux-arm64",
-  "win32 x64":    "opendoc-win32-x64",
+  "darwin arm64": "@maketh-labs/opendoc-darwin-arm64",
+  "darwin x64":   "@maketh-labs/opendoc-darwin-x64",
+  "linux x64":    "@maketh-labs/opendoc-linux-x64",
+  "linux arm64":  "@maketh-labs/opendoc-linux-arm64",
+  "win32 x64":    "@maketh-labs/opendoc-win32-x64",
 }
 
 const key = `${process.platform} ${process.arch}`

@@ -1,10 +1,18 @@
 {
-  "name": "opendoc-linux-x64",
-  "version": "0.1.0",
+  "name": "@maketh-labs/opendoc-linux-x64",
+  "version": "0.0.1",
   "description": "OpenDoc binary for Linux x64",
-  "os": ["linux"],
-  "cpu": ["x64"],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "main": "bin/opendoc",
-  "bin": { "opendoc": "bin/opendoc" },
-  "files": ["bin/"]
+  "bin": {
+    "opendoc": "bin/opendoc"
+  },
+  "files": [
+    "bin/"
+  ]
 }

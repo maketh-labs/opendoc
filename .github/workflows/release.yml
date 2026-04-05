@@ -87,11 +87,18 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Publishing version: $VERSION"
-          # Update main package.json
+          # Update main package.json (version + optionalDependencies)
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
             pkg.version = '$VERSION';
+            if (pkg.optionalDependencies) {
+              for (const key of Object.keys(pkg.optionalDependencies)) {
+                if (key.startsWith('@maketh-labs/opendoc-')) {
+                  pkg.optionalDependencies[key] = '$VERSION';
+                }
+              }
+            }
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
           # Update platform package.json files

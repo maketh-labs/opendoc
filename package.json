@@ -32,6 +32,13 @@
     "bun-types": "^1.3.11",
     "playwright": "^1.58.2"
   },
+  "optionalDependencies": {
+    "@maketh-labs/opendoc-darwin-arm64": "0.0.1",
+    "@maketh-labs/opendoc-darwin-x64": "0.0.1",
+    "@maketh-labs/opendoc-linux-x64": "0.0.1",
+    "@maketh-labs/opendoc-linux-arm64": "0.0.1",
+    "@maketh-labs/opendoc-win32-x64": "0.0.1"
+  },
   "peerDependencies": {
     "typescript": "^5"
   },
