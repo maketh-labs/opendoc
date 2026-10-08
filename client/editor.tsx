@@ -10,7 +10,7 @@ import { LocalEditor } from './local-editor'
 import { GitHubEditor } from './github-editor'
 import { LoginScreen, RepoPicker, NoAccess } from './auth-screens'
 import {
-  isLocal, getStoredToken, getStoredRepo,
+  isLocal, getStoredToken, getStoredRepo, setEditorBase,
   type SiteConfig,
 } from './editor-utils'
 import {
@@ -36,22 +36,8 @@ function App() {
 
   useEffect(() => {
     async function init() {
-      if (isLocal) { setAppView({ view: 'local' }); return }
-
-      const code = new URLSearchParams(window.location.search).get('code')
-      if (code) {
-        try {
-          const r = await fetch(`/oauth/callback?code=${code}`)
-          const data = await r.json()
-          if (data.access_token) localStorage.setItem('github_token', data.access_token)
-        } catch {}
-        window.history.replaceState({}, '', '/_')
-        window.location.reload()
-        return
-      }
-
       if (window.location.hash.startsWith('#github_token=')) {
-        const t = window.location.hash.slice('#github_token='.length)
+        const t = decodeURIComponent(window.location.hash.slice('#github_token='.length))
         if (t) localStorage.setItem('github_token', t)
         window.history.replaceState({}, '', window.location.pathname + window.location.search)
       }
@@ -62,6 +48,9 @@ function App() {
         if (r.ok) config = await r.json()
       } catch {}
       setSiteConfig(config)
+      setEditorBase(config.editorPath)
+
+      if (isLocal) { setAppView({ view: 'local' }); return }
 
       if (config.github?.repo && !getStoredRepo()) {
         localStorage.setItem('github_repo', config.github.repo)
@@ -96,7 +85,7 @@ function App() {
     <SiteConfigContext.Provider value={siteConfig}>
       {view.view === 'loading'     && <div className="login-screen"><div style={{ color: 'var(--color-muted)' }}>Loading…</div></div>}
       {view.view === 'local'       && <LocalEditor />}
-      {view.view === 'login'       && <LoginScreen clientId={siteConfig.github?.clientId} />}
+      {view.view === 'login'       && <LoginScreen />}
       {view.view === 'repoPicker'  && <RepoPicker repos={view.repos} />}
       {view.view === 'noAccess'    && <NoAccess repo={view.repo} />}
       {view.view === 'editor'      && <GitHubEditor token={view.token} repo={view.repo} config={siteConfig} />}

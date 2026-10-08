@@ -12,7 +12,10 @@ import { saveOrder, movePageApi, fetchOrder, deletePageApi, renamePageApi, dupli
 export interface NavSidebarProps {
   nav: NavNode
   currentFile: string
-  onNavigate: (filePath: string) => void
+  /** `discard: true` drops the editor's draft instead of saving it (its file moved or was deleted). */
+  onNavigate: (filePath: string, opts?: { discard?: boolean }) => void
+  /** Flush pending editor saves before a rename/move/delete. Resolve false to abort. */
+  onBeforeMutate?: () => Promise<boolean>
   onCreatePage: (parentPath: string, name: string) => Promise<void>
   onRefreshNav: () => Promise<void>
   collapsed: boolean
@@ -42,7 +45,14 @@ function parentDir(nodePath: string): string {
   return parts.slice(0, -1).join('/')
 }
 
-export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefreshNav, collapsed, onOpenSiteSettings }: NavSidebarProps) {
+// Is the open file inside (or equal to) the page folder `nodePath`?
+function isUnder(currentFile: string, nodePath: string): boolean {
+  return !!nodePath && (currentFile === `${nodePath}/index.md` || currentFile.startsWith(nodePath + '/'))
+}
+
+export function NavSidebar({ nav, currentFile, onNavigate, onBeforeMutate, onCreatePage, onRefreshNav, collapsed, onOpenSiteSettings }: NavSidebarProps) {
+  const beforeMutate = useCallback(async () => (onBeforeMutate ? onBeforeMutate() : true), [onBeforeMutate])
+
   const [creatingAt, setCreatingAt] = useState<string | null>(null)
   const [draggedPath, setDraggedPath] = useState<string | null>(null)
   const [dropZone, setDropZone] = useState<DropZone>(null)
@@ -79,16 +89,17 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
     } else if (action === 'delete') {
       setContextMenu(null)
       try {
+        const affectsOpen = isUnder(currentFile, nodePath)
+        if (!(await beforeMutate())) return
         await deletePageApi(nodePath)
-        await onRefreshNav()
-        // If deleted page is currently open, navigate away
-        const filePath = nodePath ? `${nodePath}/index.md` : 'index.md'
-        if (nodePath && (currentFile === filePath || currentFile.startsWith(nodePath + '/'))) {
-          const pages = flattenNav(nav).filter(p =>
-            !p.filePath.startsWith(nodePath + '/') && p.filePath !== filePath
+        // If the deleted page is open, leave it without saving (saving would recreate it)
+        if (affectsOpen) {
+          const remaining = flattenNav(nav).filter(p =>
+            p.filePath !== 'index.md' && !isUnder(p.filePath, nodePath),
           )
-          if (pages.length) onNavigate(pages[0].filePath)
+          onNavigate(remaining[0]?.filePath ?? '', { discard: true })
         }
+        await onRefreshNav()
       } catch (e) {
         showToast((e as Error).message || 'Delete failed', 'error')
       }
@@ -101,7 +112,7 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
         showToast((e as Error).message || 'Duplicate failed', 'error')
       }
     }
-  }, [contextMenu, currentFile, nav, onNavigate, onRefreshNav, handleStartCreate])
+  }, [contextMenu, currentFile, nav, onNavigate, onRefreshNav, handleStartCreate, beforeMutate])
 
   const handleRenameConfirm = useCallback(async (oldPath: string, newSlug: string) => {
     setRenamingPath(null)
@@ -109,16 +120,16 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
     const newPath = parent === '.' ? newSlug : `${parent}/${newSlug}`
     if (newPath === oldPath) return
     try {
+      if (!(await beforeMutate())) return
       await renamePageApi(oldPath, newPath)
-      await onRefreshNav()
-      const oldFile = `${oldPath}/index.md`
-      if (currentFile === oldFile) {
-        onNavigate(`${newPath}/index.md`)
+      if (isUnder(currentFile, oldPath)) {
+        onNavigate(newPath + currentFile.slice(oldPath.length), { discard: true })
       }
+      await onRefreshNav()
     } catch (e) {
       showToast((e as Error).message || 'Rename failed', 'error')
     }
-  }, [currentFile, onNavigate, onRefreshNav])
+  }, [currentFile, onNavigate, onRefreshNav, beforeMutate])
 
   const handleRenameCancel = useCallback(() => setRenamingPath(null), [])
 
@@ -130,6 +141,11 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
     setDraggedPath(null)
     setDropZone(null)
   }, [])
+
+  // Keep the editor on the open page after its folder moved
+  const followMove = useCallback((from: string, to: string) => {
+    if (isUnder(currentFile, from)) onNavigate(to + currentFile.slice(from.length), { discard: true })
+  }, [currentFile, onNavigate])
 
   const handleDrop = useCallback(async (zone: DropZone) => {
     if (!draggedPath || !zone) return
@@ -169,7 +185,9 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
         } else {
           // Cross-level move
           const newPath = targetParent === '.' ? draggedFolder : `${targetParent}/${draggedFolder}`
+          if (!(await beforeMutate())) return
           await movePageApi(draggedPath, newPath)
+          followMove(draggedPath, newPath)
 
           // Update both orders in parallel
           const [srcOrder, destOrder] = await Promise.all([
@@ -187,7 +205,9 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
         if (zone.targetPath.startsWith(draggedPath + '/')) return
 
         const newPath = `${zone.targetPath}/${draggedFolder}`
+        if (!(await beforeMutate())) return
         await movePageApi(draggedPath, newPath)
+        followMove(draggedPath, newPath)
 
         const [srcOrder, destOrder] = await Promise.all([
           fetchOrder(sourceParent),
@@ -204,7 +224,7 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
       showToast((e as Error).message || 'Move failed', 'error')
       await onRefreshNav()
     }
-  }, [draggedPath, nav, onRefreshNav])
+  }, [draggedPath, nav, onRefreshNav, beforeMutate, followMove])
 
   return (
     <aside className={`od-sidebar-left w-[260px] min-w-[260px] bg-[var(--od-color-surface)] border-r border-[var(--od-color-border)] overflow-y-auto shrink-0 transition-all duration-200 flex flex-col${collapsed ? ' od-sidebar-collapsed !w-0 !min-w-0 !overflow-hidden !border-r-transparent' : ''}`}>

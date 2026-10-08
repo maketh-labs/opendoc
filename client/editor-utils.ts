@@ -1,7 +1,12 @@
 // Shared utilities for the editor UI
 
+import { generateCommitMessage } from './markdown-text'
+export { extractPageMeta, buildMarkdown } from './markdown-text'
+
 export function escapeHtml(str: string) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return str
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
 let _toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -19,47 +24,34 @@ export function showToast(msg: string, type: 'success' | 'error' | 'warning', li
   _toastTimer = setTimeout(() => el.remove(), 5000)
 }
 
-export function extractPageMeta(markdown: string): { title: string; icon: string; body: string } {
-  let rest = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').trimStart()
-  const fmMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  let icon = ''
-  if (fmMatch?.[1]) {
-    const iconMatch = fmMatch[1].match(/^icon:\s*(.+)$/m)
-    if (iconMatch?.[1]) icon = iconMatch[1].trim()
-  }
-  const h1Match = rest.match(/^#\s+(.+)\n?/)
-  const title = h1Match?.[1] ? h1Match[1].trim() : ''
-  const body = h1Match?.[0] ? rest.slice(h1Match[0].length).trimStart() : rest
-  return { title, icon, body }
-}
-
-export function buildMarkdown(title: string, icon: string, body: string): string {
-  let md = ''
-  if (icon) md += `---\nicon: ${icon}\n---\n\n`
-  if (title) md += `# ${title}\n\n`
-  md += body
-  return md
-}
-
-export function getMcpUrl(): string {
-  try {
-    const u = new URL(window.location.href)
-    u.port = String(parseInt(u.port || "80") + 1)
-    u.pathname = "/mcp"
-    return u.toString()
-  } catch {
-    return "http://localhost:3001/mcp"
-  }
-}
-
 export function getStoredToken() { return localStorage.getItem('github_token') }
 export function getStoredRepo() { return localStorage.getItem('github_repo') }
 
-export function getCurrentPagePath(): string | null {
-  const pathname = window.location.pathname
-  const prefix = '/_/'
-  if (!pathname.startsWith(prefix)) return null
-  const path = pathname.slice(prefix.length)
+// The editor is mounted at config.editorPath (default "/_"). editor.tsx can set it from
+// the site config; otherwise it is inferred from the first URL segment.
+let editorBase: string | null = null
+
+export function setEditorBase(path: string | null | undefined) {
+  if (path) editorBase = '/' + path.replace(/^\/+|\/+$/g, '')
+}
+
+export function getEditorBase(): string {
+  if (editorBase) return editorBase
+  const first = window.location.pathname.split('/').filter(Boolean)[0]
+  return first ? `/${first}` : '/_'
+}
+
+/** Editor URL for a page file path ("guides/x/index.md" → "/_/guides/x"). */
+export function editorUrlFor(filePath: string): string {
+  const urlPath = filePath.replace(/\/?index\.md$/, '')
+  return urlPath ? `${getEditorBase()}/${urlPath}` : getEditorBase()
+}
+
+export function getCurrentPagePath(editorPath?: string | null): string | null {
+  const base = editorPath ? '/' + editorPath.replace(/^\/+|\/+$/g, '') : getEditorBase()
+  const pathname = decodeURIComponent(window.location.pathname)
+  if (!pathname.startsWith(base + '/')) return null
+  const path = pathname.slice(base.length + 1).replace(/\/+$/, '')
   if (!path) return null
   return `${path}/index.md`
 }
@@ -153,15 +145,6 @@ export async function duplicatePageApi(path: string): Promise<string> {
   return data.slug as string
 }
 
-export async function getCommitMessage(path: string, before: string, after: string): Promise<string> {
-  const fallback = `edit(${path}): ${new Date().toISOString()}`
-  try {
-    const r = await fetch(getMcpUrl(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tool: 'generate_commit_message', params: { path, before, after } }),
-    })
-    if (r.ok) return (await r.json()).message as string
-  } catch {}
-  return fallback
+export function getCommitMessage(path: string, before: string | undefined, after: string): string {
+  return generateCommitMessage(path, before, after)
 }

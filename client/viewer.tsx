@@ -10,6 +10,7 @@ interface NavNode {
   url: string
   icon?: string
   children: NavNode[]
+  virtual?: true
 }
 
 interface PageData {
@@ -37,15 +38,51 @@ function toggleTheme() {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function pathFromUrl(pathname: string): string {
-  return pathname.replace(/^\//, '').replace(/\/$/, '')
+/** "/guides/x/", "/guides/x/index.html" → "guides/x"; "/" → "" (the root page). */
+function pathFromUrl(url: string): string {
+  let pathname = url
+  try { pathname = new URL(url, window.location.origin).pathname } catch {}
+  try { pathname = decodeURIComponent(pathname) } catch {}
+  return pathname
+    .replace(/\/index\.html?$/i, '/')
+    .replace(/^\/+|\/+$/g, '')
 }
 
-async function fetchPage(path: string): Promise<PageData> {
-  const res = await fetch(`/_opendoc/page/${path}`)
-  if (!res.ok) throw new Error(`Page fetch failed: ${res.status}`)
-  return res.json()
+/** URL of a page's JSON data — works on the dev server and on static hosts. */
+function pageDataUrl(path: string): string {
+  if (!path || path === '.') return '/_opendoc/page.json'
+  return `/_opendoc/page/${path.split('/').map(encodeURIComponent).join('/')}.json`
 }
+
+class PageNotFound extends Error {}
+
+async function fetchPage(path: string, signal?: AbortSignal): Promise<PageData> {
+  const res = await fetch(pageDataUrl(path), { signal })
+  if (res.status === 404) throw new PageNotFound(path)
+  if (!res.ok) throw new Error(`Page fetch failed: ${res.status}`)
+  const data: PageData = await res.json()
+  // The server answers the root with empty content when there is no root index.md
+  if ((!path || path === '.') && !data.html && !data.title) throw new PageNotFound(path)
+  return data
+}
+
+function firstChildPath(nav: NavNode | null): string | null {
+  const first = nav?.path && nav.path !== '.' ? nav.path : nav?.children?.[0]?.path
+  return first && first !== '.' ? first : null
+}
+
+/** Load the page for `path`; at the root, fall back to the first page when there is no root index.md. */
+async function resolvePage(path: string, nav: NavNode | null, signal?: AbortSignal): Promise<{ path: string; data: PageData }> {
+  try {
+    return { path, data: await fetchPage(path, signal) }
+  } catch (e) {
+    if (path || !(e instanceof PageNotFound)) throw e
+    const first = firstChildPath(nav)
+    if (!first) throw e
+    return { path: first, data: await fetchPage(first, signal) }
+  }
+}
+
 
 async function fetchNav(): Promise<NavNode | null> {
   const res = await fetch('/_opendoc/nav.json')
@@ -110,8 +147,15 @@ function NavTree({ nav, currentPath, onNavigate, searchQuery }: {
   const filtered = filterNode(nav, searchQuery.toLowerCase())
   if (!filtered) return null
 
+  // The top node is the home page (unless it's just a folder grouping): list it first so "/" is reachable
+  const query = searchQuery.toLowerCase()
+  const showHome = !nav.virtual && (!query || nav.title.toLowerCase().includes(query))
+
   return (
     <ul>
+      {showHome && (
+        <NavItem key={nav.path} node={{ ...nav, children: [] }} currentPath={currentPath} onNavigate={onNavigate} />
+      )}
       {filtered.children.map(child => (
         <NavItem key={child.path} node={child} currentPath={currentPath} onNavigate={onNavigate} />
       ))}
@@ -168,40 +212,47 @@ function Viewer() {
   const progressRef = useRef<HTMLDivElement>(null)
   const navRef = useRef<NavNode | null>(null)
   const [siteTitle, setSiteTitle] = useState('')
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Navigate to a URL
+  // Navigate to a URL. Only the latest navigation may update the page (older ones are aborted).
+  const navAbortRef = useRef<AbortController | null>(null)
   const navigateTo = useCallback(async (url: string, pushState = true) => {
-    let path = pathFromUrl(url)
-    if (!path && navRef.current) {
-      const n = navRef.current
-      const first = n.path && n.path !== '.' ? n.path : n.children?.[0]?.path
-      if (first && first !== '.') path = first
-    }
-    if (!path) return
+    navAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    navAbortRef.current = ctrl
+    const path = pathFromUrl(url)
     setLoading(true)
     showProgress()
     try {
-      const data = await fetchPage(path)
+      const { path: resolved, data } = await resolvePage(path, navRef.current, ctrl.signal)
+      if (ctrl.signal.aborted) return
       setPage(data)
-      setCurrentPath(path)
+      setLoadError(null)
+      setCurrentPath(resolved)
       document.title = data.title
       if (pushState) history.pushState({ url }, '', url)
       contentRef.current?.scrollTo(0, 0)
-    } catch {
+    } catch (e) {
+      if (ctrl.signal.aborted) return
       // Try loading the 404 page; fall back to a hard navigation if that also fails
       try {
-        const notFound = await fetchPage('404')
+        const notFound = await fetchPage('404', ctrl.signal)
+        if (ctrl.signal.aborted) return
         setPage(notFound)
         setCurrentPath('404')
         document.title = 'Page Not Found'
         if (pushState) history.pushState({ url }, '', url)
         contentRef.current?.scrollTo(0, 0)
       } catch {
-        window.location.href = url
+        if (ctrl.signal.aborted) return
+        if (pushState) window.location.href = url
+        else setLoadError((e as Error).message || 'Failed to load page')
       }
     } finally {
-      setLoading(false)
-      finishProgress()
+      if (navAbortRef.current === ctrl) {
+        setLoading(false)
+        finishProgress()
+      }
     }
   }, [])
 
@@ -229,31 +280,20 @@ function Viewer() {
   useEffect(() => {
     async function load() {
       const [navData, configRes] = await Promise.all([
-        fetchNav(),
+        fetchNav().catch(() => null),
         fetch('/_opendoc/config.json').then(r => r.ok ? r.json() : null).catch(() => null)
       ])
       setNav(navData)
       navRef.current = navData
       if (configRes?.title) setSiteTitle(configRes.title)
-
-      // If at root, show first page content without changing URL
-      let targetPath = currentPath
-      if (!targetPath) {
-        const firstPage = navData?.path && navData.path !== '.' ? navData.path : navData?.children?.[0]?.path
-        if (firstPage && firstPage !== '.') {
-          targetPath = firstPage
-          setCurrentPath(firstPage)
-        }
-      }
-
-      if (targetPath) {
-        const pageData = await fetchPage(targetPath)
-        setPage(pageData)
-        document.title = pageData.title
-      }
-      setLoading(false)
+      // Root URL shows the root index.md, or the first page when there is none (URL unchanged)
+      await navigateTo(window.location.pathname, false)
     }
-    load()
+    load().catch(e => {
+      setLoadError((e as Error).message || 'Failed to load')
+      setLoading(false)
+      finishProgress()
+    })
   }, [])
 
   // Handle popstate
@@ -344,9 +384,11 @@ function Viewer() {
   // TOC observer
   useTocObserver(page?.toc || '')
 
-  // Hot reload
+  // Hot reload — only the dev server's HTML shell advertises the endpoint (static builds don't)
   useEffect(() => {
-    const es = new EventSource('/__reload')
+    const endpoint = document.querySelector<HTMLMetaElement>('meta[name="opendoc-live-reload"]')?.content
+    if (!endpoint) return
+    const es = new EventSource(endpoint)
     es.onmessage = () => location.reload()
     return () => es.close()
   }, [])
@@ -359,13 +401,20 @@ function Viewer() {
           position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 9999,
           background: 'var(--color-accent, #0969da)',
           transition: 'width 0.2s ease, opacity 0.3s ease',
-          width: '70%', opacity: 1,
+          width: '70%', opacity: loadError ? 0 : 1,
         }} />
         <header className="od-header">
           <div className="od-header-left">
             <a href="/" className="od-logo">{siteTitle}</a>
           </div>
         </header>
+        {loadError && (
+          <div className="od-content" style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+            <p>Couldn't load this page.</p>
+            <p style={{ opacity: 0.7, fontSize: '0.9em' }}>{loadError}</p>
+            <button onClick={() => location.reload()}>Retry</button>
+          </div>
+        )}
       </>
     )
   }

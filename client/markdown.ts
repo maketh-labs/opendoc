@@ -3,8 +3,10 @@
 
 import { BlockNoteEditor } from '@blocknote/core'
 import type { Block } from '@blocknote/core'
-import { type CalloutType } from './callout-block'
 import { schema } from './schema'
+import {
+  extractCallouts, formatCallout, preProcessWikiLinks, postProcessWikiLinks,
+} from './markdown-text'
 
 let _editor: typeof BlockNoteEditor.prototype | null = null
 
@@ -13,103 +15,50 @@ function getEditor() {
   return _editor!
 }
 
-// Parse GitHub-flavored callout syntax: > [!TYPE]\n> content
-function extractCallouts(markdown: string): Array<
-  { type: 'text'; text: string } |
-  { type: 'callout'; calloutType: CalloutType; content: string }
-> {
-  const parts: Array<
-    { type: 'text'; text: string } |
-    { type: 'callout'; calloutType: CalloutType; content: string }
-  > = []
-  const lines = markdown.split('\n')
-  let i = 0
-  let buffer = ''
-
-  while (i < lines.length) {
-    const line = lines[i]!
-    const m = line.match(/^>\s*\[!(INFO|NOTE|TIP|WARNING|CAUTION|IMPORTANT|DANGER)\](.*)?$/i)
-    if (m) {
-      if (buffer.trim()) { parts.push({ type: 'text', text: buffer }); buffer = '' }
-      const calloutType = m[1]!.toLowerCase() as CalloutType
-      let content = (m[2] || '').trim()
-      i++
-      while (i < lines.length && /^>\s*/.test(lines[i]!) && !lines[i]!.match(/^>\s*\[!/)) {
-        const qline = lines[i]!.replace(/^>\s?/, '').trim()
-        if (qline) content = content ? content + ' ' + qline : qline
-        i++
-      }
-      parts.push({ type: 'callout', calloutType, content })
-    } else {
-      buffer += line + '\n'
-      i++
+// Bare-URL paragraphs become bookmark or embed blocks; they are saved back as bare URLs.
+function enrichBlock(block: any): any {
+  if (
+    block.type === 'paragraph' &&
+    block.content?.length === 1 &&
+    block.content[0]?.type === 'text' &&
+    /^https?:\/\/[^\s]+$/.test((block.content[0].text || '').trim())
+  ) {
+    const url = block.content[0].text.trim()
+    if (isEmbedUrl(url)) {
+      return { type: 'youtube' as const, props: { url, caption: '' }, content: undefined, children: [] }
+    }
+    return {
+      type: 'bookmark' as const,
+      props: { url, title: '', description: '', favicon: '', domain: '', imageUrl: '' },
+      content: undefined,
+      children: [],
     }
   }
-  if (buffer.trim()) parts.push({ type: 'text', text: buffer })
-  return parts
-}
-
-// Convert [[wiki links]] to markdown links for BlockNote, preserving round-trip
-// We encode them as /wl/Page%20Name so BlockNote treats them as valid links
-function preProcessWikiLinks(md: string): string {
-  return md.replace(/\[\[([^\]|#]+)(?:#([^\]|]+))?(?:\|([^\]]+))?\]\]/g, (_, page, anchor, label) => {
-    const display = label || page
-    const encodedPage = encodeURIComponent(page.trim())
-    const anchorPart = anchor ? '%23' + encodeURIComponent(anchor) : ''
-    const href = `/wl/${encodedPage}${anchorPart}`
-    return `[${display}](${href})`
-  })
+  return block
 }
 
 export async function markdownToBlocks(markdown: string): Promise<Block[]> {
   const stripped = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '')
-  const withLinks = preProcessWikiLinks(stripped)
-  const parts = extractCallouts(withLinks)
+  const parts = extractCallouts(preProcessWikiLinks(stripped))
   const blocks: any[] = []
 
   for (const part of parts) {
     if (part.type === 'callout') {
-      const contentBlocks = part.content
-        ? await getEditor().tryParseMarkdownToBlocks(part.content)
+      const parsed: any[] = part.content
+        ? (await getEditor().tryParseMarkdownToBlocks(part.content)).map(enrichBlock)
         : []
-      const inlineContent = contentBlocks.length > 0 && (contentBlocks[0] as any).content
-        ? (contentBlocks[0] as any).content
-        : [{ type: 'text', text: part.content || '', styles: {} }]
+      // The first paragraph becomes the callout's inline content; everything else nests as children
+      const first = parsed[0]
+      const hasInlineHead = first?.type === 'paragraph' && Array.isArray(first.content)
       blocks.push({
         type: 'callout',
         props: { calloutType: part.calloutType },
-        content: inlineContent,
-        children: [],
+        content: hasInlineHead ? first.content : [],
+        children: hasInlineHead ? [...(first.children ?? []), ...parsed.slice(1)] : parsed,
       })
     } else {
       const parsed = await getEditor().tryParseMarkdownToBlocks(part.text)
-      // Convert bare-URL paragraphs to bookmark or youtube blocks
-      const enriched = parsed.map((block: any) => {
-        if (
-          block.type === "paragraph" &&
-          block.content?.length === 1 &&
-          block.content[0]?.type === "text" &&
-          /^https?:\/\/[^\s]+$/.test((block.content[0].text || "").trim())
-        ) {
-          const url = block.content[0].text.trim()
-          if (isEmbedUrl(url)) {
-            return {
-              type: "youtube" as const,
-              props: { url, caption: "" },
-              content: undefined,
-              children: [],
-            }
-          }
-          return {
-            type: "bookmark" as const,
-            props: { url, title: "", description: "", favicon: "", domain: "", imageUrl: "" },
-            content: undefined,
-            children: [],
-          }
-        }
-        return block
-      })
-      blocks.push(...enriched)
+      blocks.push(...parsed.map(enrichBlock))
     }
   }
 
@@ -124,38 +73,26 @@ export async function markdownToBlocks(markdown: string): Promise<Block[]> {
 function isEmbedUrl(url: string): boolean {
   try {
     const u = new URL(url)
-    return u.hostname.includes("youtube.com") || u.hostname === "youtu.be"
-      || u.hostname.includes("vimeo.com") || u.hostname.includes("loom.com")
+    return u.hostname.includes('youtube.com') || u.hostname === 'youtu.be'
+      || u.hostname.includes('vimeo.com') || u.hostname.includes('loom.com')
   } catch { return false }
 }
 
-export function blocksToMarkdown(blocks: any[]): string {
+function blocksToMarkdownRaw(blocks: any[]): string {
   const editor = getEditor()
   const parts: string[] = []
 
   for (const block of blocks) {
-    if (block.type === 'youtube') {
-      const url = block.props?.url || ""
+    if (block.type === 'youtube' || block.type === 'bookmark') {
+      // Always a bare URL so it is re-detected as the same block type on load
+      const url = block.props?.url || ''
       if (url) parts.push(url)
       continue
     }
-    if (block.type === 'bookmark') {
-      const url = block.props?.url || ""
-      const title = block.props?.title || ""
-      parts.push(title ? `[${title}](${url})` : url)
-      continue
-    }
     if (block.type === 'callout') {
-      const tempParagraph = { ...block, type: 'paragraph', props: {} }
-      const contentMd = editor.blocksToMarkdownLossy([tempParagraph])
-      const trimmed = contentMd.trim()
-      const ct = ((block.props?.calloutType as string) || 'info').toUpperCase()
-      if (trimmed) {
-        const lines = trimmed.split('\n').map((l: string) => `> ${l}`).join('\n')
-        parts.push(`> [!${ct}]\n${lines}`)
-      } else {
-        parts.push(`> [!${ct}]`)
-      }
+      const head = editor.blocksToMarkdownLossy([{ ...block, type: 'paragraph', props: {}, children: [] }]).trim()
+      const children = block.children?.length ? blocksToMarkdownRaw(block.children) : ''
+      parts.push(formatCallout(block.props?.calloutType as string, [head, children].filter(Boolean).join('\n\n')))
     } else {
       const md = editor.blocksToMarkdownLossy([block])
       const trimmed = md.trim()
@@ -163,13 +100,9 @@ export function blocksToMarkdown(blocks: any[]): string {
     }
   }
 
-  const result = parts.join('\n\n')
-  // Convert /wl/... hrefs back to [[wiki link]] syntax
-  return result.replace(/\[([^\]]+)\]\(\/wl\/([^)]+)\)/g, (_, label, encodedTarget) => {
-    const decoded = decodeURIComponent(encodedTarget.replace('%23', '#'))
-    const [page, anchor] = decoded.split('#')
-    const anchorPart = anchor ? `#${anchor}` : ''
-    if (label === page) return `[[${page}${anchorPart}]]`
-    return `[[${page}${anchorPart}|${label}]]`
-  })
+  return parts.join('\n\n')
+}
+
+export function blocksToMarkdown(blocks: any[]): string {
+  return postProcessWikiLinks(blocksToMarkdownRaw(blocks))
 }

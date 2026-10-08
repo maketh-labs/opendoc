@@ -25,40 +25,59 @@ export async function fetchUserRepos(token: string): Promise<{ full_name: string
   return r.json()
 }
 
+function contentsUrl(repo: string, path: string): string {
+  return `https://api.github.com/repos/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}`
+}
+
+export interface GitHubFile {
+  /** Decoded file text; empty string when the file does not exist yet */
+  content: string
+  /** Blob sha of the loaded version; undefined for a new file */
+  sha?: string
+}
+
 export async function fetchFileFromGitHub(
   repo: string,
   path: string,
   token: string,
   branch = 'main',
-): Promise<string> {
-  const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}`, {
+): Promise<GitHubFile> {
+  const r = await fetch(`${contentsUrl(repo, path)}?ref=${encodeURIComponent(branch)}`, {
     headers: authHeaders(token),
   })
-  if (r.status === 404) return ''
+  if (r.status === 404) return { content: '' }
   if (!r.ok) throw new Error(`Failed to fetch ${path}: ${r.status}`)
   const data = await r.json()
   // content is base64-encoded with newlines — strip them before decoding
   const b64 = data.content.replace(/\n/g, "")
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
-}
-
-async function getFileSha(
-  repo: string,
-  path: string,
-  token: string,
-): Promise<string | undefined> {
-  const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
-    headers: authHeaders(token),
-  })
-  if (!r.ok) return undefined
-  return (await r.json()).sha
+  return { content: new TextDecoder().decode(bytes), sha: data.sha }
 }
 
 export interface CommitResult {
   url?: string
+  /** Blob sha of the newly written file — use it as the base for the next commit */
+  sha?: string
 }
 
+export class ConflictError extends Error {
+  constructor(path: string) {
+    super(`${path} was changed on GitHub since you opened it. Copy your edits, reload the page, and re-apply them.`)
+    this.name = 'ConflictError'
+  }
+}
+
+function toBase64(content: string): string {
+  const bytes = new TextEncoder().encode(content)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(bin)
+}
+
+/**
+ * Write a file. `baseSha` must be the sha the edit was based on (undefined for a new file);
+ * GitHub rejects the write with 409 if the file changed since, instead of silently overwriting it.
+ */
 export async function commitFile(
   repo: string,
   path: string,
@@ -66,38 +85,36 @@ export async function commitFile(
   message: string,
   token: string,
   branch: string,
+  baseSha: string | undefined,
 ): Promise<CommitResult> {
-  const sha = await getFileSha(repo, path, token)
+  const body: Record<string, unknown> = { message, content: toBase64(content), branch }
+  if (baseSha) body.sha = baseSha
 
-  const body: Record<string, unknown> = {
-    message,
-    content: btoa(unescape(encodeURIComponent(content))),
-    branch,
-  }
-  if (sha) body.sha = sha
-
-  const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+  const r = await fetch(contentsUrl(repo, path), {
     method: 'PUT',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
 
+  if (r.status === 409 || (r.status === 422 && !baseSha)) throw new ConflictError(path)
   if (!r.ok) {
-    const err = await r.json()
+    const err = await r.json().catch(() => ({}))
     throw new Error(err.message || `Failed to commit: ${r.status}`)
   }
 
   const data = await r.json()
-  return { url: data.commit?.html_url }
+  return { url: data.commit?.html_url, sha: data.content?.sha }
 }
 
-async function waitForFork(forkRepo: string, token: string, maxAttempts = 10): Promise<void> {
+async function waitForRef(repo: string, branch: string, token: string, maxAttempts = 15): Promise<string> {
   for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, 1000))
-    const r = await fetch(`https://api.github.com/repos/${forkRepo}`, { headers: authHeaders(token) })
-    if (r.ok) return
+    const r = await fetch(`https://api.github.com/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`, {
+      headers: authHeaders(token),
+    })
+    if (r.ok) return (await r.json()).object.sha as string
+    await new Promise(res => setTimeout(res, 1000))
   }
-  throw new Error('Fork not ready after 10s — try again shortly')
+  throw new Error('Fork not ready yet — try again in a few seconds')
 }
 
 export async function openPullRequest(
@@ -107,39 +124,37 @@ export async function openPullRequest(
   message: string,
   token: string,
   baseBranch: string,
+  baseSha: string | undefined,
 ): Promise<CommitResult> {
-  // Step 1: fork
-  const username = await getGitHubUsername(token)
-  const repoName = repo.split('/')[1]!
-  const forkRepo = `${username}/${repoName}`
-
+  // Step 1: fork (returns the existing fork if there is one; its name may differ from the upstream's)
   const forkRes = await fetch(`https://api.github.com/repos/${repo}/forks`, {
     method: 'POST',
     headers: authHeaders(token),
   })
-  if (!forkRes.ok && forkRes.status !== 202) {
-    throw new Error(`Failed to fork repository: ${forkRes.status}`)
-  }
-  await waitForFork(forkRepo, token)
+  if (!forkRes.ok) throw new Error(`Failed to fork repository: ${forkRes.status}`)
+  const fork = await forkRes.json() as { full_name: string; owner: { login: string } }
+  const forkRepo = fork.full_name
 
-  // Step 2: create branch on fork
+  // Step 2: wait until the fork's base branch exists, then branch from the *upstream* tip
+  // (an old fork's base branch may be stale). Forks share objects, so the upstream sha is valid.
+  const forkBaseSha = await waitForRef(forkRepo, baseBranch, token)
+  const upstreamRes = await fetch(`https://api.github.com/repos/${repo}/git/ref/heads/${encodeURIComponent(baseBranch)}`, {
+    headers: authHeaders(token),
+  })
+  const upstreamSha = upstreamRes.ok ? (await upstreamRes.json()).object.sha as string : forkBaseSha
+
   const branch = `opendoc-edit-${Date.now()}`
-  const refRes = await fetch(
-    `https://api.github.com/repos/${forkRepo}/git/ref/heads/${baseBranch}`,
-    { headers: authHeaders(token) },
-  )
-  if (!refRes.ok) throw new Error(`Failed to get base branch ref: ${refRes.status}`)
-  const { object: { sha: branchSha } } = await refRes.json()
-
-  const branchRes = await fetch(`https://api.github.com/repos/${forkRepo}/git/refs`, {
+  const createBranch = (sha: string) => fetch(`https://api.github.com/repos/${forkRepo}/git/refs`, {
     method: 'POST',
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: branchSha }),
+    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
   })
+  let branchRes = await createBranch(upstreamSha)
+  if (!branchRes.ok && upstreamSha !== forkBaseSha) branchRes = await createBranch(forkBaseSha)
   if (!branchRes.ok) throw new Error(`Failed to create branch: ${branchRes.status}`)
 
-  // Step 3: commit to fork branch
-  await commitFile(forkRepo, path, content, message, token, branch)
+  // Step 3: commit to the fork branch, based on the version the user loaded
+  await commitFile(forkRepo, path, content, message, token, branch, baseSha)
 
   // Step 4: open PR
   const prRes = await fetch(`https://api.github.com/repos/${repo}/pulls`, {
@@ -147,13 +162,13 @@ export async function openPullRequest(
     headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title: message,
-      head: `${username}:${branch}`,
+      head: `${fork.owner.login}:${branch}`,
       base: baseBranch,
       body: '_Opened via [OpenDoc](https://opendoc.sh) editor_',
     }),
   })
   if (!prRes.ok) {
-    const err = await prRes.json()
+    const err = await prRes.json().catch(() => ({}))
     throw new Error(err.message || `Failed to create pull request: ${prRes.status}`)
   }
 

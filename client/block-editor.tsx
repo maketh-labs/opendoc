@@ -16,16 +16,24 @@ interface BlockEditorProps {
   initialBlocks: Block[]
   pagePath: string
   onContentChange: (md: string) => void
+  /** Called once after mount with the editor's serialization of the initial document. */
+  onBaseline?: (md: string) => void
   theme: 'light' | 'dark'
   pageHeader?: React.ReactNode
 }
 
-function usePasteHandler(editor: any, uploadFile: (f: File) => Promise<string>) {
+function usePasteHandler(
+  editorWrapperRef: React.RefObject<HTMLDivElement | null>,
+  editor: any,
+  uploadFile: (f: File) => Promise<string>,
+) {
   useEffect(() => {
-    const container = document.querySelector(".bn-editor")
+    const container = editorWrapperRef.current
     if (!container) return
 
     const handlePaste = async (e: ClipboardEvent) => {
+      // Only handle pastes into the block editor itself (not the page title input etc.)
+      if (!(e.target as Element | null)?.closest?.(".bn-editor")) return
       const mediaFiles = Array.from(e.clipboardData?.files || []).filter(f =>
         f.type.startsWith("image/") || f.type.startsWith("video/")
       )
@@ -71,8 +79,9 @@ function usePasteHandler(editor: any, uploadFile: (f: File) => Promise<string>) 
       }
     }
 
-    container.addEventListener("paste", handlePaste as unknown as EventListener)
-    return () => container.removeEventListener("paste", handlePaste as unknown as EventListener)
+    // Capture phase so we run before BlockNote's own paste handling
+    container.addEventListener("paste", handlePaste as unknown as EventListener, true)
+    return () => container.removeEventListener("paste", handlePaste as unknown as EventListener, true)
   }, [editor, uploadFile])
 }
 
@@ -139,7 +148,7 @@ function useDragDropHandler(
   }, [editor, uploadFile])
 }
 
-export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, pageHeader }: BlockEditorProps) {
+export function BlockEditor({ initialBlocks, pagePath, onContentChange, onBaseline, theme, pageHeader }: BlockEditorProps) {
   const editorWrapperRef = useRef<HTMLDivElement>(null)
 
   const uploadFile = useCallback(async (file: File): Promise<string> => {
@@ -158,8 +167,13 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, theme, p
     tables: { headers: true },
   })
 
-  usePasteHandler(editor, uploadFile)
+  usePasteHandler(editorWrapperRef, editor, uploadFile)
   useDragDropHandler(editorWrapperRef, editor, uploadFile)
+
+  useEffect(() => {
+    onBaseline?.(blocksToMarkdown(editor.document as any[]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor])
 
   const handleChange = useCallback(() => {
     const md = blocksToMarkdown(editor.document as any[])
