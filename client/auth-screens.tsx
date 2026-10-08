@@ -1,15 +1,10 @@
 import React, { useState } from 'react'
-import { showToast } from './editor-utils'
 import { Button } from './ui/button'
 
-export function LoginScreen({ clientId }: { clientId?: string }) {
+export function LoginScreen() {
   function login() {
-    if (!clientId) {
-      showToast('GitHub OAuth client ID not configured', 'error')
-      return
-    }
-    const redirectUri = encodeURIComponent(window.location.origin + '/editor')
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo`
+    // The server owns the OAuth flow (state cookie, code exchange) and redirects back with the token
+    window.location.href = '/_opendoc/auth/github'
   }
   return (
     <div className="flex flex-col h-screen">

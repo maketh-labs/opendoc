@@ -154,7 +154,8 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
   if (!hasIndex && sortedChildren.length === 0) return null;
   if (!hasIndex) {
     if (sortedChildren.length === 1) return sortedChildren[0]!;
-    if (sortedChildren.length > 1) return { title: titleFromFolder(basename(currentDir) || 'Home'), path: rel || '.', url, children: sortedChildren };
+    // Folder without its own index.md: a grouping node, not a navigable page
+    if (sortedChildren.length > 1) return { title: titleFromFolder(basename(currentDir) || 'Home'), path: rel || '.', url, children: sortedChildren, virtual: true };
     return null;
   }
 

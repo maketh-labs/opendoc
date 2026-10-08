@@ -1,6 +1,24 @@
 import { readFile, writeFile, unlink } from 'fs/promises'
-import { join, resolve } from 'path'
-import { readBodyRaw, isWithinRoot, MIME_TYPES, type RouteHandler } from './types'
+import { themeFiles, editorImages } from '../assets'
+import { join, extname } from 'path'
+import { readJson, resolveInRoot, MIME_TYPES, type RouteHandler } from './types'
+import type { ServerResponse } from 'http'
+
+/** Serve a user-content file. SVG/HTML get a sandbox CSP so opening them directly can't run script on this origin. */
+async function sendUserFile(res: ServerResponse, filePath: string, cacheControl?: string): Promise<boolean> {
+  const file = Bun.file(filePath)
+  if (!(await file.exists())) return false
+  const ext = extname(filePath).slice(1).toLowerCase()
+  const headers: Record<string, string> = {
+    'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
+  }
+  if (cacheControl) headers['Cache-Control'] = cacheControl
+  res.writeHead(200, headers)
+  res.end(Buffer.from(await file.arrayBuffer()))
+  return true
+}
 
 export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
   const pathname = url.pathname
@@ -19,8 +37,8 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
 
   // Save user theme overrides
   if (pathname === '/_opendoc/theme' && req.method === 'PUT') {
-    const body = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
-    await writeFile(join(ctx.rootDir, 'theme.css'), body.css || '', 'utf-8')
+    const body = await readJson<{ css?: unknown }>(req)
+    await writeFile(join(ctx.rootDir, 'theme.css'), typeof body.css === 'string' ? body.css : '', 'utf-8')
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
     return true
@@ -49,115 +67,51 @@ export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  // Serve viewer bundle JS — built at startup
-  if (pathname === '/client/viewer.tsx' || pathname === '/client/viewer.ts') {
-    const js = ctx.getViewerBundleJs()
-    if (!js) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Viewer bundle not ready'); return true }
-    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
-    res.end(js)
+  // Client bundles (built at startup or embedded). /client/* are legacy aliases.
+  const bundle = (() => {
+    switch (pathname) {
+      case '/_opendoc/viewer.js': case '/client/viewer.tsx': return { body: ctx.bundles.viewerJs, type: 'application/javascript' }
+      case '/_opendoc/editor.js': case '/client/editor.tsx': return { body: ctx.bundles.editorJs, type: 'application/javascript' }
+      case '/_opendoc/editor.css': case '/client/editor.css': return { body: ctx.bundles.editorCss, type: 'text/css' }
+    }
+    return undefined
+  })()
+  if (bundle !== undefined) {
+    if (!bundle.body) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not found'); return true }
+    res.writeHead(200, { 'Content-Type': `${bundle.type}; charset=utf-8`, 'Cache-Control': 'no-cache' })
+    res.end(bundle.body)
     return true
   }
 
   // Editor route (HTML page)
   if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname.startsWith(ctx.editorPath + '/'))) {
-    const editorFilePath = join(ctx.projectRoot, 'themes', 'default', 'editor.html')
-    try {
-      const editorHtml = await readFile(editorFilePath, 'utf-8')
-      res.writeHead(200, { 'Content-Type': 'text/html' })
-      res.end(editorHtml)
-    } catch {
-      res.writeHead(404, { 'Content-Type': 'text/html' })
-      res.end('<h1>Editor not found</h1>')
-    }
-    return true
-  }
-
-  // Serve editor bundle JS — built at startup, always ready
-  if (pathname === '/client/editor.tsx' || pathname === '/client/editor.ts') {
-    const js = ctx.getEditorBundleJs()
-    if (!js) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Editor bundle not ready'); return true }
-    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
-    res.end(js)
-    return true
-  }
-
-  // Serve editor CSS — built at startup, always ready
-  if (pathname === '/client/editor.css') {
-    const css = ctx.getEditorBundleCss()
-    if (!css) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Editor CSS not ready'); return true }
-    res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
-    res.end(css)
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(themeFiles.editorHtml)
     return true
   }
 
   // Serve favicon and og-image files from page directories
   if (/\/(favicon(-dark|-96x96)?\.(ico|svg|png)|apple-touch-icon\.png|web-app-manifest-(192x192|512x512)\.png|site\.webmanifest|og-image\.(png|jpg|webp))$/.test(pathname)) {
-    const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
-    if (!isWithinRoot(ctx.rootDir, filePath)) {
-      res.writeHead(403); res.end('Forbidden')
-      return true
-    }
-    try {
-      const data = await Bun.file(filePath).arrayBuffer()
-      const ext = pathname.split('.').pop()?.toLowerCase()
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
-      res.end(Buffer.from(data))
-    } catch {
-      // Fall through — not found, let other handlers try
-      return false
-    }
-    return true
+    const filePath = await resolveInRoot(ctx.rootDir, decodeURIComponent(pathname))
+    if (!filePath) { res.writeHead(403); res.end('Forbidden'); return true }
+    // Not found — fall through so other handlers (and the SPA shell) can respond
+    return sendUserFile(res, filePath, 'no-cache')
   }
 
-  // Serve client assets (preview images, etc.) — must come before generic /assets/ handler
+  // Editor UI images (embedded in the package/binary)
   if (pathname.startsWith('/_opendoc/assets/')) {
-    const assetName = pathname.slice('/_opendoc/assets/'.length)
-    if (assetName.includes('..') || assetName.includes('/')) {
-      res.writeHead(403); res.end('Forbidden')
-      return true
-    }
-    const assetPath = join(ctx.projectRoot, 'client', 'assets', assetName)
-    try {
-      const data = await Bun.file(assetPath).arrayBuffer()
-      const ext = assetName.split('.').pop()?.toLowerCase()
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' })
-      res.end(Buffer.from(data))
-    } catch {
-      res.writeHead(404); res.end('Not found')
-    }
+    const assetPath = editorImages[pathname.slice('/_opendoc/assets/'.length)]
+    if (!assetPath) { res.writeHead(404); res.end('Not found'); return true }
+    res.writeHead(200, { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=86400' })
+    res.end(Buffer.from(await Bun.file(assetPath).arrayBuffer()))
     return true
   }
 
   // Serve assets from page directories
   if (pathname.includes('/assets/')) {
-    const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
-    if (!isWithinRoot(ctx.rootDir, filePath)) {
-      res.writeHead(403); res.end('Forbidden')
-      return true
-    }
-    try {
-      const data = await Bun.file(filePath).arrayBuffer()
-      const ext = pathname.split('.').pop()?.toLowerCase()
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream' })
-      res.end(Buffer.from(data))
-    } catch {
-      res.writeHead(404); res.end('Not found')
-    }
-    return true
-  }
-
-  // Serve dist files
-  if (pathname.startsWith('/dist/')) {
-    const distPath = join(ctx.rootDir, pathname.slice(1))
-    try {
-      const content = await readFile(distPath, 'utf-8')
-      const ext = pathname.split('.').pop()
-      const contentType = ext === 'json' ? 'application/json' : 'text/plain'
-      res.writeHead(200, { 'Content-Type': contentType })
-      res.end(content)
-    } catch {
-      res.writeHead(404); res.end('Not found')
-    }
+    const filePath = await resolveInRoot(ctx.rootDir, decodeURIComponent(pathname))
+    if (!filePath) { res.writeHead(403); res.end('Forbidden'); return true }
+    if (!(await sendUserFile(res, filePath))) { res.writeHead(404); res.end('Not found') }
     return true
   }
 

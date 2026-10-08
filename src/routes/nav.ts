@@ -2,7 +2,7 @@ import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { buildPublicConfig } from '../config'
 import { walkDir } from '../walker'
-import { readBodyRaw, type RouteHandler } from './types'
+import { readJson, type RouteHandler } from './types'
 
 export const handleNav: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname === '/_opendoc/config.json') {
@@ -13,14 +13,15 @@ export const handleNav: RouteHandler = async (req, res, url, ctx) => {
 
   // PATCH /_opendoc/config — update mutable config fields (title, etc.)
   if (url.pathname === '/_opendoc/config' && req.method === 'PATCH') {
-    const body = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
+    const body = await readJson<{ title?: unknown; faviconConfig?: unknown }>(req)
     const configPath = join(ctx.rootDir, 'opendoc.json')
 
     const updated = { ...ctx.config }
     if (typeof body.title === 'string') { updated.title = body.title; ctx.config.title = body.title }
-    if (body.faviconConfig && typeof body.faviconConfig === 'object') {
-      updated.faviconConfig = body.faviconConfig
-      ctx.config.faviconConfig = body.faviconConfig
+    if (body.faviconConfig && typeof body.faviconConfig === 'object' && !Array.isArray(body.faviconConfig)) {
+      const faviconConfig = body.faviconConfig as typeof updated.faviconConfig
+      updated.faviconConfig = faviconConfig
+      ctx.config.faviconConfig = faviconConfig
     }
 
     await writeFile(configPath, JSON.stringify(updated, null, 2) + '\n')

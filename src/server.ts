@@ -1,5 +1,4 @@
-import { readFile } from 'fs/promises';
-import { join, dirname, extname } from 'path';
+import { extname } from 'path';
 import { watch as fsWatch } from 'fs';
 import { createServer } from 'http';
 import type { ServerResponse } from 'http';
@@ -9,6 +8,9 @@ import { loadStyles } from './theme';
 import { startMcpServer } from './mcp';
 import { ensureConfig, getEditorPath } from './config';
 import { buildTitleMap } from './utils.js';
+import { loadClientBundles, themeFiles } from './assets';
+import { HttpError, isTrustedLocalRequest } from './security';
+import { DEFAULT_HOST, listenWithFallback, displayUrl } from './listen';
 import type { RouteContext, RouteHandler } from './routes/types';
 import { handleStatic } from './routes/static';
 import { handleFileApi, handleOrderApi, handleMoveApi, handleRenameApi, handleDuplicateApi } from './routes/file-api';
@@ -19,14 +21,6 @@ import { handleFetchMeta } from './routes/fetch-meta';
 import { handleNav } from './routes/nav';
 import { handlePage } from './routes/page';
 import { handlePageAsset } from './routes/page-asset';
-
-// Editor bundle cache — built once at startup, invalidated on client file changes
-let editorBundleJs: string | null = null;
-let editorBundleCss: string | null = null;
-
-// Viewer bundle cache — built once at startup
-let viewerBundleJs: string | null = null;
-let viewerHtml: string | null = null;
 
 // Ordered list of route handlers — first match wins
 const routeHandlers: RouteHandler[] = [
@@ -47,41 +41,39 @@ const routeHandlers: RouteHandler[] = [
   handleFetchMeta,
 ];
 
-export async function findAvailablePort(startPort: number): Promise<number> {
-  let port = startPort;
-  while (true) {
-    const inUse = await new Promise<boolean>((resolve) => {
-      const socket = new (require('net').Socket)();
-      socket.once('connect', () => { socket.destroy(); resolve(true); });
-      socket.once('error', () => { socket.destroy(); resolve(false); });
-      socket.connect(port, '127.0.0.1');
-    });
-    if (!inUse) return port;
-    console.log(`  Port ${port} in use, trying ${port + 1}...`);
-    port++;
-  }
+/** Read-only /_opendoc endpoints the public viewer (and OAuth) need. Everything else is the local editing API. */
+function isPublicEndpoint(method: string, pathname: string): boolean {
+  if (pathname.startsWith('/_opendoc/auth/')) return true;
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  return pathname === '/_opendoc/page' || pathname === '/_opendoc/page.json' ||
+    pathname.startsWith('/_opendoc/page/') ||
+    pathname === '/_opendoc/nav.json' || pathname === '/_opendoc/config.json' ||
+    pathname === '/_opendoc/theme.css' || pathname.startsWith('/_opendoc/assets/') ||
+    pathname === '/_opendoc/viewer.js' || pathname === '/_opendoc/editor.js' || pathname === '/_opendoc/editor.css';
 }
 
-export async function startServer(rootDir: string, port: number = 3000) {
+export interface ServeOptions {
+  port?: number;
+  host?: string;
+  mcpPort?: number;
+  open?: boolean;
+}
+
+export async function startServer(rootDir: string, opts: ServeOptions = {}) {
+  const host = opts.host ?? DEFAULT_HOST;
   const config = await ensureConfig(rootDir);
   const editorPath = getEditorPath(config);
-  let styles = await loadStyles();
+  const styles = await loadStyles();
   let navTree = await walkDir(rootDir);
   let backlinks = await buildBacklinks(rootDir);
-  let titleMap = new Map<string, string>();
+  let titleMap = await buildTitleMap(rootDir, await getAllPages(rootDir));
 
-  // Init titleMap
-  const initPages = await getAllPages(rootDir);
-  titleMap = await buildTitleMap(rootDir, initPages);
-
-  const clientDir = join(dirname(dirname(import.meta.path)), 'client');
   const reloadClients = new Set<ServerResponse>();
 
   async function rebuildAll(): Promise<void> {
     navTree = await walkDir(rootDir);
     backlinks = await buildBacklinks(rootDir);
-    const pages = await getAllPages(rootDir);
-    titleMap = await buildTitleMap(rootDir, pages);
+    titleMap = await buildTitleMap(rootDir, await getAllPages(rootDir));
   }
 
   // Watch for markdown file changes using native fs.watch (chokidar v5 is broken with Bun)
@@ -89,7 +81,11 @@ export async function startServer(rootDir: string, port: number = 3000) {
   function scheduleRebuild() {
     if (rebuildTimer) clearTimeout(rebuildTimer);
     rebuildTimer = setTimeout(async () => {
-      await rebuildAll();
+      try {
+        await rebuildAll();
+      } catch (err) {
+        console.warn('Rebuild failed:', err);
+      }
       for (const client of reloadClients) client.write('data: reload\n\n');
     }, 80);
   }
@@ -97,34 +93,32 @@ export async function startServer(rootDir: string, port: number = 3000) {
   try {
     fsWatch(rootDir, { recursive: true }, (_, filename) => {
       if (!filename) return;
-      if (filename.includes('node_modules') || filename.startsWith('dist/')) return;
-      // Rebuild on .md changes and order.json changes
-      const isMarkdown = extname(filename) === '.md';
-      const isOrder = filename.endsWith('order.json');
+      const normalized = filename.replace(/\\/g, '/');
+      if (normalized.includes('node_modules') || normalized.startsWith('dist/') || normalized.startsWith('.git/')) return;
+      const isMarkdown = extname(normalized) === '.md';
+      const isOrder = normalized.endsWith('order.json');
       if (!isMarkdown && !isOrder) return;
-      if (isMarkdown && (filename.endsWith('context.md') || filename.endsWith('context-mini.md'))) return;
+      if (isMarkdown && (normalized.endsWith('context.md') || normalized.endsWith('context-mini.md'))) return;
       scheduleRebuild();
     });
   } catch (err) {
     console.warn('File watcher unavailable:', err);
   }
 
-  // Build route context — shared state for all handlers
+  // Keep SSE connections alive through proxies and idle timeouts
+  const heartbeat = setInterval(() => {
+    for (const client of reloadClients) client.write(': ping\n\n');
+  }, 30_000);
+  heartbeat.unref();
+
+  const bundles = await loadClientBundles({ editor: editorPath !== null });
+
   const routeContext: RouteContext = {
     rootDir,
-    projectRoot: dirname(dirname(import.meta.path)),
     config,
     editorPath,
-    clientDir,
-    port,
-    getEditorBundleJs: () => editorBundleJs,
-    setEditorBundleJs: (js: string) => { editorBundleJs = js },
-    getEditorBundleCss: () => editorBundleCss,
-    setEditorBundleCss: (css: string) => { editorBundleCss = css },
-    getViewerBundleJs: () => viewerBundleJs,
-    setViewerBundleJs: (js: string) => { viewerBundleJs = js },
-    getViewerHtml: () => viewerHtml,
-    setViewerHtml: (html: string) => { viewerHtml = html },
+    port: opts.port ?? 3000,
+    bundles,
     getStyles: () => styles,
     getNavTree: () => navTree,
     getBacklinks: () => backlinks,
@@ -133,73 +127,48 @@ export async function startServer(rootDir: string, port: number = 3000) {
   };
 
   const server = createServer(async (req, res) => {
-    const url = new URL(req.url!, `http://localhost:${port}`);
+    try {
+      const url = new URL(req.url ?? '/', 'http://localhost');
 
-    // Try each route handler in order
-    for (const handler of routeHandlers) {
-      if (await handler(req, res, url, routeContext)) return;
-    }
+      // The editing API reads and writes the docs folder and runs git: only this machine may use it
+      if (url.pathname.startsWith('/_opendoc/') && !isPublicEndpoint(req.method ?? 'GET', url.pathname) && !isTrustedLocalRequest(req)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Forbidden: the editing API is only available from localhost');
+        return;
+      }
 
-    // Fallback: serve viewer SPA shell for all doc routes
-    if (viewerHtml) {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(viewerHtml);
-    } else {
-      res.writeHead(503, { 'Content-Type': 'text/html' });
-      res.end('<h1>Viewer not ready</h1>');
-    }
-  });
+      for (const handler of routeHandlers) {
+        if (await handler(req, res, url, routeContext)) return;
+      }
 
-  // Load viewer HTML shell
-  viewerHtml = await readFile(join(dirname(dirname(import.meta.path)), 'themes', 'default', 'viewer.html'), 'utf-8');
-
-  // Build viewer bundle before accepting requests
-  const viewerResult = await Bun.build({
-    entrypoints: [join(clientDir, 'viewer.tsx')],
-    target: 'browser',
-    minify: false,
-  })
-  if (!viewerResult.success) {
-    console.error('Viewer bundle build failed:\n' + viewerResult.logs.join('\n'))
-  } else {
-    for (const out of viewerResult.outputs) {
-      if (out.kind === 'entry-point') viewerBundleJs = await out.text()
-    }
-  }
-
-  // Build editor bundle before accepting requests
-  if (editorPath !== null) {
-    Bun.spawnSync(
-      ['bunx', 'tailwindcss', '-i', join(clientDir, 'globals.css'), '-o', join(clientDir, 'globals.gen.css'), '--minify'],
-      { cwd: dirname(clientDir) },
-    )
-    const result = await Bun.build({
-      entrypoints: [join(clientDir, 'editor.tsx')],
-      target: 'browser',
-      minify: false,
-    })
-    if (!result.success) {
-      console.error('Editor bundle build failed:\n' + result.logs.join('\n'))
-    } else {
-      for (const out of result.outputs) {
-        if (out.kind === 'entry-point') editorBundleJs = await out.text()
-        else if (out.path.endsWith('.css')) editorBundleCss = await out.text()
+      // Fallback: serve viewer SPA shell for all doc routes
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(themeFiles.viewerHtml);
+    } catch (err) {
+      const status = err instanceof HttpError ? err.status : 500;
+      if (status === 500) console.error('Request failed:', err);
+      if (!res.headersSent) {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof HttpError ? err.message : 'Internal server error' }));
+      } else {
+        res.end();
       }
     }
-  }
-
-  const actualPort = await findAvailablePort(port);
-  await new Promise<void>((resolve) => {
-    server.listen(actualPort, () => {
-      const url = `http://localhost:${actualPort}`;
-      console.log(`\n  OpenDoc running at ${url}\n`);
-      const open = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-      Bun.spawn([open, url], { stderr: 'ignore' });
-      resolve();
-    });
   });
 
-  await startMcpServer(rootDir);
+  const actualPort = await listenWithFallback(server, opts.port ?? 3000, host);
+  routeContext.port = actualPort;
+  const url = displayUrl(host, actualPort);
+  console.log(`\n  OpenDoc running at ${url}\n`);
+  if (host !== DEFAULT_HOST && host !== 'localhost') {
+    console.log(`  Listening on ${host}. The editing API stays restricted to requests from localhost.\n`);
+  }
+  if (opts.open !== false) {
+    const opener = process.platform === 'darwin' ? ['open'] : process.platform === 'win32' ? ['cmd', '/c', 'start', ''] : ['xdg-open'];
+    try { Bun.spawn([...opener, url], { stdout: 'ignore', stderr: 'ignore' }); } catch {}
+  }
+
+  await startMcpServer(rootDir, { port: opts.mcpPort ?? config.mcp?.port ?? 3001, host });
 
   return server;
 }

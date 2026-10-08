@@ -84,3 +84,36 @@ describe('renderFull', () => {
     expect(frontmatter).toEqual({});
   });
 });
+
+describe('renderFull sanitization', () => {
+  test('strips scripts, event handlers and javascript: URLs from raw HTML', async () => {
+    const md = [
+      '<script>alert(1)</script>',
+      '<img src="x" onerror="alert(2)">',
+      '[click](javascript:alert(3))',
+      '<a href="javascript:alert(4)">x</a>',
+      '<iframe src="javascript:alert(5)"></iframe>',
+    ].join('\n\n');
+    const { html } = await renderFull(md);
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('onerror');
+    expect(html).not.toContain('javascript:');
+  });
+
+  test('keeps safe raw HTML, code highlighting, math and heading ids', async () => {
+    const md = [
+      '## Setup',
+      '<details><summary>More</summary>Hidden</details>',
+      '```ts\nconst x = 1\n```',
+      '$E = mc^2$',
+      '<iframe src="https://www.youtube.com/embed/abc" allowfullscreen></iframe>',
+    ].join('\n\n');
+    const { html } = await renderFull(md);
+    expect(html).toContain('<details>');
+    expect(html).toContain('<summary>More</summary>');
+    expect(html).toContain('class="shiki');
+    expect(html).toContain('katex');
+    expect(html).toContain('id="setup"');
+    expect(html).toContain('src="https://www.youtube.com/embed/abc"');
+  });
+});

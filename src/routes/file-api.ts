@@ -1,6 +1,10 @@
 import { resolve, join, basename, dirname } from 'path'
 import { rename, readdir, mkdir, readFile, writeFile, rm, cp, stat, unlink } from 'fs/promises'
-import { readBody, isWithinRoot, type RouteHandler } from './types'
+import { readJson, resolveInRoot, sendJson, sendText, HttpError, type RouteHandler } from './types'
+
+async function exists(path: string): Promise<boolean> {
+  return stat(path).then(() => true, () => false)
+}
 
 async function readOrderFile(dir: string): Promise<string[]> {
   try {
@@ -38,12 +42,8 @@ export const handleOrderApi: RouteHandler = async (req, res, url, ctx) => {
   if (!url.pathname.startsWith('/_opendoc/order/')) return false
 
   const dir = decodeURIComponent(url.pathname.slice('/_opendoc/order/'.length)) || '.'
-  const fullDir = resolve(ctx.rootDir, dir)
-  if (!isWithinRoot(ctx.rootDir, fullDir)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' })
-    res.end('Forbidden')
-    return true
-  }
+  const fullDir = await resolveInRoot(ctx.rootDir, dir)
+  if (!fullDir) { sendText(res, 403, 'Forbidden'); return true }
 
   const orderPath = join(fullDir, 'order.json')
 
@@ -60,8 +60,9 @@ export const handleOrderApi: RouteHandler = async (req, res, url, ctx) => {
   }
 
   if (req.method === 'PUT') {
-    const { order } = JSON.parse(await readBody(req))
-    await Bun.write(join(fullDir, 'order.json'), JSON.stringify(order, null, 2) + '\n')
+    const { order } = await readJson<{ order: unknown }>(req)
+    if (!Array.isArray(order) || !order.every(x => typeof x === 'string')) throw new HttpError(400, 'order must be a string array')
+    await writeOrderFile(fullDir, order)
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
     return true
@@ -73,20 +74,17 @@ export const handleOrderApi: RouteHandler = async (req, res, url, ctx) => {
 export const handleMoveApi: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/move' || req.method !== 'PUT') return false
 
-  const body = JSON.parse(await readBody(req))
-  const { from, to } = body as { from: string; to: string }
-  if (!from || !to) {
-    res.writeHead(400, { 'Content-Type': 'text/plain' })
-    res.end('Missing from or to')
-    return true
-  }
+  const { from, to } = await readJson<{ from?: unknown; to?: unknown }>(req)
+  if (typeof from !== 'string' || typeof to !== 'string' || !from || !to) { sendText(res, 400, 'Missing from or to'); return true }
 
-  const fromPath = resolve(ctx.rootDir, from)
-  const toPath = resolve(ctx.rootDir, to)
-  if (!isWithinRoot(ctx.rootDir, fromPath) || !isWithinRoot(ctx.rootDir, toPath)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' })
-    res.end('Forbidden')
-    return true
+  const fromPath = await resolveInRoot(ctx.rootDir, from)
+  const toPath = await resolveInRoot(ctx.rootDir, to)
+  if (!fromPath || !toPath || fromPath === resolve(ctx.rootDir) || toPath === resolve(ctx.rootDir)) {
+    sendText(res, 403, 'Forbidden'); return true
+  }
+  // Case-only renames hit the same entry on case-insensitive filesystems
+  if (fromPath.toLowerCase() !== toPath.toLowerCase() && await exists(toPath)) {
+    sendText(res, 409, 'Destination already exists'); return true
   }
 
   try {
@@ -114,20 +112,17 @@ export const handleMoveApi: RouteHandler = async (req, res, url, ctx) => {
 export const handleRenameApi: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/rename' || req.method !== 'PUT') return false
 
-  const body = JSON.parse(await readBody(req))
-  const { from, to } = body as { from: string; to: string }
-  if (!from || !to) {
-    res.writeHead(400, { 'Content-Type': 'text/plain' })
-    res.end('Missing from or to')
-    return true
-  }
+  const { from, to } = await readJson<{ from?: unknown; to?: unknown }>(req)
+  if (typeof from !== 'string' || typeof to !== 'string' || !from || !to) { sendText(res, 400, 'Missing from or to'); return true }
 
-  const fromPath = resolve(ctx.rootDir, from)
-  const toPath = resolve(ctx.rootDir, to)
-  if (!isWithinRoot(ctx.rootDir, fromPath) || !isWithinRoot(ctx.rootDir, toPath)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' })
-    res.end('Forbidden')
-    return true
+  const fromPath = await resolveInRoot(ctx.rootDir, from)
+  const toPath = await resolveInRoot(ctx.rootDir, to)
+  if (!fromPath || !toPath || fromPath === resolve(ctx.rootDir) || toPath === resolve(ctx.rootDir)) {
+    sendText(res, 403, 'Forbidden'); return true
+  }
+  // Case-only renames hit the same entry on case-insensitive filesystems
+  if (fromPath.toLowerCase() !== toPath.toLowerCase() && await exists(toPath)) {
+    sendText(res, 409, 'Destination already exists'); return true
   }
 
   try {
@@ -154,20 +149,11 @@ export const handleRenameApi: RouteHandler = async (req, res, url, ctx) => {
 export const handleDuplicateApi: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/duplicate' || req.method !== 'POST') return false
 
-  const body = JSON.parse(await readBody(req))
-  const { path: pagePath } = body as { path: string }
-  if (!pagePath) {
-    res.writeHead(400, { 'Content-Type': 'text/plain' })
-    res.end('Missing path')
-    return true
-  }
+  const { path: pagePath } = await readJson<{ path?: unknown }>(req)
+  if (typeof pagePath !== 'string' || !pagePath) { sendText(res, 400, 'Missing path'); return true }
 
-  const srcPath = resolve(ctx.rootDir, pagePath)
-  if (!isWithinRoot(ctx.rootDir, srcPath)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' })
-    res.end('Forbidden')
-    return true
-  }
+  const srcPath = await resolveInRoot(ctx.rootDir, pagePath)
+  if (!srcPath || srcPath === resolve(ctx.rootDir)) { sendText(res, 403, 'Forbidden'); return true }
 
   try {
     // Find a unique copy name
@@ -216,12 +202,8 @@ export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
     return true
   }
 
-  const fullPath = resolve(ctx.rootDir, filePath)
-  if (!isWithinRoot(ctx.rootDir, fullPath)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain' })
-    res.end('Forbidden')
-    return true
-  }
+  const fullPath = await resolveInRoot(ctx.rootDir, filePath)
+  if (!fullPath) { sendText(res, 403, 'Forbidden'); return true }
 
   if (req.method === 'GET') {
     try {
@@ -236,7 +218,8 @@ export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
   }
 
   if (req.method === 'PUT') {
-    const { content } = JSON.parse(await readBody(req))
+    const { content } = await readJson<{ content?: unknown }>(req)
+    if (typeof content !== 'string') throw new HttpError(400, 'content must be a string')
     await Bun.write(fullPath, content)
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
@@ -244,6 +227,7 @@ export const handleFileApi: RouteHandler = async (req, res, url, ctx) => {
   }
 
   if (req.method === 'DELETE') {
+    if (fullPath === resolve(ctx.rootDir)) { sendText(res, 403, 'Forbidden'); return true }
     try {
       const s = await stat(fullPath)
       if (!s.isDirectory()) {

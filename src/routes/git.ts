@@ -1,8 +1,29 @@
-import { join } from 'path'
-import { writeFile, unlink } from 'fs/promises'
-import { tmpdir } from 'os'
-import simpleGit from 'simple-git'
-import { readBody, type RouteHandler } from './types'
+import { simpleGit } from 'simple-git'
+import { readJson, type RouteHandler } from './types'
+
+/**
+ * Push using a GitHub token without writing it to disk or git config: a one-shot
+ * credential helper reads it from the child process environment.
+ */
+async function pushWithToken(cwd: string, token: string): Promise<void> {
+  const helper = '!f() { echo username=x-access-token; echo "password=$OPENDOC_GIT_TOKEN"; }; f'
+  const proc = Bun.spawn(['git', '-c', 'credential.helper=', '-c', `credential.helper=${helper}`, 'push'], {
+    cwd,
+    env: { ...process.env, OPENDOC_GIT_TOKEN: token, GIT_TERMINAL_PROMPT: '0' },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()])
+  if (code !== 0) throw new Error(stderr.trim() || `git push exited with ${code}`)
+}
+
+function isGitHubHttpsRemote(remoteUrl: string | undefined): boolean {
+  if (!remoteUrl) return false
+  try {
+    const u = new URL(remoteUrl)
+    return u.protocol === 'https:' && u.hostname === 'github.com'
+  } catch { return false }
+}
 
 export const handleGitStatus: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/git-status' || req.method !== 'GET') return false
@@ -40,7 +61,9 @@ export const handleGitStatus: RouteHandler = async (req, res, url, ctx) => {
 export const handleCommit: RouteHandler = async (req, res, url, ctx) => {
   if (url.pathname !== '/_opendoc/commit' || req.method !== 'POST') return false
 
-  const { message, token } = JSON.parse(await readBody(req)) as { message?: string; token?: string }
+  const body = await readJson<{ message?: unknown; token?: unknown }>(req)
+  const message = typeof body.message === 'string' ? body.message : undefined
+  const token = typeof body.token === 'string' && body.token ? body.token : undefined
 
   try {
     const git = simpleGit(ctx.rootDir)
@@ -66,31 +89,15 @@ export const handleCommit: RouteHandler = async (req, res, url, ctx) => {
     let pushError = ''
 
     try {
-      if (token) {
-        const remotes = await git.getRemotes(true)
-        const origin = remotes.find(r => r.name === 'origin')
-        const remoteUrl = origin?.refs?.push
-
-        if (remoteUrl?.startsWith('https://')) {
-          const credContent = `url=${remoteUrl.replace('https://', `https://x-token:${token}@`)}\n`
-          const tmpCred = join(tmpdir(), `.opendoc-creds-${Date.now()}`)
-          await writeFile(tmpCred, credContent, { mode: 0o600 })
-          try {
-            await git.addConfig('credential.helper', `store --file=${tmpCred}`, false, 'local')
-            await git.push()
-            pushed = true
-          } finally {
-            await unlink(tmpCred).catch(() => {})
-            await git.raw(['config', '--local', '--unset', 'credential.helper']).catch(() => {})
-          }
-        } else {
-          await git.push()
-          pushed = true
-        }
+      const remotes = await git.getRemotes(true)
+      const remoteUrl = remotes.find(r => r.name === 'origin')?.refs?.push
+      // Only hand the GitHub token to github.com — never to an arbitrary remote
+      if (token && isGitHubHttpsRemote(remoteUrl)) {
+        await pushWithToken(ctx.rootDir, token)
       } else {
         await git.push()
-        pushed = true
       }
+      pushed = true
     } catch (e) {
       pushError = e instanceof Error ? e.message : String(e)
     }

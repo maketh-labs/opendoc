@@ -6,35 +6,12 @@ import { createTempDocs, cleanupTempDocs } from '../helpers';
 // We test the MCP logic functions directly since starting the full MCP server
 // requires SSE transport and port allocation. The core logic is in these functions.
 
-// Test the validatePath logic (reimplemented here to match src/mcp.ts)
-function validatePath(rootDir: string, pagePath: string): string | null {
-  const { resolve } = require('path');
-  if (pagePath.includes('..')) return 'Path must not contain ".."';
-  const resolved = resolve(rootDir, pagePath);
-  if (!resolved.startsWith(resolve(rootDir))) return 'Path escapes root directory';
-  const segments = pagePath.replace(/^\//, '').split('/');
-  for (const seg of segments) {
-    if (seg.startsWith('_') || seg.startsWith('.')) return `Reserved path segment: "${seg}"`;
-  }
-  return null;
-}
+import { validatePagePath, generateCommitMsg, renderTier } from '../../src/mcp';
 
-// Test the generateCommitMsg logic (reimplemented to match src/mcp.ts)
-function generateCommitMsg(pagePath: string, before: string | undefined, after: string): string {
-  const parts = pagePath.replace(/^\//, '').split('/');
-  const section = parts.filter(p => p).join('/') || 'home';
-  let description = 'update';
-  if (before != null) {
-    const beforeLines = before.split('\n').length;
-    const afterLines = after.split('\n').length;
-    if (afterLines > beforeLines + 5) description = 'expand content';
-    else if (beforeLines > afterLines + 5) description = 'trim content';
-    else if (before !== after) description = 'revise content';
-  } else {
-    description = 'create page';
-  }
-  return `docs(${section}): ${description}`;
-}
+const validatePath = async (rootDir: string, pagePath: string, write = true) => {
+  const r = await validatePagePath(rootDir, pagePath, { write });
+  return 'error' in r ? r.error : null;
+};
 
 let tmpDir: string;
 
@@ -47,24 +24,42 @@ afterEach(async () => {
 });
 
 describe('MCP validatePath', () => {
-  test('allows valid paths', () => {
-    expect(validatePath(tmpDir, 'getting-started')).toBeNull();
-    expect(validatePath(tmpDir, 'guides/advanced')).toBeNull();
+  test('allows valid paths', async () => {
+    expect(await validatePath(tmpDir, 'getting-started')).toBeNull();
+    expect(await validatePath(tmpDir, 'guides/advanced')).toBeNull();
   });
 
-  test('rejects path traversal', () => {
-    expect(validatePath(tmpDir, '../etc/passwd')).toBe('Path must not contain ".."');
-    expect(validatePath(tmpDir, 'page/../../etc')).toBe('Path must not contain ".."');
+  test('rejects path traversal', async () => {
+    expect(await validatePath(tmpDir, '../etc/passwd')).toBe('Path must not contain ".."');
+    expect(await validatePath(tmpDir, 'page/../../etc')).toBe('Path must not contain ".."');
   });
 
-  test('rejects reserved segments starting with underscore', () => {
-    const result = validatePath(tmpDir, '_private/page');
+  test('rejects reserved segments starting with underscore', async () => {
+    const result = await validatePath(tmpDir, '_private/page');
     expect(result).toContain('Reserved path segment');
   });
 
-  test('rejects reserved segments starting with dot', () => {
-    const result = validatePath(tmpDir, '.hidden/page');
+  test('rejects reserved segments starting with dot', async () => {
+    const result = await validatePath(tmpDir, '.hidden/page');
     expect(result).toContain('Reserved path segment');
+  });
+});
+
+describe('MCP validatePagePath (reads)', () => {
+  test('allows the root and underscore segments for reads', async () => {
+    expect(await validatePath(tmpDir, '', false)).toBeNull();
+    expect(await validatePath(tmpDir, '_drafts', false)).toBeNull();
+  });
+
+  test('rejects traversal and dot segments for reads', async () => {
+    expect(await validatePath(tmpDir, '../outside', false)).not.toBeNull();
+    expect(await validatePath(tmpDir, '.git', false)).not.toBeNull();
+  });
+
+  test('rejects symlinks that escape the root', async () => {
+    const { symlink } = await import('fs/promises');
+    await symlink('/tmp', join(tmpDir, 'escape'));
+    expect(await validatePath(tmpDir, 'escape', false)).not.toBeNull();
   });
 });
 
@@ -112,13 +107,11 @@ describe('MCP read_page logic', () => {
     expect(content).toContain('# Getting Started');
   });
 
-  test('context tiers are generated after build', async () => {
-    // Import the compressor to simulate what MCP does
-    const { compress, compressMini } = await import('../../src/compressor');
+  test('context tiers are derived on the fly', async () => {
     const content = await readFile(join(tmpDir, 'getting-started', 'index.md'), 'utf-8');
 
-    const context = compress(content);
-    const contextMini = compressMini(content);
+    const context = renderTier(content, 'context');
+    const contextMini = renderTier(content, 'context-mini');
 
     expect(context.length).toBeLessThan(content.length);
     expect(contextMini.length).toBeLessThan(context.length);

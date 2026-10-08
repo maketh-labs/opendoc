@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
-import { access, readFile, readdir } from 'fs/promises';
+import { access, readFile, readdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { build } from '../../src/builder';
 import { createTempDocs, cleanupTempDocs } from '../helpers';
@@ -45,7 +45,7 @@ describe('build', () => {
 
   test('generates context.md for each page', async () => {
     await build(tmpDir);
-    const contextMd = await readFile(join(tmpDir, 'getting-started', 'context.md'), 'utf-8');
+    const contextMd = await readFile(join(tmpDir, 'dist', 'getting-started', 'context.md'), 'utf-8');
     expect(contextMd).toContain('Getting Started');
     // Should be compressed — paragraphs reduced
     expect(contextMd.length).toBeLessThan(
@@ -55,10 +55,10 @@ describe('build', () => {
 
   test('generates context-mini.md for each page', async () => {
     await build(tmpDir);
-    const miniMd = await readFile(join(tmpDir, 'getting-started', 'context-mini.md'), 'utf-8');
+    const miniMd = await readFile(join(tmpDir, 'dist', 'getting-started', 'context-mini.md'), 'utf-8');
     expect(miniMd).toContain('Getting Started');
     // Mini should be shorter than context
-    const contextMd = await readFile(join(tmpDir, 'getting-started', 'context.md'), 'utf-8');
+    const contextMd = await readFile(join(tmpDir, 'dist', 'getting-started', 'context.md'), 'utf-8');
     expect(miniMd.length).toBeLessThanOrEqual(contextMd.length);
   });
 
@@ -107,5 +107,41 @@ describe('build', () => {
     await build(tmpDir);
     const gsHtml = await readFile(join(tmpDir, 'dist', 'getting-started', 'index.html'), 'utf-8');
     expect(gsHtml).toContain('od-callout');
+  });
+
+  test('does not write context files into the source tree', async () => {
+    await build(tmpDir);
+    await expect(access(join(tmpDir, 'getting-started', 'context.md'))).rejects.toThrow();
+    await expect(access(join(tmpDir, 'getting-started', 'context-mini.md'))).rejects.toThrow();
+  });
+
+  test('renders the root index.md as dist/index.html and page JSON', async () => {
+    await build(tmpDir);
+    const html = await readFile(join(tmpDir, 'dist', 'index.html'), 'utf-8');
+    expect(html).toContain('id="od-viewer-root"');
+    expect(html).toContain('/_opendoc/viewer.js');
+    const rootJson = JSON.parse(await readFile(join(tmpDir, 'dist', '_opendoc', 'page.json'), 'utf-8'));
+    expect(rootJson.html.length).toBeGreaterThan(0);
+    const pageJson = JSON.parse(await readFile(join(tmpDir, 'dist', '_opendoc', 'page', 'getting-started.json'), 'utf-8'));
+    expect(pageJson.title).toBe('Getting Started');
+    await access(join(tmpDir, 'dist', '_opendoc', 'viewer.js'));
+  });
+
+  test('uses the configured site title', async () => {
+    await writeFile(join(tmpDir, 'opendoc.json'), JSON.stringify({ title: 'Acme Handbook' }));
+    await build(tmpDir);
+    const html = await readFile(join(tmpDir, 'dist', 'getting-started', 'index.html'), 'utf-8');
+    expect(html).toContain('Acme Handbook');
+  });
+
+  test('copies favicons and includes theme.css overrides', async () => {
+    await writeFile(join(tmpDir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    await writeFile(join(tmpDir, 'getting-started', 'og-image.png'), 'png');
+    await writeFile(join(tmpDir, 'theme.css'), ':root { --od-test-override: 1; }');
+    await build(tmpDir);
+    await access(join(tmpDir, 'dist', 'favicon.svg'));
+    await access(join(tmpDir, 'dist', 'getting-started', 'og-image.png'));
+    const css = await readFile(join(tmpDir, 'dist', '_opendoc', 'theme.css'), 'utf-8');
+    expect(css).toContain('--od-test-override');
   });
 });

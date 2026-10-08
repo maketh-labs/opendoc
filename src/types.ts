@@ -4,6 +4,8 @@ export interface NavNode {
   url: string
   icon?: string
   children: NavNode[]
+  /** Set on folders without an index.md (grouping only — no page to open) */
+  virtual?: true
 }
 
 export interface BacklinksIndex {

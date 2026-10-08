@@ -17,7 +17,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Run unit tests
         run: bun test tests/unit
@@ -37,7 +37,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build all platform binaries
         run: bun run scripts/build.ts
@@ -80,7 +80,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       # Sync version from git tag into all package.json files
       - name: Set version from tag

@@ -9,6 +9,9 @@ const targets = [
   { name: "opendoc-win32-x64",     target: "bun-windows-x64",   ext: ".exe" },
 ]
 
+// Binaries embed prebuilt client bundles (src/generated) — they can't bundle the client at runtime
+await $`bun run scripts/bundle-client.ts`
+
 for (const { name, target, ext } of targets) {
   console.log(`Building ${name}...`)
   await $`bun build --compile --target=${target} src/cli.ts --outfile npm/${name}/bin/opendoc${ext}`

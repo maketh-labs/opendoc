@@ -43,15 +43,14 @@ That's it. Docs site on `:3000`. MCP server on `:3001`. No config needed.
 
 ```
 my-docs/
-├── index.md                      ← /
+├── index.md                      ← / (home page)
 ├── getting-started/
 │   └── index.md                  ← /getting-started
 ├── guides/
 │   ├── index.md                  ← /guides
 │   └── advanced/
 │       └── index.md              ← /guides/advanced
-└── .opendoc/
-    └── config.json               ← optional
+└── opendoc.json                  ← optional config
 ```
 
 No special filenames. No front matter required. No config to write. Folder name becomes the URL. First `# Heading` becomes the page title.
@@ -66,7 +65,7 @@ OpenDoc runs an MCP server on `:3001` alongside your docs. Point Cursor, Claude,
 {
   "mcpServers": {
     "opendoc": {
-      "url": "http://localhost:3001"
+      "url": "http://localhost:3001/mcp"
     }
   }
 }
@@ -86,12 +85,13 @@ OpenDoc runs an MCP server on `:3001` alongside your docs. Point Cursor, Claude,
 
 ## Context Tiers
 
-Every page has three representations, generated at build time. No LLM calls. No inference cost.
+Every page has three representations. No LLM calls. No inference cost.
 
-Each page folder:
+The MCP server derives them on the fly from `index.md`, and `opendoc build` writes them next to each page in `dist/` (your source folders are never touched):
 ```
-getting-started/
-├── index.md          ← humans read this (full content)
+dist/getting-started/
+├── index.html        ← humans read this
+├── index.md          ← full source
 ├── context.md        ← agents read this (compressed)
 └── context-mini.md   ← agents read this when token budget is tight
 ```
@@ -107,30 +107,41 @@ Agents request the tier they need. `read_page("/getting-started", "context-mini"
 ## CLI
 
 ```bash
-npx opendoc serve [dir]    # Dev server + MCP server (default: current directory)
-npx opendoc build [dir]    # Build static site to .opendoc/dist
-npx opendoc login          # GitHub auth for theme gallery (coming soon)
-npx opendoc themes         # Browse community themes (coming soon)
+npx opendoc serve [dir]    # Docs server + editor + MCP server (default: current directory)
+npx opendoc build [dir]    # Build static site to dir/dist
+npx opendoc init [dir]     # Scaffold a new docs project
+```
+
+`serve` options: `--port <n>` (default 3000), `--mcp-port <n>` (default 3001), `--host <addr>` (default `127.0.0.1`), `--no-open`.
+
+### Security model
+
+`opendoc serve` binds to `127.0.0.1` by default. The editing API (file writes, uploads, git commit/push) and the MCP server only accept requests from this machine: loopback address, loopback `Host` header (blocks DNS rebinding), and a same-origin `Origin` (blocks other websites). Binding to another interface with `--host` exposes the read-only viewer; editing stays local. Markdown is rendered with raw HTML sanitized (no scripts, event handlers or `javascript:` URLs).
 ```
 
 ---
 
 ## Config
 
-Everything is optional. Drop a `.opendoc/config.json` if you need it:
+Everything is optional. `opendoc.json` in your docs folder is created with defaults on first run:
 
 ```json
 {
   "title": "My Docs",
-  "theme": "default",
+  "editorPath": "/_",
   "mcp": {
     "port": 3001
   },
-  "nav": {
-    "order": ["getting-started", "guides", "api"]
+  "github": {
+    "repo": "owner/repo",
+    "clientId": "GitHub OAuth app client ID"
   }
 }
 ```
+
+Page order within a folder comes from an `order.json` array of folder names (the editor maintains it when you drag pages).
+
+**GitHub editing** (for hosted `opendoc serve`): create a GitHub OAuth app with callback URL `https://<your-host>/_opendoc/auth/callback`, set `github.clientId` in `opendoc.json`, and provide the secret via the `GITHUB_CLIENT_SECRET` environment variable (keep it out of the repo). Login requires a running `opendoc serve` for the OAuth code exchange; a purely static deployment serves the docs but not editor login.
 
 ---
 
@@ -146,7 +157,7 @@ bunx opendoc serve
 
 ## Deploy
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/maketh-labs/opendoc&project-name=my-docs&build-command=bunx+opendoc+build&output-directory=.opendoc/dist)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/maketh-labs/opendoc&project-name=my-docs&build-command=bunx+opendoc+build&output-directory=dist)
 
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/maketh-labs/opendoc)
 
@@ -165,11 +176,11 @@ jobs:
       - run: npx opendoc build
       - uses: actions/deploy-pages@v4
         with:
-          folder: .opendoc/dist
+          folder: dist
 ```
 
 **Netlify / Vercel / Cloudflare Pages:**
-Set build command to `npx opendoc build` and publish directory to `.opendoc/dist`.
+Set build command to `npx opendoc build` and publish directory to `dist`.
 
 **Local only:**
 `npx opendoc serve` — no build step, no deploy, just open a browser.
@@ -188,7 +199,7 @@ No approval process. No marketplace. Just GitHub forks.
 
 OpenDoc has no backend to host. `opendoc build` produces static HTML. Put it anywhere.
 
-If you want the MCP server available remotely, run `opendoc serve` on your server and expose port `3001`.
+The MCP server can read and write your docs, so it only accepts local connections. To give a remote agent access, run it next to the agent (e.g. in the same container) or tunnel the port over SSH rather than exposing it publicly.
 
 ---
 
