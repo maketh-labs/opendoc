@@ -30,10 +30,9 @@ export const editorImages: Record<string, string> = {
   'homescreen-ios.webp': homescreenIosWebp as unknown as string,
 }
 
+/** Browser bundle files served at /_opendoc/<name>: viewer.js, editor.js, editor.css and code-split chunks */
 export interface ClientBundles {
-  viewerJs: string
-  editorJs: string | null
-  editorCss: string | null
+  files: Record<string, string>
 }
 
 const PACKAGE_ROOT = dirname(import.meta.dir)
@@ -57,29 +56,35 @@ export function buildTailwind(): boolean {
   return true
 }
 
-async function bundle(entry: string, minify: boolean): Promise<{ js: string | null; css: string | null }> {
-  const result = await Bun.build({ entrypoints: [join(CLIENT_DIR, entry)], target: 'browser', minify })
+async function bundle(entry: string, { minify, splitting }: { minify: boolean; splitting: boolean }): Promise<Record<string, string> | null> {
+  const result = await Bun.build({
+    entrypoints: [join(CLIENT_DIR, entry)],
+    target: 'browser',
+    minify,
+    splitting,
+    // Production React for minified (published) builds; dev builds keep React's warnings
+    define: minify ? { 'process.env.NODE_ENV': '"production"' } : undefined,
+    // Flat names: everything is served from /_opendoc/, and chunks are imported relative to the entry
+    naming: { entry: '[name].[ext]', chunk: 'chunk-[hash].[ext]', asset: '[name]-[hash].[ext]' },
+  })
   if (!result.success) {
     console.error(`${entry} bundle build failed:\n` + result.logs.join('\n'))
-    return { js: null, css: null }
+    return null
   }
-  let js: string | null = null
-  let css: string | null = null
-  for (const out of result.outputs) {
-    if (out.kind === 'entry-point') js = await out.text()
-    else if (out.path.endsWith('.css')) css = await out.text()
-  }
-  return { js, css }
+  const files: Record<string, string> = {}
+  for (const out of result.outputs) files[out.path.replace(/^.*[\\/]/, '')] = await out.text()
+  return files
 }
 
 /** Build client bundles from `client/` sources. */
 export async function buildClientBundles({ editor = true, minify = false } = {}): Promise<ClientBundles> {
-  const viewer = await bundle('viewer.tsx', minify)
-  if (!viewer.js) throw new Error('Viewer bundle build failed')
-  if (!editor) return { viewerJs: viewer.js, editorJs: null, editorCss: null }
+  const viewer = await bundle('viewer.tsx', { minify, splitting: false })
+  if (!viewer) throw new Error('Viewer bundle build failed')
+  if (!editor) return { files: viewer }
   buildTailwind()
-  const ed = await bundle('editor.tsx', minify)
-  return { viewerJs: viewer.js, editorJs: ed.js, editorCss: ed.css }
+  const ed = await bundle('editor.tsx', { minify, splitting: true })
+  if (!ed) console.error('Editor unavailable: bundle build failed')
+  return { files: { ...viewer, ...ed } }
 }
 
 /** Load prebuilt bundles from src/generated (embedded in compiled binaries). */

@@ -85,7 +85,7 @@ function App() {
     <SiteConfigContext.Provider value={siteConfig}>
       {view.view === 'loading'     && <div className="login-screen"><div style={{ color: 'var(--color-muted)' }}>Loading…</div></div>}
       {view.view === 'local'       && <LocalEditor />}
-      {view.view === 'login'       && <LoginScreen />}
+      {view.view === 'login'       && <LoginScreen oauthProxy={siteConfig.github?.oauthProxy} />}
       {view.view === 'repoPicker'  && <RepoPicker repos={view.repos} />}
       {view.view === 'noAccess'    && <NoAccess repo={view.repo} />}
       {view.view === 'editor'      && <GitHubEditor token={view.token} repo={view.repo} config={siteConfig} />}

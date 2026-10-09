@@ -1,13 +1,13 @@
 import { readFile, writeFile, unlink } from 'fs/promises'
-import { themeFiles, editorImages } from '../assets'
 import { join, extname } from 'path'
-import { readJson, resolveInRoot, MIME_TYPES, type RouteHandler } from './types'
-import type { ServerResponse } from 'http'
+import { themeFiles, editorImages } from '../assets'
+import { getSettingsPath } from '../config'
+import { readJson, resolveInRoot, json, fail, MIME_TYPES, type RouteHandler } from './types'
 
-/** Serve a user-content file. SVG/HTML get a sandbox CSP so opening them directly can't run script on this origin. */
-async function sendUserFile(res: ServerResponse, filePath: string, cacheControl?: string): Promise<boolean> {
+/** A user-content file response. SVG/HTML get a sandbox CSP so opening them directly can't run script on this origin. */
+async function userFile(filePath: string, cacheControl?: string): Promise<Response | null> {
   const file = Bun.file(filePath)
-  if (!(await file.exists())) return false
+  if (!(await file.exists())) return null
   const ext = extname(filePath).slice(1).toLowerCase()
   const headers: Record<string, string> = {
     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
@@ -15,117 +15,77 @@ async function sendUserFile(res: ServerResponse, filePath: string, cacheControl?
     'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
   }
   if (cacheControl) headers['Cache-Control'] = cacheControl
-  res.writeHead(200, headers)
-  res.end(Buffer.from(await file.arrayBuffer()))
-  return true
+  return new Response(file, { headers })
 }
 
-export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
+const SITE_FILE_RE = /\/(favicon(-dark|-96x96)?\.(ico|svg|png)|apple-touch-icon\.png|web-app-manifest-(192x192|512x512)\.png|site\.webmanifest|og-image\.(png|jpg|webp))$/
+
+export const handleStatic: RouteHandler = async (req, url, ctx) => {
   const pathname = url.pathname
 
-    // Serve theme CSS (base styles + user overrides)
+  // Theme CSS: base styles + the user's theme.css overrides
   if (pathname === '/_opendoc/theme.css') {
-    let css = ctx.getStyles()
-    try {
-      const userTheme = await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8')
-      if (userTheme) css += '\n' + userTheme
-    } catch {}
-    res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
-    res.end(css)
-    return true
+    let css = ctx.styles
+    try { css += '\n' + await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8') } catch {}
+    return new Response(css, { headers: { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' } })
   }
 
-  // Save user theme overrides
-  if (pathname === '/_opendoc/theme' && req.method === 'PUT') {
-    const body = await readJson<{ css?: unknown }>(req)
-    await writeFile(join(ctx.rootDir, 'theme.css'), typeof body.css === 'string' ? body.css : '', 'utf-8')
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true }))
-    return true
-  }
-
-  // Get user theme overrides
-  if (pathname === '/_opendoc/theme' && req.method === 'GET') {
-    try {
-      const css = await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8')
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ css }))
-    } catch {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ css: '' }))
+  if (pathname === '/_opendoc/theme') {
+    const themePath = join(ctx.rootDir, 'theme.css')
+    if (req.method === 'GET') {
+      const css = await readFile(themePath, 'utf-8').catch(() => '')
+      return json({ css })
     }
-    return true
-  }
-
-  // Delete user theme overrides
-  if (pathname === '/_opendoc/theme' && req.method === 'DELETE') {
-    try {
-      await unlink(join(ctx.rootDir, 'theme.css'))
-    } catch {}
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true }))
-    return true
-  }
-
-  // Client bundles (built at startup or embedded). /client/* are legacy aliases.
-  const bundle = (() => {
-    switch (pathname) {
-      case '/_opendoc/viewer.js': case '/client/viewer.tsx': return { body: ctx.bundles.viewerJs, type: 'application/javascript' }
-      case '/_opendoc/editor.js': case '/client/editor.tsx': return { body: ctx.bundles.editorJs, type: 'application/javascript' }
-      case '/_opendoc/editor.css': case '/client/editor.css': return { body: ctx.bundles.editorCss, type: 'text/css' }
+    if (req.method === 'PUT') {
+      const body = await readJson<{ css?: unknown }>(req)
+      await writeFile(themePath, typeof body.css === 'string' ? body.css : '', 'utf-8')
+      return json({ ok: true })
     }
-    return undefined
-  })()
-  if (bundle !== undefined) {
-    if (!bundle.body) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not found'); return true }
-    res.writeHead(200, { 'Content-Type': `${bundle.type}; charset=utf-8`, 'Cache-Control': 'no-cache' })
-    res.end(bundle.body)
-    return true
+    if (req.method === 'DELETE') {
+      await unlink(themePath).catch(() => {})
+      return json({ ok: true })
+    }
+    return null
   }
 
-  // Editor route (HTML page)
-  if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname.startsWith(ctx.editorPath + '/'))) {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-    res.end(themeFiles.editorHtml)
-    return true
+  // Client bundle files (built at startup or embedded): /_opendoc/viewer.js, editor.js, editor.css, chunks
+  if (pathname.startsWith('/_opendoc/') && /^[\w.-]+\.(js|css)$/.test(pathname.slice('/_opendoc/'.length))) {
+    const name = pathname.slice('/_opendoc/'.length)
+    const body = ctx.bundles.files[name]
+    if (body === undefined) return null
+    const type = name.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8'
+    return new Response(body, { headers: { 'Content-Type': type, 'Cache-Control': 'no-cache' } })
   }
 
-  // Serve favicon and og-image files from page directories
-  if (/\/(favicon(-dark|-96x96)?\.(ico|svg|png)|apple-touch-icon\.png|web-app-manifest-(192x192|512x512)\.png|site\.webmanifest|og-image\.(png|jpg|webp))$/.test(pathname)) {
+  // Editor app shell
+  if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname.startsWith(ctx.editorPath + '/') ||
+      pathname === getSettingsPath(ctx.editorPath))) {
+    return new Response(themeFiles.editorHtml, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  }
+
+  // Favicons, manifest and OG images from page directories (not found → fall through to the SPA shell)
+  if (SITE_FILE_RE.test(pathname)) {
     const filePath = await resolveInRoot(ctx.rootDir, decodeURIComponent(pathname))
-    if (!filePath) { res.writeHead(403); res.end('Forbidden'); return true }
-    // Not found — fall through so other handlers (and the SPA shell) can respond
-    return sendUserFile(res, filePath, 'no-cache')
+    if (!filePath) return fail(403, 'Forbidden')
+    return userFile(filePath, 'no-cache')
   }
 
   // Editor UI images (embedded in the package/binary)
   if (pathname.startsWith('/_opendoc/assets/')) {
     const assetPath = editorImages[pathname.slice('/_opendoc/assets/'.length)]
-    if (!assetPath) { res.writeHead(404); res.end('Not found'); return true }
-    res.writeHead(200, { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=86400' })
-    res.end(Buffer.from(await Bun.file(assetPath).arrayBuffer()))
-    return true
+    if (!assetPath) return fail(404, 'Not found')
+    return new Response(Bun.file(assetPath), { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=86400' } })
   }
 
-  // Serve assets from page directories
+  // Page assets
   if (pathname.includes('/assets/')) {
     const filePath = await resolveInRoot(ctx.rootDir, decodeURIComponent(pathname))
-    if (!filePath) { res.writeHead(403); res.end('Forbidden'); return true }
-    if (!(await sendUserFile(res, filePath))) { res.writeHead(404); res.end('Not found') }
-    return true
+    if (!filePath) return fail(403, 'Forbidden')
+    return (await userFile(filePath)) ?? fail(404, 'Not found')
   }
 
-  // SSE endpoint for hot reload
-  if (pathname === '/__reload') {
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    })
-    ctx.reloadClients.add(res)
-    req.on('close', () => ctx.reloadClients.delete(res))
-    return true
-  }
+  // Live reload (dev server)
+  if (pathname === '/__reload') return ctx.reload.connect()
 
-  return false
+  return null
 }

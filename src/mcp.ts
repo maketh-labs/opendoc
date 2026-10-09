@@ -1,18 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { createServer } from 'http';
-import type { IncomingMessage } from 'http';
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import type { Server } from 'bun';
 import { readFile, writeFile, mkdir, access } from 'fs/promises';
 import { join, relative } from 'path';
 import { z } from 'zod';
 import { simpleGit } from 'simple-git';
-import { walkDir, getAllPages } from './walker';
-import { buildBacklinks } from './backlinks';
 import { compress, compressMini } from './compressor';
-import { resolveInRoot, readBody, HttpError } from './security';
-import { DEFAULT_HOST, listenWithFallback, displayUrl } from './listen';
-import type { ContextTier, SearchResult } from './types';
+import { resolveInRoot, isLoopbackHostname } from './security';
+import { DEFAULT_HOST, serveWithFallback, displayUrl } from './listen';
+import { DocsIndex } from './docs-index';
+import type { ContextTier } from './types';
 
 /**
  * Validate a page path from an MCP client and resolve it inside rootDir.
@@ -59,7 +56,7 @@ const text = (t: string) => ({ content: [{ type: 'text' as const, text: t }] });
 const errorResult = (message: string) => ({ ...text(JSON.stringify({ error: message })), isError: true });
 
 /** Build an MCP server with all OpenDoc tools. One instance per client session. */
-export function createMcpServer(rootDir: string): McpServer {
+export function createMcpServer(rootDir: string, index: DocsIndex = new DocsIndex(rootDir)): McpServer {
   const server = new McpServer({ name: 'opendoc', version: '0.1.0' });
   const git = simpleGit(rootDir, { config: ['--no-optional-locks'] });
 
@@ -101,27 +98,14 @@ export function createMcpServer(rootDir: string): McpServer {
       limit: z.number().int().min(1).max(100).default(10).describe('Max results'),
     },
     async ({ query, limit }) => {
-      const pages = await getAllPages(rootDir);
-      const results: SearchResult[] = [];
-      const queryLower = query.toLowerCase();
-
-      for (const page of ['.', ...pages]) {
-        try {
-          const content = await readFile(join(rootDir, page, 'index.md'), 'utf-8');
-          if (content.toLowerCase().includes(queryLower)) {
-            const lines = content.split('\n');
-            const matchLine = lines.find(l => l.toLowerCase().includes(queryLower)) ?? lines[0] ?? '';
-            results.push({ path: page === '.' ? '' : page, snippet: matchLine.trim() });
-            if (results.length >= limit) break;
-          }
-        } catch { /* skip */ }
-      }
-      return text(JSON.stringify(results, null, 2));
+      await index.refresh();
+      return text(JSON.stringify(index.search(query, limit), null, 2));
     }
   );
 
   server.tool('list_structure', 'Get the full navigation tree as JSON', {}, async () => {
-    return text(JSON.stringify(await walkDir(rootDir), null, 2));
+    await index.refresh();
+    return text(JSON.stringify(index.getNavTree(), null, 2));
   });
 
   server.tool(
@@ -129,9 +113,9 @@ export function createMcpServer(rootDir: string): McpServer {
     'Get pages that link to the specified page',
     { path: z.string().describe('Page path') },
     async ({ path: pagePath }) => {
-      const index = await buildBacklinks(rootDir);
+      await index.refresh();
       const normalized = pagePath.replace(/^\//, '').replace(/\/$/, '');
-      return text(JSON.stringify(index[normalized] || [], null, 2));
+      return text(JSON.stringify(index.getBacklinks()[normalized] || [], null, 2));
     }
   );
 
@@ -189,6 +173,7 @@ export function createMcpServer(rootDir: string): McpServer {
       await mkdir(v.dir, { recursive: true });
       await writeFile(filePath, content);
 
+      await index.refresh();
       const message = generateCommitMsg(v.rel, before, content);
       const committed = await commitPage(v.rel, message);
       return text(JSON.stringify({ path: v.rel, committed, message: committed ? message : '' }));
@@ -215,6 +200,7 @@ export function createMcpServer(rootDir: string): McpServer {
       const pageName = title || v.rel.split('/').filter(Boolean).pop() || 'Untitled';
       await mkdir(v.dir, { recursive: true });
       await writeFile(filePath, `# ${pageName}\n`);
+      await index.refresh();
 
       const committed = await commitPage(v.rel, `docs(${v.rel || 'home'}): create page`);
       return text(JSON.stringify({ path: v.rel, created: true, committed }));
@@ -226,17 +212,16 @@ export function createMcpServer(rootDir: string): McpServer {
 
 /**
  * MCP endpoints write to the docs and run git, so only local clients may connect:
- * Host must be a loopback name (blocks DNS rebinding) and browsers' Origin must be local too.
+ * Host must be a loopback name (blocks DNS rebinding) and a browser's Origin must be local too.
  */
-function isAllowedMcpRequest(req: IncomingMessage, host: string): boolean {
-  const isLoopbackName = (h: string) => ['localhost', '127.0.0.1', '[::1]', '::1'].includes(h) || h.endsWith('.localhost');
+function isAllowedMcpRequest(req: Request, host: string): boolean {
   const bindIsLoopback = host === DEFAULT_HOST || host === 'localhost' || host === '::1';
   try {
-    const hostHeader = req.headers.host;
+    const hostHeader = req.headers.get('host');
     if (!hostHeader) return false;
-    if (bindIsLoopback && !isLoopbackName(new URL(`http://${hostHeader}`).hostname)) return false;
-    const origin = req.headers.origin;
-    if (origin && !isLoopbackName(new URL(origin).hostname)) return false;
+    if (bindIsLoopback && !isLoopbackHostname(new URL(`http://${hostHeader}`).hostname)) return false;
+    const origin = req.headers.get('origin');
+    if (origin && !isLoopbackHostname(new URL(origin).hostname)) return false;
   } catch {
     return false;
   }
@@ -246,74 +231,37 @@ function isAllowedMcpRequest(req: IncomingMessage, host: string): boolean {
 export interface McpServeOptions {
   port?: number;
   host?: string;
+  /** Shared docs index (the docs server passes its own so both stay in sync) */
+  index?: DocsIndex;
+  quiet?: boolean;
 }
 
-export async function startMcpServer(rootDir: string, opts: McpServeOptions = {}) {
+/** Serve MCP over Streamable HTTP at /mcp (stateless: a fresh server + transport per request). */
+export async function startMcpServer(rootDir: string, opts: McpServeOptions = {}): Promise<Server<undefined>> {
   const host = opts.host ?? DEFAULT_HOST;
-  const sseSessions = new Map<string, SSEServerTransport>();
-  const httpServer = createServer();
+  const index = opts.index ?? new DocsIndex(rootDir);
+  if (!opts.index) await index.refresh();
 
-  httpServer.on('request', async (req, res) => {
-    try {
-      if (!isAllowedMcpRequest(req, host)) {
-        res.writeHead(403, { 'Content-Type': 'text/plain' });
-        res.end('Forbidden');
-        return;
+  const server = serveWithFallback({
+    async fetch(req) {
+      if (!isAllowedMcpRequest(req, host)) return new Response('Forbidden', { status: 403 });
+      const url = new URL(req.url);
+      if (url.pathname !== '/mcp' && url.pathname !== '/') return new Response('Not found', { status: 404 });
+      if (url.pathname === '/' && req.method === 'GET') {
+        return new Response('OpenDoc MCP server — connect your client to /mcp', { headers: { 'Content-Type': 'text/plain' } });
       }
-      const url = new URL(req.url ?? '/', 'http://localhost');
-
-      // Streamable HTTP (current MCP transport), stateless: a fresh server + transport per request
-      if (url.pathname === '/mcp' || url.pathname === '/') {
-        if (req.method !== 'POST') {
-          res.writeHead(405, { Allow: 'POST', 'Content-Type': 'text/plain' });
-          res.end('Method not allowed');
-          return;
-        }
-        let body: unknown;
-        try { body = JSON.parse(await readBody(req)); } catch { throw new HttpError(400, 'Invalid JSON'); }
-        const server = createMcpServer(rootDir);
-        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-        res.on('close', () => { transport.close(); server.close(); });
-        await server.connect(transport);
-        await transport.handleRequest(req, res, body);
-        return;
+      try {
+        const mcp = createMcpServer(rootDir, index);
+        const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+        await mcp.connect(transport);
+        return await transport.handleRequest(req);
+      } catch (err) {
+        console.error('MCP request failed:', err);
+        return new Response('Error processing message', { status: 500 });
       }
+    },
+  }, opts.port ?? 3001, host);
 
-      // Legacy HTTP+SSE transport: one server per SSE session
-      if (url.pathname === '/sse' && req.method === 'GET') {
-        const transport = new SSEServerTransport('/messages', res);
-        const server = createMcpServer(rootDir);
-        sseSessions.set(transport.sessionId, transport);
-        res.on('close', () => { sseSessions.delete(transport.sessionId); server.close(); });
-        await server.connect(transport);
-        return;
-      }
-
-      if (url.pathname === '/messages' && req.method === 'POST') {
-        const transport = sseSessions.get(url.searchParams.get('sessionId') ?? '');
-        if (!transport) {
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('Session not found');
-          return;
-        }
-        let body: unknown;
-        try { body = JSON.parse(await readBody(req)); } catch { throw new HttpError(400, 'Invalid JSON'); }
-        await transport.handlePostMessage(req, res, body);
-        return;
-      }
-
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Not found');
-    } catch (err) {
-      if (!(err instanceof HttpError)) console.error('MCP request failed:', err);
-      if (!res.headersSent) {
-        res.writeHead(err instanceof HttpError ? err.status : 500, { 'Content-Type': 'text/plain' });
-        res.end(err instanceof HttpError ? err.message : 'Error processing message');
-      }
-    }
-  });
-
-  const actualPort = await listenWithFallback(httpServer, opts.port ?? 3001, host);
-  console.log(`  MCP server running at ${displayUrl(host, actualPort, '/mcp')}  (legacy SSE: /sse)\n`);
-  return httpServer;
+  if (!opts.quiet) console.log(`  MCP server running at ${displayUrl(host, server.port!, '/mcp')}\n`);
+  return server;
 }

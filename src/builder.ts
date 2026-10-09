@@ -1,11 +1,9 @@
 import { readFile, writeFile, mkdir, copyFile, access, readdir, rm } from 'fs/promises';
 import { join, dirname } from 'path';
-import { walkDir, getAllPages } from './walker';
-import { buildBacklinks } from './backlinks';
+import { DocsIndex } from './docs-index';
 import { compress, compressMini } from './compressor';
 import { loadTemplate, loadStyles, renderTemplate } from './theme';
 import { ensureConfig, getEditorPath, buildPublicConfig } from './config';
-import { buildTitleMap } from './utils.js';
 import { navToHtml } from './render-utils.js';
 import { renderPageData } from './page-data';
 import { loadClientBundles, themeFiles } from './assets';
@@ -46,13 +44,16 @@ export async function build(rootDir: string): Promise<void> {
   const siteTitle = config.title || 'OpenDoc';
   const distDir = join(rootDir, 'dist');
 
+  const index = new DocsIndex(rootDir);
+  await index.refresh();
+
   // Root index.md is the "/" page
-  const childPages = await getAllPages(rootDir);
-  const pages = (await fileExists(join(rootDir, 'index.md'))) ? ['.', ...childPages] : childPages;
-  const navTree = await walkDir(rootDir);
-  const backlinks = await buildBacklinks(rootDir);
+  const childPages = index.getPagePaths();
+  const pages = index.getMarkdown('.') !== undefined ? ['.', ...childPages] : childPages;
+  const navTree = index.getNavTree();
+  const backlinks = index.getBacklinks();
   const template = await loadTemplate();
-  const titleMap = await buildTitleMap(rootDir, childPages);
+  const titleMap = index.getTitleMap();
   const navHtml = navTree ? `<ul>${navToHtml(navTree)}</ul>` : '';
 
   // Start clean so deleted pages don't linger in the output
@@ -124,6 +125,7 @@ export async function build(rootDir: string): Promise<void> {
   await writeFile(join(opendocDir, 'nav.json'), JSON.stringify(navTree, null, 2));
   await writeFile(join(opendocDir, 'backlinks.json'), JSON.stringify(backlinks, null, 2));
   await writeFile(join(opendocDir, 'config.json'), JSON.stringify(buildPublicConfig(config, editorPath), null, 2));
+  await writeFile(join(opendocDir, 'search-index.json'), JSON.stringify(index.getSearchIndex()));
 
   // Theme CSS: base styles + the user's theme.css overrides (same as the dev server)
   let css = await loadStyles();
@@ -132,13 +134,14 @@ export async function build(rootDir: string): Promise<void> {
   } catch {}
   await writeFile(join(opendocDir, 'theme.css'), css);
 
-  const bundles = await loadClientBundles({ editor: editorPath !== null });
-  await writeFile(join(opendocDir, 'viewer.js'), bundles.viewerJs);
+  // Browser bundles (viewer, editor and its code-split chunks) all live in _opendoc/
+  const { files } = await loadClientBundles({ editor: editorPath !== null });
+  for (const [name, body] of Object.entries(files)) {
+    await writeFile(join(opendocDir, name), body);
+  }
 
-  // Editor (GitHub mode). Login needs a running `opendoc serve` for the OAuth code exchange.
-  if (editorPath !== null && bundles.editorJs && bundles.editorCss) {
-    await writeFile(join(opendocDir, 'editor.js'), bundles.editorJs);
-    await writeFile(join(opendocDir, 'editor.css'), bundles.editorCss);
+  // Editor (GitHub mode). Login needs `opendoc serve` or a github.oauthProxy for the OAuth code exchange.
+  if (editorPath !== null && files['editor.js']) {
     const editorOutDir = join(distDir, editorPath.replace(/^\//, ''));
     await mkdir(editorOutDir, { recursive: true });
     await writeFile(join(editorOutDir, 'index.html'), themeFiles.editorHtml);
@@ -156,7 +159,7 @@ export async function build(rootDir: string): Promise<void> {
   console.log(`  ${pages.length} pages → index.html, index.md, context.md, context-mini.md, _opendoc/page JSON`);
   console.log(`  ${assetsCopied} pages → assets/ copied`);
   console.log(`  ${siteFilesCopied} favicon/manifest/og-image files copied`);
-  console.log(`  _opendoc/{nav,backlinks,config}.json, theme.css, viewer.js`);
+  console.log(`  _opendoc/{nav,backlinks,config,search-index}.json, theme.css, ${Object.keys(files).length} bundle files`);
   for (const line of summary) console.log(line);
   console.log(`\nBuilt to ${distDir}`);
 }

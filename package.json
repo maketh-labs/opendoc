@@ -13,12 +13,13 @@
     "bundle:client": "bun run scripts/bundle-client.ts",
     "build": "bun run scripts/build.ts",
     "build:binary": "bun run scripts/bundle-client.ts && bun build --compile src/cli.ts --outfile opendoc",
-    "prepublishOnly": "bun run scripts/build.ts",
+    "prepublishOnly": "bun run scripts/bundle-client.ts",
     "test": "bun test tests/unit tests/integration",
     "test:unit": "bun test tests/unit",
     "test:integration": "bun test tests/integration",
     "test:e2e": "bun test tests/e2e",
-    "test:all": "bun test tests/"
+    "test:all": "bun test tests/",
+    "typecheck": "tsc --noEmit -p ."
   },
   "files": [
     "bin/",
@@ -50,6 +51,7 @@
     "clsx": "^2.1.1",
     "emoji-mart": "^5.6.0",
     "lucide-react": "^1.7.0",
+    "minisearch": "7",
     "playwright": "^1.58.2",
     "prosemirror-highlight": "^0.15.1",
     "react": "^19.2.4",
@@ -67,6 +69,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@shikijs/rehype": "^4.0.2",
+    "mdast-util-to-string": "4",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "7",
     "rehype-sanitize": "6",

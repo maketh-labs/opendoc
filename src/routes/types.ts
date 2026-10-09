@@ -1,6 +1,7 @@
-import type { ServerResponse, IncomingMessage } from 'http'
-import type { NavNode, OpenDocConfig, BacklinksIndex } from '../types'
+import type { OpenDocConfig } from '../types'
 import type { ClientBundles } from '../assets'
+import type { DocsIndex } from '../docs-index'
+import type { ReloadHub } from '../reload'
 
 export interface RouteContext {
   rootDir: string
@@ -9,34 +10,25 @@ export interface RouteContext {
   /** Actual bound port (updated after listen) */
   port: number
   bundles: ClientBundles
-  getStyles: () => string
-  getNavTree: () => NavNode | null
-  getBacklinks: () => BacklinksIndex
-  getTitleMap: () => Map<string, string>
-  reloadClients: Set<ServerResponse>
+  styles: string
+  index: DocsIndex
+  reload: ReloadHub
 }
 
-export type RouteHandler = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL,
-  context: RouteContext,
-) => Promise<boolean>
+/** Returns a Response if the route matches, otherwise null so the next handler can try. */
+export type RouteHandler = (req: Request, url: URL, ctx: RouteContext) => Promise<Response | null> | Response | null
 
 // ── Shared route utilities ───────────────────────────────────────────────────
 
-export { readBody, readBodyRaw, readJson, readFormData, isWithinRoot, resolveInRoot, HttpError } from '../security'
+export { readJson, readFormData, isWithinRoot, resolveInRoot, HttpError } from '../security'
 
-/** Write a JSON response */
-export function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify(body))
+export function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+  return Response.json(body, { status, headers })
 }
 
-/** Write a plain-text response */
-export function sendText(res: ServerResponse, status: number, body: string): void {
-  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' })
-  res.end(body)
+/** JSON error response: `{ error }` */
+export function fail(status: number, message: string): Response {
+  return Response.json({ error: message }, { status })
 }
 
 export const MIME_TYPES: Record<string, string> = {
@@ -47,5 +39,5 @@ export const MIME_TYPES: Record<string, string> = {
   mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
   mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
   txt: 'text/plain; charset=utf-8', csv: 'text/csv; charset=utf-8', json: 'application/json',
-  zip: 'application/zip',
+  zip: 'application/zip', js: 'application/javascript; charset=utf-8', css: 'text/css; charset=utf-8',
 }

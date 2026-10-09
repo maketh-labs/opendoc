@@ -5,7 +5,9 @@ export function navToHtml(node: NavNode, currentPath = ""): string {
   if (!node) return ""
   const active = node.path === currentPath ? " class=\"active\"" : ""
   const iconSpan = node.icon ? `<span class="od-nav-icon">${escapeHtml(node.icon)}</span> ` : ""
-  let html = `<li><a href="${escapeHtml(encodeURI(node.url))}"${active}>${iconSpan}${escapeHtml(node.title)}</a>`
+  let html = node.virtual
+    ? `<li><span class="od-nav-group">${iconSpan}${escapeHtml(node.title)}</span>`
+    : `<li><a href="${escapeHtml(encodeURI(node.url))}"${active}>${iconSpan}${escapeHtml(node.title)}</a>`
   if (node.children?.length) {
     html += "<ul>" + node.children.map(c => navToHtml(c, currentPath)).join("") + "</ul>"
   }

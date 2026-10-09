@@ -12,29 +12,29 @@ Build your docs into a static site and deploy anywhere.
 opendoc build ./my-docs
 ```
 
-This generates a complete static site in `my-docs/.opendoc/dist/`. The output is plain HTML, CSS, and JS — no server required to serve it.
+This generates a complete static site in `my-docs/dist/`. The output is plain HTML, CSS, and JS — no server required to serve it.
 
 ## Deploy to Vercel
 
 ```bash
 cd my-docs
-vercel deploy .opendoc/dist
+vercel deploy dist
 ```
 
 Or configure your Vercel project to build automatically on push:
 
 - **Build command:** `bunx opendoc build ./docs`
-- **Output directory:** `docs/.opendoc/dist`
+- **Output directory:** `docs/dist`
 
 ## Deploy to Netlify
 
-Drop the `.opendoc/dist` folder into [app.netlify.com/drop](https://app.netlify.com/drop), or configure your build:
+Drop the `dist` folder into [app.netlify.com/drop](https://app.netlify.com/drop), or configure your build:
 
 ```toml
 # netlify.toml
 [build]
   command = "bunx opendoc build ./docs"
-  publish = "docs/.opendoc/dist"
+  publish = "docs/dist"
 ```
 
 ## Deploy to GitHub Pages
@@ -55,7 +55,7 @@ jobs:
       - uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/.opendoc/dist
+          publish_dir: ./docs/dist
 ```
 
 ## Self-Host with Live Editor
@@ -78,11 +78,11 @@ server {
 ```
 
 > [!TIP]
-> To disable the editor on the public-facing site, set `"editorPath": null` in `.opendoc/config.json`. See [[Configuration]] for details.
+> To disable the editor on the public-facing site, set `"editorPath": null` in `opendoc.json`. See [[Configuration]] for details.
 
 ## What Gets Built
 
-The build output in `.opendoc/dist/` contains:
+The build output in `dist/` contains:
 
 - One HTML file per page (with favicon and OG image tags resolved)
 - Theme CSS and client JS

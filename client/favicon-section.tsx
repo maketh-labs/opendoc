@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Upload, RefreshCcw } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
+import { uploadPageAsset, showToast } from './editor-utils'
 
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -76,7 +77,8 @@ function renderIconCanvas(
     const d = imageData.data
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] === 0) continue
-      d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]
+      // i..i+3 are in bounds: the loop steps by 4 over an RGBA buffer
+      d[i] = 255 - d[i]!; d[i + 1] = 255 - d[i + 1]!; d[i + 2] = 255 - d[i + 2]!
     }
     ctx.putImageData(imageData, 0, 0)
   }
@@ -371,11 +373,7 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
       const toBlob = (canvas: HTMLCanvasElement) =>
         new Promise<Blob>((res) => canvas.toBlob(b => res(b!), 'image/png'))
 
-      async function uploadAsset(type: string, file: File) {
-        const form = new FormData()
-        form.append('file', file); form.append('pagePath', '.'); form.append('type', type)
-        await fetch('/_opendoc/page-asset', { method: 'POST', body: form })
-      }
+      const uploadAsset = (type: string, file: File) => uploadPageAsset(type, file, '.')
 
       // 1. favicon-96x96.png
       const c96 = renderIconCanvas(img, 96, false, cfg.darkMode)
@@ -436,6 +434,8 @@ export function FaviconSection({ siteTitle }: { siteTitle: string }) {
         body: JSON.stringify({ faviconConfig: newCfg }),
       })
       setSaved(true)
+    } catch (e) {
+      showToast(`Couldn't save favicon: ${(e as Error).message}`, 'error')
     } finally { setSaving(false) }
   }
 

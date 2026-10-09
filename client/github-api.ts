@@ -117,6 +117,16 @@ async function waitForRef(repo: string, branch: string, token: string, maxAttemp
   throw new Error('Fork not ready yet — try again in a few seconds')
 }
 
+export interface NewPullRequest {
+  url: string
+  number: number
+  forkRepo: string
+  headOwner: string
+  branch: string
+  /** Blob sha of the committed file on the PR branch */
+  sha?: string
+}
+
 export async function openPullRequest(
   repo: string,
   path: string,
@@ -125,7 +135,7 @@ export async function openPullRequest(
   token: string,
   baseBranch: string,
   baseSha: string | undefined,
-): Promise<CommitResult> {
+): Promise<NewPullRequest> {
   // Step 1: fork (returns the existing fork if there is one; its name may differ from the upstream's)
   const forkRes = await fetch(`https://api.github.com/repos/${repo}/forks`, {
     method: 'POST',
@@ -154,7 +164,7 @@ export async function openPullRequest(
   if (!branchRes.ok) throw new Error(`Failed to create branch: ${branchRes.status}`)
 
   // Step 3: commit to the fork branch, based on the version the user loaded
-  await commitFile(forkRepo, path, content, message, token, branch, baseSha)
+  const commit = await commitFile(forkRepo, path, content, message, token, branch, baseSha)
 
   // Step 4: open PR
   const prRes = await fetch(`https://api.github.com/repos/${repo}/pulls`, {
@@ -171,6 +181,108 @@ export async function openPullRequest(
     const err = await prRes.json().catch(() => ({}))
     throw new Error(err.message || `Failed to create pull request: ${prRes.status}`)
   }
+  const pr = await prRes.json() as { html_url: string; number: number }
 
-  return { url: (await prRes.json()).html_url }
+  return { url: pr.html_url, number: pr.number, forkRepo, headOwner: fork.owner.login, branch, sha: commit.sha }
+}
+
+// ─── Pull-request sessions ───────────────────────────────────────────────────
+// All "suggest edit" saves in one browser tab go to a single branch + PR (per repo and base
+// branch) until that PR is closed or merged, instead of opening a new PR per save.
+
+export interface PrSession {
+  repo: string
+  baseBranch: string
+  forkRepo: string
+  headOwner: string
+  branch: string
+  number: number
+  url: string
+  /** path → blob sha last committed on the PR branch during this session */
+  files: Record<string, string>
+}
+
+function prSessionKey(repo: string, baseBranch: string): string {
+  return `opendoc-pr:${repo}@${baseBranch}`
+}
+
+export function loadPrSession(repo: string, baseBranch: string): PrSession | null {
+  try {
+    const raw = sessionStorage.getItem(prSessionKey(repo, baseBranch))
+    return raw ? JSON.parse(raw) as PrSession : null
+  } catch { return null }
+}
+
+function storePrSession(session: PrSession | null, repo: string, baseBranch: string): void {
+  try {
+    if (session) sessionStorage.setItem(prSessionKey(repo, baseBranch), JSON.stringify(session))
+    else sessionStorage.removeItem(prSessionKey(repo, baseBranch))
+  } catch {}
+}
+
+async function isPullRequestOpen(repo: string, number: number, token: string): Promise<boolean> {
+  const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}`, { headers: authHeaders(token) })
+  if (!r.ok) return false
+  const pr = await r.json() as { state: string; merged?: boolean }
+  return pr.state === 'open' && !pr.merged
+}
+
+export interface PrSaveResult {
+  url: string
+  number: number
+  /** true when the save was added to an existing PR from this session */
+  updated: boolean
+}
+
+/**
+ * Save `path` as a suggested edit: commit to this session's open PR branch, or open a new PR
+ * if there is none (or the previous one was closed/merged).
+ * `loadedSha`/`loadedText` describe the base-branch version the user started editing from.
+ */
+export async function saveToPullRequest(opts: {
+  repo: string
+  path: string
+  content: string
+  message: string
+  token: string
+  baseBranch: string
+  loadedSha: string | undefined
+  loadedText: string
+}): Promise<PrSaveResult> {
+  const { repo, path, content, message, token, baseBranch, loadedSha, loadedText } = opts
+  let session = loadPrSession(repo, baseBranch)
+  if (session && !(await isPullRequestOpen(repo, session.number, token))) {
+    storePrSession(null, repo, baseBranch)
+    session = null
+  }
+
+  if (!session) {
+    const pr = await openPullRequest(repo, path, content, message, token, baseBranch, loadedSha)
+    const created: PrSession = {
+      repo, baseBranch,
+      forkRepo: pr.forkRepo, headOwner: pr.headOwner, branch: pr.branch,
+      number: pr.number, url: pr.url,
+      files: pr.sha ? { [path]: pr.sha } : {},
+    }
+    storePrSession(created, repo, baseBranch)
+    return { url: pr.url, number: pr.number, updated: false }
+  }
+
+  // Existing PR: base the commit on this session's last version of the file, else on the loaded one
+  let baseSha = session.files[path] ?? loadedSha
+  let result: CommitResult
+  try {
+    result = await commitFile(session.forkRepo, path, content, message, token, session.branch, baseSha)
+  } catch (e) {
+    // The PR branch was cut from a newer upstream than the version loaded here. If the branch still
+    // holds exactly the text the user started from, it's safe to write on top of it.
+    if (!(e instanceof ConflictError) || session.files[path]) throw e
+    const onBranch = await fetchFileFromGitHub(session.forkRepo, path, token, session.branch)
+    if (onBranch.content !== loadedText) throw e
+    baseSha = onBranch.sha
+    result = await commitFile(session.forkRepo, path, content, message, token, session.branch, baseSha)
+  }
+  if (result.sha) session.files[path] = result.sha
+  storePrSession(session, repo, baseBranch)
+  return { url: session.url, number: session.number, updated: true }
 }

@@ -11,6 +11,7 @@ import { blocksToMarkdown } from './markdown'
 import { CALLOUT_TYPES, type CalloutType } from './callout-block'
 import { getEmbedUrl } from './youtube-block'
 import { schema } from './schema'
+import { uploadPageFile } from './editor-utils'
 
 interface BlockEditorProps {
   initialBlocks: Block[]
@@ -151,14 +152,10 @@ function useDragDropHandler(
 export function BlockEditor({ initialBlocks, pagePath, onContentChange, onBaseline, theme, pageHeader }: BlockEditorProps) {
   const editorWrapperRef = useRef<HTMLDivElement>(null)
 
-  const uploadFile = useCallback(async (file: File): Promise<string> => {
-    const form = new FormData()
-    form.append('file', file)
-    form.append('pagePath', pagePath.replace(/\/[^/]+$/, '') || '.')
-    const r = await fetch('/_opendoc/upload', { method: 'POST', body: form })
-    if (!r.ok) throw new Error('Upload failed')
-    return (await r.json()).url as string
-  }, [pagePath])
+  const uploadFile = useCallback(
+    (file: File) => uploadPageFile(file, pagePath.replace(/(^|\/)index\.md$/, '') || '.'),
+    [pagePath],
+  )
 
   const editor = useCreateBlockNote({
     schema,
@@ -241,7 +238,7 @@ export function BlockEditor({ initialBlocks, pagePath, onContentChange, onBaseli
           <SuggestionMenuController triggerCharacter="/" getItems={getSlashMenuItems} />
           <SideMenuController sideMenu={(props) => (
             <div className="bn-side-menu" style={{ display: 'flex', alignItems: 'center' }}>
-              <AddBlockButton {...props} />
+              <AddBlockButton />
               <DragHandleButton {...props} dragHandleMenu={(menuProps) => (
                 <DragHandleMenu {...menuProps}>
                   <BlockTypeSelect />

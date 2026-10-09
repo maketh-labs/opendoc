@@ -2,7 +2,6 @@ import { resolve, relative, isAbsolute, dirname, sep } from 'path'
 import { realpath } from 'fs/promises'
 import { lookup } from 'dns/promises'
 import { isIP } from 'net'
-import type { IncomingMessage } from 'http'
 
 /** Error carrying an HTTP status — thrown by request helpers, mapped to a response by the server. */
 export class HttpError extends Error {
@@ -61,12 +60,12 @@ export async function resolveInRoot(rootDir: string, userPath: string, opts: Res
 
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
 
-function isLoopbackHostname(hostname: string): boolean {
+export function isLoopbackHostname(hostname: string): boolean {
   const h = hostname.toLowerCase()
   return LOOPBACK_HOSTNAMES.has(h) || h.endsWith('.localhost')
 }
 
-function isLoopbackAddress(addr: string | undefined): boolean {
+export function isLoopbackAddress(addr: string | undefined | null): boolean {
   if (!addr) return false
   return addr === '::1' || addr.startsWith('127.') || addr.startsWith('::ffff:127.')
 }
@@ -76,18 +75,19 @@ function isLoopbackAddress(addr: string | undefined): boolean {
  * Guards the local editing API against LAN access, DNS rebinding (Host check),
  * cross-site requests (Origin check), and reverse-proxied public traffic (forwarded headers).
  */
-export function isTrustedLocalRequest(req: IncomingMessage): boolean {
-  if (!isLoopbackAddress(req.socket.remoteAddress)) return false
-  if (req.headers['x-forwarded-for'] || req.headers['x-forwarded-host'] || req.headers['forwarded']) return false
+export function isTrustedLocalRequest(req: Request, remoteAddress: string | undefined | null): boolean {
+  if (!isLoopbackAddress(remoteAddress)) return false
+  const h = req.headers
+  if (h.get('x-forwarded-for') || h.get('x-forwarded-host') || h.get('forwarded')) return false
 
-  const host = req.headers.host
+  const host = h.get('host')
   if (!host) return false
   let hostname: string
   try { hostname = new URL(`http://${host}`).hostname } catch { return false }
   if (!isLoopbackHostname(hostname)) return false
 
-  const origin = req.headers.origin
-  if (origin !== undefined) {
+  const origin = h.get('origin')
+  if (origin !== null) {
     try {
       const o = new URL(origin)
       if (o.host !== host || !isLoopbackHostname(o.hostname)) return false
@@ -97,7 +97,7 @@ export function isTrustedLocalRequest(req: IncomingMessage): boolean {
   }
 
   // Reject cross-site requests from browsers that send Fetch Metadata but no Origin
-  const site = req.headers['sec-fetch-site']
+  const site = h.get('sec-fetch-site')
   if (site && site !== 'same-origin' && site !== 'none') return false
 
   return true
@@ -105,52 +105,21 @@ export function isTrustedLocalRequest(req: IncomingMessage): boolean {
 
 // ── Body reading ─────────────────────────────────────────────────────────────
 
-export const JSON_BODY_LIMIT = 10 * 1024 * 1024
-export const UPLOAD_BODY_LIMIT = 100 * 1024 * 1024
-
-/** Read the full request body, rejecting with 413 past `limit` bytes. */
-export function readBodyRaw(req: IncomingMessage, limit = UPLOAD_BODY_LIMIT): Promise<Buffer> {
-  return new Promise((resolvePromise, reject) => {
-    const chunks: Buffer[] = []
-    let size = 0
-    req.on('data', (c: Buffer) => {
-      size += c.length
-      if (size > limit) {
-        reject(new HttpError(413, 'Request body too large'))
-        req.destroy()
-        return
-      }
-      chunks.push(c)
-    })
-    req.on('end', () => resolvePromise(Buffer.concat(chunks)))
-    req.on('error', reject)
-  })
-}
-
-export async function readBody(req: IncomingMessage, limit = JSON_BODY_LIMIT): Promise<string> {
-  return (await readBodyRaw(req, limit)).toString('utf-8')
-}
+/** Max request body (uploads included) — enforced by Bun.serve's maxRequestBodySize */
+export const MAX_BODY_BYTES = 100 * 1024 * 1024
 
 /** Read and parse a JSON object body; throws HttpError(400) on malformed input. */
-export async function readJson<T = Record<string, unknown>>(req: IncomingMessage): Promise<T> {
-  const raw = await readBody(req)
+export async function readJson<T = Record<string, unknown>>(req: Request): Promise<T> {
   let parsed: unknown
-  try { parsed = JSON.parse(raw) } catch { throw new HttpError(400, 'Invalid JSON body') }
+  try { parsed = JSON.parse(await req.text()) } catch { throw new HttpError(400, 'Invalid JSON body') }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new HttpError(400, 'Expected a JSON object')
   return parsed as T
 }
 
-/** Parse a multipart body into FormData using the web Request API. */
-export async function readFormData(req: IncomingMessage): Promise<FormData> {
-  const raw = await readBodyRaw(req)
-  const contentType = req.headers['content-type']
-  if (!contentType) throw new HttpError(400, 'Missing Content-Type')
+/** Parse a multipart body; throws HttpError(400) on malformed input. */
+export async function readFormData(req: Request): Promise<FormData> {
   try {
-    return await new Request('http://localhost/', {
-      method: 'POST',
-      headers: { 'content-type': contentType },
-      body: new Uint8Array(raw),
-    }).formData()
+    return await req.formData()
   } catch {
     throw new HttpError(400, 'Invalid multipart body')
   }

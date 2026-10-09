@@ -1,15 +1,11 @@
-import type { RouteHandler } from './types'
+import { json, type RouteHandler } from './types'
 import { fetchPublicText } from '../security'
 
-export const handleFetchMeta: RouteHandler = async (req, res, url, _ctx) => {
-  if (url.pathname !== '/_opendoc/fetch-meta' || req.method !== 'GET') return false
+export const handleFetchMeta: RouteHandler = async (req, url) => {
+  if (url.pathname !== '/_opendoc/fetch-meta' || req.method !== 'GET') return null
 
   const urlParam = url.searchParams.get('url')
-  if (!urlParam) {
-    res.writeHead(400, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ error: 'Missing url param' }))
-    return true
-  }
+  if (!urlParam) return json({ error: 'Missing url param' }, 400)
 
   try {
     const { url: finalUrl, text: html } = await fetchPublicText(urlParam, {
@@ -42,12 +38,9 @@ export const handleFetchMeta: RouteHandler = async (req, res, url, _ctx) => {
     })()
     const favicon = `${origin}/favicon.ico`
 
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ title, description, imageUrl, favicon, domain, url: urlParam }))
+    return json({ title, description, imageUrl, favicon, domain, url: urlParam })
   } catch {
     const domain = (() => { try { return new URL(urlParam).hostname.replace(/^www\./, '') } catch { return urlParam } })()
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ title: domain, description: '', imageUrl: '', favicon: '', domain, url: urlParam }))
+    return json({ title: domain, description: '', imageUrl: '', favicon: '', domain, url: urlParam })
   }
-  return true
 }

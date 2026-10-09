@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'bun:test';
-import { getEditorPath, buildPublicConfig } from '../../src/config';
+import { getEditorPath, getSettingsPath, buildPublicConfig } from '../../src/config';
 import type { OpenDocConfig } from '../../src/types';
 
 describe('getEditorPath', () => {
@@ -62,5 +62,12 @@ describe('buildPublicConfig', () => {
   test('defaults editorPath to /_ when null', () => {
     const pub = buildPublicConfig({ title: 'Test' }, null);
     expect(pub.editorPath).toBe('/_');
+  });
+});
+
+describe('getSettingsPath', () => {
+  test('appends an underscore to the editor path', () => {
+    expect(getSettingsPath('/_')).toBe('/__');
+    expect(getSettingsPath('/edit/')).toBe('/edit_');
   });
 });

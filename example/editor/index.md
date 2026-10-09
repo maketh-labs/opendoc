@@ -8,13 +8,13 @@ OpenDoc ships with a Notion-style block editor at `/_`. Every change saves autom
 
 ## Opening the Editor
 
-Navigate to `/_` while your dev server is running. The site settings panel opens by default.
+Navigate to `/_` while your dev server is running. It opens your home page (the root `index.md`) for editing.
 
 To edit a specific page, click it in the sidebar — the URL updates to `/_/<page-path>` and the editor loads that page.
 
 ## Site Settings
 
-Click the **site name** at the top of the sidebar to open site settings:
+Click the **gear icon** in the editor header (or go to `/__`) to open site settings:
 
 * **Site title** — the name shown in the browser tab and sidebar
 
@@ -100,6 +100,6 @@ Toggle dark mode with the sun/moon icon in the top bar. Your preference is saved
 
 ## Theme Customization
 
-Click the **palette icon** (🎨) in the top bar to open the theme panel. Customize colors, fonts, sizes, and border radius with a live preview. Click **Save** to write the theme to `.opendoc/theme.css`.
+Click the **palette icon** (🎨) in the top bar to open the theme panel. Customize colors, fonts, sizes, and border radius with a live preview. Click **Save** to write the theme to `theme.css`.
 
 See [[Configuration]] for the full theme system and community themes.

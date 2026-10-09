@@ -1,3 +1,4 @@
+import type { Properties } from 'hast';
 import { visit } from 'unist-util-visit';
 import type { Root, Text, Link, Parent } from 'mdast';
 import { WIKILINK_RE, slugify } from './utils.js';
@@ -48,7 +49,7 @@ export function wikilinkPlugin(options: WikilinkOptions = {}) {
         // Check for broken links
         const isBroken = titleMap && !titleMap.has('/' + slug);
 
-        const hProperties: Record<string, unknown> = {
+        const hProperties: Properties = {
           className: isBroken ? ['wikilink', 'od-broken-link'] : ['wikilink'],
         };
         if (isBroken) {

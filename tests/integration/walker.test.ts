@@ -153,3 +153,14 @@ function flattenPaths(node: { path: string; children: any[] }): string[] {
   }
   return paths;
 }
+
+describe('walkDir is read-only', () => {
+  test('ignores stale order.json entries without rewriting the file', async () => {
+    const { readFile } = await import('fs/promises');
+    const stale = JSON.stringify(['gone', 'getting-started', 'api-reference', 'guides']);
+    await writeFile(join(tmpDir, 'order.json'), stale);
+    const nav = await walkDir(tmpDir);
+    expect(nav!.children.map(c => c.path)).toEqual(['getting-started', 'api-reference', 'guides/advanced']);
+    expect(await readFile(join(tmpDir, 'order.json'), 'utf-8')).toBe(stale);
+  });
+});

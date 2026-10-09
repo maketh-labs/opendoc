@@ -44,3 +44,4 @@ npm/*/bin/opendoc.exe
 src/generated/
 client/globals.gen.css
 *.swp
+/opendoc

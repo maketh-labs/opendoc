@@ -27,7 +27,7 @@ That's it. Docs site on `:3000`. MCP server on `:3001`. No config needed.
 - **Zero config** — point it at any markdown folder and it works
 - **Folder structure = nav** — no config files, no sidebar YAML, just folders
 - **`[[Wikilinks]]`** — link between pages naturally, backlinks tracked automatically
-- **Full-text search** — client-side, no server required
+- **Full-text search** — client-side over every page's text and headings (`/` or ⌘K), works on static hosts too
 - **MCP server** — AI agents can read, search, and navigate your docs natively
 - **Context tiers** — each page has compressed versions for token-efficient agent access
 - **Git-native versioning** — history, blame, and changelogs come free with git
@@ -59,7 +59,7 @@ No special filenames. No front matter required. No config to write. Folder name 
 
 ## MCP Server
 
-OpenDoc runs an MCP server on `:3001` alongside your docs. Point Cursor, Claude, or any MCP-compatible agent at it:
+OpenDoc runs an MCP server (Streamable HTTP) on `:3001/mcp` alongside your docs. Point Cursor, Claude, or any MCP-compatible agent at it (clients that only speak the older SSE transport can connect through `npx mcp-remote http://localhost:3001/mcp`):
 
 ```json
 {
@@ -139,9 +139,9 @@ Everything is optional. `opendoc.json` in your docs folder is created with defau
 }
 ```
 
-Page order within a folder comes from an `order.json` array of folder names (the editor maintains it when you drag pages).
+Page order within a folder comes from an `order.json` array of folder names (the editor maintains it when you drag pages). Deleting a page in the editor moves it to `.opendoc/trash/` (git-ignored) so it can be undone; trash older than 7 days is purged on startup.
 
-**GitHub editing** (for hosted `opendoc serve`): create a GitHub OAuth app with callback URL `https://<your-host>/_opendoc/auth/callback`, set `github.clientId` in `opendoc.json`, and provide the secret via the `GITHUB_CLIENT_SECRET` environment variable (keep it out of the repo). Login requires a running `opendoc serve` for the OAuth code exchange; a purely static deployment serves the docs but not editor login.
+**GitHub editing** (for hosted `opendoc serve`): create a GitHub OAuth app with callback URL `https://<your-host>/_opendoc/auth/callback`, set `github.clientId` in `opendoc.json`, and provide the secret via the `GITHUB_CLIENT_SECRET` environment variable (keep it out of the repo). Login needs a server for the OAuth code exchange: the hosted `opendoc serve` itself, or — for a static deployment — set `github.oauthProxy` to the URL of the small Cloudflare Worker in [`deploy/oauth-proxy`](deploy/oauth-proxy) (or of another `opendoc serve` that lists your site in `github.allowedOrigins`). In GitHub mode, contributors without write access get one pull request per editing session; later saves add commits to it.
 
 ---
 
@@ -210,3 +210,16 @@ MIT — do whatever you want with it.
 ---
 
 **[opendoc.sh](https://opendoc.sh)** · [GitHub](https://github.com/opendoc-sh/opendoc) · Built by [Mansa Company](https://mansa.company)
+
+---
+
+## Development
+
+```bash
+bun install
+bun run src/cli.ts serve ./example   # dev server; client bundles are built from client/ on startup
+bun test                              # unit + integration
+bun run typecheck
+bunx playwright install chromium && bun test tests/e2e   # browser tests (PLAYWRIGHT_CHANNEL=chrome to use local Chrome)
+bun run build:binary                  # standalone binary with embedded client bundles
+```

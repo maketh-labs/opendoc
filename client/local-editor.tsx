@@ -1,20 +1,19 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import type { Block } from '@blocknote/core'
 import { useGitStatus, useDarkMode, useKeyboardSave } from './hooks'
 import { EditorShell, type RightPanel } from './editor-shell'
-import { SiteSettingsPage } from './site-settings-page'
+import { LazyFallback } from './lazy-fallback'
 import { NavSidebar } from './nav-sidebar'
 import { PageHeader } from './page-header'
-import { BlockEditor } from './block-editor'
+import { LazyBlockEditor as BlockEditor, markdownToBlocks } from './lazy-editor'
 import {
-  showToast, getCurrentPagePath, getEditorBase, editorUrlFor,
+  showToast, getCurrentPagePath, getSettingsUrl, isSettingsUrl, editorUrlFor,
   flattenNav, localLoadFile, localSaveFile,
-  fetchOrder, saveOrder,
+  fetchOrder, saveOrder, encodePath,
   type NavNode,
 } from './editor-utils'
 import { usePageDraft } from './page-draft'
-import { markdownToBlocks } from './markdown'
-import { PanelLeft, Sun, Moon, GitBranch, Settings2, FileImage } from 'lucide-react'
+import { PanelLeft, Sun, Moon, GitBranch, Settings, Palette, FileImage } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
@@ -33,7 +32,7 @@ function LocalEditorHeader({
   pages, currentFile, switchPage, gitStatus, gitDirty,
   saving, isDirty, commitMsg, setCommitMsg,
   committing, handleCommit, setRightPanel, rightPanel,
-  sidebarCollapsed, onToggleSidebar, darkMode,
+  sidebarCollapsed, onToggleSidebar, darkMode, onOpenSiteSettings,
 }: {
   pages: { title: string; filePath: string }[]
   currentFile: string
@@ -51,13 +50,16 @@ function LocalEditorHeader({
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
   darkMode: { theme: 'light' | 'dark'; toggle: () => void }
+  onOpenSiteSettings: () => void
 }) {
   return (
     <div className="flex items-center gap-2 h-10 px-4 bg-[var(--color-bg)] border-b border-[var(--color-border)] shrink-0">
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onToggleSidebar} title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
         <PanelLeft className="h-4 w-4" />
       </Button>
-      {pages.length > 0 ? (
+      {!currentFile ? (
+        <span className="text-xs text-muted-foreground px-2">Site settings</span>
+      ) : pages.length > 0 ? (
         <Select value={currentFile} onValueChange={switchPage}>
           <SelectTrigger className="h-7 w-auto max-w-[200px] border-none bg-transparent text-xs text-muted-foreground px-2 gap-1">
             <SelectValue />
@@ -102,16 +104,28 @@ function LocalEditorHeader({
         </Button>
       )}
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
-        <Settings2 className="h-4 w-4" />
+        <Palette className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost" size="icon"
+        className={`h-9 w-9${!currentFile ? ' bg-accent text-accent-foreground' : ''}`}
+        onClick={onOpenSiteSettings}
+        title="Site settings"
+        aria-pressed={!currentFile}
+      >
+        <Settings className="h-4 w-4" />
       </Button>
     </div>
   )
 }
 
+const SiteSettingsPage = lazy(() => import('./site-settings-page').then(m => ({ default: m.SiteSettingsPage })))
+
 export function LocalEditor() {
   const [pages, setPages] = useState<{ title: string; filePath: string }[]>([])
   const [navTree, setNavTree] = useState<NavNode | null>(null)
-  const [currentFile, setCurrentFile] = useState<string>(getCurrentPagePath() ?? '')
+  // '' = site settings (/__); the bare editor URL (/_) edits the home page
+  const [currentFile, setCurrentFile] = useState<string>(() => isSettingsUrl() ? '' : getCurrentPagePath() ?? 'index.md')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const draft = usePageDraft()
@@ -133,7 +147,10 @@ export function LocalEditor() {
       const r = await fetch('/_opendoc/nav.json')
       const nav: NavNode = await r.json()
       setNavTree(nav)
-      const allPages = flattenNav(nav).filter(p => p.filePath !== 'index.md')
+      // Root page shows as "Home" unless the root has no index.md of its own
+      const allPages = flattenNav(nav)
+        .filter(p => p.filePath !== 'index.md' || !nav.virtual)
+        .map(p => p.filePath === 'index.md' ? { ...p, title: 'Home' } : p)
       setPages(allPages)
       // Don't auto-navigate — if no page is selected, stay at the editor root (site settings)
     } catch {}
@@ -150,10 +167,10 @@ export function LocalEditor() {
     localLoadFile(currentFile)
       .catch(() => {
         // Check if this page exists in the nav tree — if not, redirect to site settings
-        const knownPages = flattenNav(navTree)
+        const knownPages = flattenNav(navTree).filter(p => p.filePath !== 'index.md' || !navTree?.virtual)
         if (!knownPages.some(p => p.filePath === currentFile)) {
           if (!cancelled.current) {
-            window.history.replaceState({}, '', getEditorBase())
+            window.history.replaceState({}, '', getSettingsUrl())
             setCurrentFile('')
           }
           throw new Error('skip')
@@ -293,14 +310,19 @@ export function LocalEditor() {
     else if (!(await flushBeforeLeave())) return
     window.history.pushState({}, '', editorUrlFor(filePath))
     setCurrentFile(filePath)
-    if (filePath) setRightPanel(p => p === 'site-settings' ? null : p)
   }, [discardDraft, flushBeforeLeave])
 
   const handleCreatePage = useCallback(async (parentPath: string, name: string) => {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    // Non-Latin names produce an empty slug — never fall through to the parent's (or root) index.md
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `page-${Date.now().toString(36)}`
     const filePath = parentPath ? `${parentPath}/${slug}/index.md` : `${slug}/index.md`
     const content = `# ${name}\n`
     try {
+      const existing = await fetch(`/_opendoc/file/${encodePath(filePath)}`, { method: 'GET' })
+      if (existing.ok) {
+        showToast(`A page named “${slug}” already exists here`, 'error')
+        return
+      }
       await localSaveFile(filePath, content)
       // Append to order.json for this directory
       const orderDir = parentPath || '.'
@@ -312,7 +334,8 @@ export function LocalEditor() {
       await refreshNav()
       switchPage(filePath)
     } catch (e) {
-      showToast((e as Error).message, 'error')
+      showToast(`Couldn't create page: ${(e as Error).message}`, 'error')
+      await refreshNav()
     }
   }, [refreshNav, switchPage])
 
@@ -322,6 +345,13 @@ export function LocalEditor() {
     setNavTree(prev => prev ? updateNavNodeTitle(prev, currentFile, t) : prev)
     setPages(prev => prev.map(p => p.filePath === currentFile ? { ...p, title: t } : p))
   }, [d, currentFile])
+
+  const openSiteSettings = useCallback(async () => {
+    if (!(await flushBeforeLeave())) return
+    window.history.pushState({}, '', getSettingsUrl())
+    setCurrentFile('')
+    setRightPanel(null)
+  }, [flushBeforeLeave])
 
   const gitDirty = gitStatus?.isRepo && gitStatus.changes > 0
 
@@ -338,6 +368,7 @@ export function LocalEditor() {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed(c => !c)}
           darkMode={darkMode}
+          onOpenSiteSettings={openSiteSettings}
         />
       }
       nav={navTree ? (
@@ -349,20 +380,17 @@ export function LocalEditor() {
           onCreatePage={handleCreatePage}
           onRefreshNav={refreshNav}
           collapsed={sidebarCollapsed}
-          onOpenSiteSettings={async () => {
-            if (!(await flushBeforeLeave())) return
-            window.history.pushState({}, '', getEditorBase())
-            setCurrentFile('')
-            setRightPanel(null)
-          }}
         />
       ) : undefined}
       rightPanel={rightPanel}
       onRightClose={() => setRightPanel(null)}
       pagePath={currentFile}
     >
+      <Suspense fallback={<LazyFallback label="Loading editor…" />}>
       {!currentFile ? (
-        <SiteSettingsPage />
+        <Suspense fallback={<LazyFallback label="Loading site settings…" />}>
+          <SiteSettingsPage />
+        </Suspense>
       ) : initialBlocks ? (
         <BlockEditor
           key={currentFile}
@@ -384,6 +412,7 @@ export function LocalEditor() {
       ) : (
         <div className="flex items-center justify-center flex-1 text-[var(--color-muted)] text-sm">Loading...</div>
       )}
+      </Suspense>
     </EditorShell>
   )
 }

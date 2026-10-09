@@ -8,7 +8,7 @@ OpenDoc works with zero config. Everything here is optional.
 
 ## Config File
 
-Create `.opendoc/config.json` in your docs root to customize behavior:
+Create `opendoc.json` in your docs root to customize behavior:
 
 ```json
 {
@@ -45,7 +45,7 @@ You can also reorder pages by dragging them in the editor sidebar — this write
 
 OpenDoc's viewer is fully themeable through a single CSS file. Every color, font, spacing, and layout value is a CSS custom property.
 
-To create a theme, add `.opendoc/theme.css` to your docs root:
+To create a theme, add `theme.css` to your docs root:
 
 ```css
 :root {
@@ -89,7 +89,7 @@ See `/example/themes/README.md` for the complete list of ~80 CSS variables and c
 | `dense.css` | Compact, tighter spacing, reference-doc feel |
 | `newspaper.css` | High contrast, strong typographic hierarchy |
 
-Copy any of these to `.opendoc/theme.css` to use it.
+Copy any of these to `theme.css` to use it.
 
 ## Favicon & OG Image
 

@@ -1,6 +1,7 @@
-import { join, relative } from 'path'
+import { join } from 'path'
 import { unlink, mkdir } from 'fs/promises'
-import { readJson, readFormData, resolveInRoot, sendJson, type RouteHandler } from './types'
+import { readJson, resolveInRoot, json, fail, type RouteHandler } from './types'
+import { readPageUpload } from './upload'
 
 const ASSET_DEFS: Record<string, { recognized: string[]; canonical: string }> = {
   'favicon-96x96':        { recognized: ['favicon-96x96.png'],                              canonical: 'favicon-96x96.png' },
@@ -25,55 +26,41 @@ function getCanonicalName(type: string, fallbackExt: string): string {
   return ASSET_DEFS[type]?.canonical ?? `${type}.${fallbackExt}`
 }
 
-export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
-  if (url.pathname !== '/_opendoc/page-asset') return false
+export const handlePageAsset: RouteHandler = async (req, url, ctx) => {
+  if (url.pathname !== '/_opendoc/page-asset') return null
 
   if (req.method === 'POST') {
-    const form = await readFormData(req)
-    const file = form.get('file')
-    const pagePath = form.get('pagePath')
+    const { form, file, pageDir, pageUrl } = await readPageUpload(req, ctx.rootDir)
     const type = form.get('type')
-
-    if (!(file instanceof File) || typeof type !== 'string' || !VALID_TYPES.includes(type)) {
-      sendJson(res, 400, { error: `Missing file or invalid type (${VALID_TYPES.join(' | ')})` })
-      return true
+    if (typeof type !== 'string' || !VALID_TYPES.includes(type)) {
+      return fail(400, `Invalid type (${VALID_TYPES.join(' | ')})`)
     }
 
-    const resolvedDir = await resolveInRoot(ctx.rootDir, typeof pagePath === 'string' ? pagePath : '.')
-    if (!resolvedDir) { sendJson(res, 403, { error: 'Forbidden' }); return true }
-
-    await mkdir(resolvedDir, { recursive: true })
-
-    // Remove any existing files of this type
+    await mkdir(pageDir, { recursive: true })
+    // Replace any existing file of this type
     for (const name of getRecognizedNames(type)) {
-      try { await unlink(join(resolvedDir, name)) } catch {}
+      try { await unlink(join(pageDir, name)) } catch {}
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'png'
     const filename = getCanonicalName(type, ext)
-    await Bun.write(join(resolvedDir, filename), await file.arrayBuffer())
-
-    const rel = relative(ctx.rootDir, resolvedDir).split(/[\\/]/).filter(Boolean).join('/')
-    sendJson(res, 200, { url: rel ? `/${rel}/${filename}` : `/${filename}` })
-    return true
+    await Bun.write(join(pageDir, filename), file)
+    return json({ url: `${pageUrl}/${filename}` })
   }
 
   if (req.method === 'DELETE') {
     const { pagePath = '.', type } = await readJson<{ pagePath?: unknown; type?: unknown }>(req)
     if (typeof type !== 'string' || !VALID_TYPES.includes(type)) {
-      sendJson(res, 400, { error: `Invalid type (${VALID_TYPES.join(' | ')})` })
-      return true
+      return fail(400, `Invalid type (${VALID_TYPES.join(' | ')})`)
     }
-
-    const resolvedDir = await resolveInRoot(ctx.rootDir, typeof pagePath === 'string' ? pagePath : '.')
-    if (!resolvedDir) { sendJson(res, 403, { error: 'Forbidden' }); return true }
+    const pageDir = await resolveInRoot(ctx.rootDir, typeof pagePath === 'string' ? pagePath : '.')
+    if (!pageDir) return fail(403, 'Forbidden')
 
     for (const name of getRecognizedNames(type)) {
-      try { await unlink(join(resolvedDir, name)) } catch {}
+      try { await unlink(join(pageDir, name)) } catch {}
     }
-    sendJson(res, 200, { ok: true })
-    return true
+    return json({ ok: true })
   }
 
-  return false
+  return null
 }

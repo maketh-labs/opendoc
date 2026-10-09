@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { LazyFallback } from './lazy-fallback'
 import type { Block } from '@blocknote/core'
 import { useDarkMode, useKeyboardSave } from './hooks'
 import { EditorShell, ThemeIcon, type RightPanel } from './editor-shell'
 import { PageHeader } from './page-header'
-import { BlockEditor } from './block-editor'
+import { LazyBlockEditor as BlockEditor, markdownToBlocks } from './lazy-editor'
 import {
   showToast, getCurrentPagePath, getCommitMessage, type SiteConfig,
 } from './editor-utils'
 import { usePageDraft } from './page-draft'
-import { markdownToBlocks } from './markdown'
 import { Button } from './ui/button'
 import {
   checkRepoAccess, fetchFileFromGitHub,
-  commitFile, openPullRequest,
+  commitFile, saveToPullRequest, loadPrSession,
   type RepoAccess,
 } from './github-api'
 
@@ -38,6 +38,10 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
   const [saving, setSaving] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
+  const [openPr, setOpenPr] = useState<{ number: number; url: string } | null>(() => {
+    const s = loadPrSession(repo, baseBranch)
+    return s ? { number: s.number, url: s.url } : null
+  })
 
   const { theme: editorTheme } = useDarkMode()
 
@@ -82,9 +86,15 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
         d.markSaved(content, snap)
         showToast('Saved', 'success', result.url)
       } else {
-        // A PR doesn't change the base branch — keep the draft based on the loaded version
-        const result = await openPullRequest(repo, pagePath, content, message, token, baseBranch, shaRef.current)
-        showToast('Pull request opened', 'success', result.url)
+        // Every suggested edit in this session lands on one PR branch
+        const result = await saveToPullRequest({
+          repo, path: pagePath, content, message, token, baseBranch,
+          loadedSha: shaRef.current, loadedText: d.originalText(),
+        })
+        // The edit now lives on the PR branch; the draft is clean relative to it
+        d.markSaved(content, snap)
+        setOpenPr({ number: result.number, url: result.url })
+        showToast(result.updated ? `Updated PR #${result.number}` : `Opened PR #${result.number}`, 'success', { linkUrl: result.url, linkText: 'View PR →' })
       }
     } catch (e) {
       showToast((e as Error).message, 'error')
@@ -97,6 +107,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
   useKeyboardSave(() => handleSave(false))
 
   const isWrite = repoAccess === 'write'
+  const suggestLabel = openPr ? `Add to PR #${openPr.number}` : 'Suggest Edit'
 
   const header = (
     <div className="flex items-center gap-2 h-10 px-4 bg-[var(--color-bg)] border-b border-[var(--color-border)] shrink-0">
@@ -106,13 +117,18 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
         <span>{pagePath}</span>
       </span>
       <span className="flex-1" />
+      {openPr && (
+        <a className="text-xs text-[var(--color-muted)] hover:underline" href={openPr.url} target="_blank" rel="noopener noreferrer" title="Suggested edits in this session go to this pull request">
+          PR #{openPr.number}
+        </a>
+      )}
       <div className="relative inline-flex">
         <Button variant="default" size="sm" className="h-7 text-xs rounded-r-none" onClick={() => handleSave(false)} disabled={saving || !draft.isDirty}>
           {saving
             ? <><span className="od-spinner" />Saving…</>
             : draft.isDirty
-              ? `${isWrite ? 'Save' : 'Suggest Edit'}`
-              : isWrite ? 'Saved' : 'Suggest Edit'
+              ? (isWrite ? 'Save' : suggestLabel)
+              : isWrite ? 'Saved' : suggestLabel
           }
         </Button>
         {isWrite && (
@@ -122,7 +138,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
             </Button>
             {showDropdown && (
               <div className="absolute top-full right-0 mt-1 bg-popover border rounded-md shadow-md z-50 min-w-[160px]">
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md" onClick={() => handleSave(true)} disabled={!draft.isDirty}>Open Pull Request</button>
+                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md" onClick={() => handleSave(true)} disabled={!draft.isDirty}>{openPr ? `Add to PR #${openPr.number}` : 'Open Pull Request'}</button>
               </div>
             )}
           </>
@@ -138,6 +154,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
 
   return (
     <EditorShell header={header} rightPanel={rightPanel} onRightClose={() => setRightPanel(null)}>
+      <Suspense fallback={<LazyFallback label="Loading editor…" />}>
       {initialBlocks ? (
         <BlockEditor
           key={pagePath}
@@ -158,6 +175,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
       ) : (
         <div className="flex items-center justify-center flex-1 text-[var(--color-muted)] text-sm">{loadError ?? 'Loading…'}</div>
       )}
+      </Suspense>
     </EditorShell>
   )
 }

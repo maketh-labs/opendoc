@@ -1,5 +1,5 @@
 import { simpleGit } from 'simple-git'
-import { readJson, type RouteHandler } from './types'
+import { readJson, json, type RouteHandler } from './types'
 
 /**
  * Push using a GitHub token without writing it to disk or git config: a one-shot
@@ -25,22 +25,16 @@ function isGitHubHttpsRemote(remoteUrl: string | undefined): boolean {
   } catch { return false }
 }
 
-export const handleGitStatus: RouteHandler = async (req, res, url, ctx) => {
-  if (url.pathname !== '/_opendoc/git-status' || req.method !== 'GET') return false
+export const handleGitStatus: RouteHandler = async (req, url, ctx) => {
+  if (url.pathname !== '/_opendoc/git-status' || req.method !== 'GET') return null
 
   try {
     const git = simpleGit(ctx.rootDir, { config: ['--no-optional-locks'] })
-    const isRepo = await git.checkIsRepo()
-    if (!isRepo) {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ isRepo: false }))
-      return true
-    }
+    if (!(await git.checkIsRepo())) return json({ isRepo: false })
     const status = await git.status()
     const remotes = await git.getRemotes(true)
     const log = await git.log({ maxCount: 1 })
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({
+    return json({
       isRepo: true,
       branch: status.current,
       remote: remotes.find(r => r.name === 'origin')?.refs?.push || null,
@@ -50,71 +44,52 @@ export const handleGitStatus: RouteHandler = async (req, res, url, ctx) => {
         message: log.latest.message,
         date: log.latest.date,
       } : null,
-    }))
+    })
   } catch (e) {
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ isRepo: false, error: String(e) }))
+    return json({ isRepo: false, error: String(e) })
   }
-  return true
 }
 
-export const handleCommit: RouteHandler = async (req, res, url, ctx) => {
-  if (url.pathname !== '/_opendoc/commit' || req.method !== 'POST') return false
+export const handleCommit: RouteHandler = async (req, url, ctx) => {
+  if (url.pathname !== '/_opendoc/commit' || req.method !== 'POST') return null
 
   const body = await readJson<{ message?: unknown; token?: unknown }>(req)
   const message = typeof body.message === 'string' ? body.message : undefined
   const token = typeof body.token === 'string' && body.token ? body.token : undefined
 
+  const git = simpleGit(ctx.rootDir)
+  if (!(await git.checkIsRepo())) return json({ ok: false, error: 'Not a git repository. Run git init first.' }, 400)
+
+  const status = await git.status()
+  if (status.files.length === 0) return json({ ok: false, error: 'No changes to commit.' }, 400)
+
+  await git.add('.')
+  const commitMessage = message || `docs: update ${new Date().toISOString()}`
+  const commitResult = await git.commit(commitMessage)
+
+  let pushed = false
+  let pushError = ''
   try {
-    const git = simpleGit(ctx.rootDir)
-    const isRepo = await git.checkIsRepo()
-    if (!isRepo) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'Not a git repository. Run git init first.' }))
-      return true
+    const remotes = await git.getRemotes(true)
+    const remoteUrl = remotes.find(r => r.name === 'origin')?.refs?.push
+    // Only hand the GitHub token to github.com — never to an arbitrary remote
+    if (token && isGitHubHttpsRemote(remoteUrl)) {
+      await pushWithToken(ctx.rootDir, token)
+    } else {
+      await git.push()
     }
-
-    const status = await git.status()
-    if (status.files.length === 0) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, error: 'No changes to commit.' }))
-      return true
-    }
-
-    await git.add('.')
-    const commitMessage = message || `docs: update ${new Date().toISOString()}`
-    const commitResult = await git.commit(commitMessage)
-
-    let pushed = false
-    let pushError = ''
-
-    try {
-      const remotes = await git.getRemotes(true)
-      const remoteUrl = remotes.find(r => r.name === 'origin')?.refs?.push
-      // Only hand the GitHub token to github.com — never to an arbitrary remote
-      if (token && isGitHubHttpsRemote(remoteUrl)) {
-        await pushWithToken(ctx.rootDir, token)
-      } else {
-        await git.push()
-      }
-      pushed = true
-    } catch (e) {
-      pushError = e instanceof Error ? e.message : String(e)
-    }
-
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({
-      ok: true,
-      committed: true,
-      pushed,
-      pushError: pushed ? undefined : pushError,
-      hash: commitResult.commit,
-      message: commitMessage,
-      files: status.files.length,
-    }))
+    pushed = true
   } catch (e) {
-    res.writeHead(500, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }))
+    pushError = e instanceof Error ? e.message : String(e)
   }
-  return true
+
+  return json({
+    ok: true,
+    committed: true,
+    pushed,
+    pushError: pushed ? undefined : pushError,
+    hash: commitResult.commit,
+    message: commitMessage,
+    files: status.files.length,
+  })
 }

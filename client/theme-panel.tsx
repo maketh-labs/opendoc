@@ -187,7 +187,7 @@ function FontConfig({ label, familyVar, sizeVar, weightVar, lineHeightVar, onCha
                       onChange()
                     }}
                   >
-                    {f.split(',')[0].replace(/"/g, '')}
+                    {(f.split(',')[0] ?? f).replace(/"/g, '')}
                   </button>
                 ))}
               </div>
@@ -361,11 +361,11 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
         // Parse saved CSS and apply vars
         const lightMatch = css.match(/:root\s*\{([^}]+)\}/)
         const darkMatch = css.match(/\[data-theme="dark"\]\s*\{([^}]+)\}/)
-        if (lightMatch) {
+        if (lightMatch?.[1]) {
           const vars = parseCssVars(lightMatch[1])
           applyVars(vars)
         }
-        if (darkMatch) {
+        if (darkMatch?.[1]) {
           const vars = parseCssVars(darkMatch[1])
           applyVars(vars)
         }
@@ -523,9 +523,8 @@ export const ThemePanel = memo(function ThemePanel({ onClose }: { onClose: () =>
 function parseCssVars(block: string): Record<string, string> {
   const vars: Record<string, string> = {}
   const re = /(--[\w-]+)\s*:\s*([^;]+);/g
-  let m
-  while ((m = re.exec(block))) {
-    vars[m[1]] = m[2].trim()
+  for (const m of block.matchAll(re)) {
+    vars[m[1]!] = m[2]!.trim()
   }
   return vars
 }

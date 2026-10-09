@@ -1,10 +1,17 @@
 import React, { useState } from 'react'
 import { Button } from './ui/button'
 
-export function LoginScreen() {
+export function LoginScreen({ oauthProxy }: { oauthProxy?: string }) {
   function login() {
-    // The server owns the OAuth flow (state cookie, code exchange) and redirects back with the token
-    window.location.href = '/_opendoc/auth/github'
+    // A server owns the OAuth flow (state cookie, code exchange) and redirects back with the token:
+    // this origin's `opendoc serve`, or a configured proxy for statically hosted editors
+    if (oauthProxy) {
+      const start = new URL('/_opendoc/auth/github', oauthProxy)
+      start.searchParams.set('return_to', window.location.origin + window.location.pathname)
+      window.location.href = start.href
+    } else {
+      window.location.href = '/_opendoc/auth/github'
+    }
   }
   return (
     <div className="flex flex-col h-screen">

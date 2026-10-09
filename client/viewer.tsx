@@ -1,17 +1,10 @@
 // OpenDoc Viewer — React SPA
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createRoot } from 'react-dom/client'
+import type { NavNode } from '../src/types'
+import { SearchBox } from './search'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface NavNode {
-  title: string
-  path: string
-  url: string
-  icon?: string
-  children: NavNode[]
-  virtual?: true
-}
 
 interface PageData {
   html: string
@@ -101,18 +94,22 @@ function NavItem({ node, currentPath, onNavigate }: {
     (node.path === '.' && currentPath === '')
   return (
     <li>
-      <a
-        href={node.url}
-        className={isActive ? 'active' : ''}
-        onClick={(e) => {
-          if (e.metaKey || e.ctrlKey || e.shiftKey) return
-          e.preventDefault()
-          onNavigate(node.url)
-        }}
-      >
-        {node.icon && <span className="od-nav-icon">{node.icon}</span>}
-        {' '}{node.title}
-      </a>
+      {node.virtual ? (
+        <span className="od-nav-group">{node.title}</span>
+      ) : (
+        <a
+          href={node.url}
+          className={isActive ? 'active' : ''}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey) return
+            e.preventDefault()
+            onNavigate(node.url)
+          }}
+        >
+          {node.icon && <span className="od-nav-icon">{node.icon}</span>}
+          {' '}{node.title}
+        </a>
+      )}
       {node.children?.length > 0 && (
         <ul>
           {node.children.map(child => (
@@ -124,44 +121,30 @@ function NavItem({ node, currentPath, onNavigate }: {
   )
 }
 
-function NavTree({ nav, currentPath, onNavigate, searchQuery }: {
+function NavTree({ nav, currentPath, onNavigate }: {
   nav: NavNode | null
   currentPath: string
   onNavigate: (url: string) => void
-  searchQuery: string
 }) {
   if (!nav) return null
 
-  function filterNode(node: NavNode, query: string): NavNode | null {
-    if (!query) return node
-    const matchesSelf = node.title.toLowerCase().includes(query)
-    const filteredChildren = node.children
-      .map(c => filterNode(c, query))
-      .filter((c): c is NavNode => c !== null)
-    if (matchesSelf || filteredChildren.length > 0) {
-      return { ...node, children: filteredChildren }
-    }
-    return null
-  }
-
-  const filtered = filterNode(nav, searchQuery.toLowerCase())
-  if (!filtered) return null
-
   // The top node is the home page (unless it's just a folder grouping): list it first so "/" is reachable
-  const query = searchQuery.toLowerCase()
-  const showHome = !nav.virtual && (!query || nav.title.toLowerCase().includes(query))
-
   return (
     <ul>
-      {showHome && (
+      {!nav.virtual && (
         <NavItem key={nav.path} node={{ ...nav, children: [] }} currentPath={currentPath} onNavigate={onNavigate} />
       )}
-      {filtered.children.map(child => (
+      {nav.children.map(child => (
         <NavItem key={child.path} node={child} currentPath={currentPath} onNavigate={onNavigate} />
       ))}
     </ul>
   )
 }
+
+// ─── Code copy buttons ───────────────────────────────────────────────────────
+
+const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+const COPIED_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
 
 // ─── TOC observer hook ───────────────────────────────────────────────────────
 
@@ -207,7 +190,7 @@ function Viewer() {
   const [currentPath, setCurrentPath] = useState(() => pathFromUrl(window.location.pathname))
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('od-left-open') !== 'false')
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 769px)').matches && localStorage.getItem('od-left-open') !== 'false')
   const contentRef = useRef<HTMLElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const navRef = useRef<NavNode | null>(null)
@@ -217,6 +200,7 @@ function Viewer() {
   // Navigate to a URL. Only the latest navigation may update the page (older ones are aborted).
   const navAbortRef = useRef<AbortController | null>(null)
   const navigateTo = useCallback(async (url: string, pushState = true) => {
+    if (window.matchMedia('(max-width: 768px)').matches) setSidebarOpen(false)
     navAbortRef.current?.abort()
     const ctrl = new AbortController()
     navAbortRef.current = ctrl
@@ -299,16 +283,22 @@ function Viewer() {
   // Handle popstate
   useEffect(() => {
     const handler = (e: PopStateEvent) => {
-      if (!e.state && window.location.hash) {
-        const target = document.getElementById(window.location.hash.slice(1))
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        return
-      }
-      navigateTo(e.state?.url || window.location.pathname, false)
+      navigateTo(e.state?.url || window.location.href, false)
     }
     window.addEventListener('popstate', handler)
     return () => window.removeEventListener('popstate', handler)
   }, [navigateTo])
+
+  // Scroll only after the destination article has committed, including direct URLs and history.
+  useEffect(() => {
+    if (!page || !window.location.hash) return
+    const frame = requestAnimationFrame(() => {
+      let id = window.location.hash.slice(1)
+      try { id = decodeURIComponent(id) } catch {}
+      document.getElementById(id)?.scrollIntoView({ block: 'start' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [page])
 
   // Intercept internal link clicks in article content
   useEffect(() => {
@@ -322,6 +312,8 @@ function Viewer() {
       try {
         const url = new URL(href, window.location.origin)
         if (url.origin !== window.location.origin) return
+        if (a.hasAttribute('download') || (a.target && a.target !== '_self')) return
+        if (/(^|\/)assets\//.test(url.pathname)) return
         if (href.startsWith('/_opendoc') || href.startsWith('/__reload')) return
         if (href.startsWith('#')) {
           e.preventDefault()
@@ -338,7 +330,7 @@ function Viewer() {
     }
     content.addEventListener('click', handler as EventListener)
     return () => content.removeEventListener('click', handler as EventListener)
-  }, [navigateTo])
+  }, [navigateTo, page])
 
   // Code block copy buttons
   useEffect(() => {
@@ -356,15 +348,13 @@ function Viewer() {
       const btn = document.createElement('button')
       btn.className = 'od-copy-btn'
       btn.setAttribute('aria-label', 'Copy code')
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+      btn.innerHTML = COPY_ICON
 
       const handleClick = () => {
         const code = pre.querySelector('code')
         navigator.clipboard.writeText(code?.textContent ?? pre.textContent ?? '').then(() => {
-          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
-          setTimeout(() => {
-            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
-          }, 1500)
+          btn.innerHTML = COPIED_ICON
+          setTimeout(() => { btn.innerHTML = COPY_ICON }, 1500)
         })
       }
 
@@ -378,7 +368,7 @@ function Viewer() {
 
   // Sidebar toggle persistence
   useEffect(() => {
-    localStorage.setItem('od-left-open', String(sidebarOpen))
+    if (window.matchMedia('(min-width: 769px)').matches) localStorage.setItem('od-left-open', String(sidebarOpen))
   }, [sidebarOpen])
 
   // TOC observer
@@ -451,15 +441,7 @@ function Viewer() {
           >{siteTitle}</a>
         </div>
         <div className="od-header-center">
-          <div className="od-search-box">
-            <input
-              type="search"
-              placeholder="Search docs..."
-              aria-label="Search documentation"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          <SearchBox query={searchQuery} onQueryChange={setSearchQuery} onNavigate={navigateTo} />
         </div>
         <div className="od-header-right">
           <button className="od-theme-toggle" title="Toggle dark mode" onClick={toggleTheme}>
@@ -473,7 +455,7 @@ function Viewer() {
         {/* Sidebar */}
         <aside className="od-sidebar-left" id="sidebar-left">
           <nav className="od-nav">
-            <NavTree nav={nav} currentPath={currentPath} onNavigate={navigateTo} searchQuery={searchQuery} />
+            <NavTree nav={nav} currentPath={currentPath} onNavigate={navigateTo} />
           </nav>
         </aside>
 
