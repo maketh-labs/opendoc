@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import type { Block } from '@blocknote/core'
 import { useGitStatus, useDarkMode, useKeyboardSave } from './hooks'
 import { EditorShell, type RightPanel } from './editor-shell'
-import { SiteSettingsPage } from './site-settings-page'
+import { LazyFallback } from './lazy-fallback'
 import { NavSidebar } from './nav-sidebar'
 import { PageHeader } from './page-header'
-import { BlockEditor } from './block-editor'
+import { LazyBlockEditor as BlockEditor, markdownToBlocks } from './lazy-editor'
 import {
-  showToast, extractPageMeta, buildMarkdown,
-  getCurrentPagePath, flattenNav, localLoadFile, localSaveFile,
-  fetchOrder, saveOrder,
+  showToast, getCurrentPagePath, getSettingsUrl, isSettingsUrl, editorUrlFor,
+  flattenNav, localLoadFile, localSaveFile,
+  fetchOrder, saveOrder, encodePath,
   type NavNode,
 } from './editor-utils'
-import { markdownToBlocks } from './markdown'
-import { PanelLeft, Sun, Moon, GitBranch, Settings2, FileImage } from 'lucide-react'
+import { usePageDraft } from './page-draft'
+import { PanelLeft, Sun, Moon, GitBranch, Settings, Palette, FileImage } from 'lucide-react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Input } from './ui/input'
@@ -32,7 +32,7 @@ function LocalEditorHeader({
   pages, currentFile, switchPage, gitStatus, gitDirty,
   saving, isDirty, commitMsg, setCommitMsg,
   committing, handleCommit, setRightPanel, rightPanel,
-  sidebarCollapsed, onToggleSidebar, darkMode,
+  sidebarCollapsed, onToggleSidebar, darkMode, onOpenSiteSettings,
 }: {
   pages: { title: string; filePath: string }[]
   currentFile: string
@@ -50,13 +50,16 @@ function LocalEditorHeader({
   sidebarCollapsed: boolean
   onToggleSidebar: () => void
   darkMode: { theme: 'light' | 'dark'; toggle: () => void }
+  onOpenSiteSettings: () => void
 }) {
   return (
     <div className="flex items-center gap-2 h-10 px-4 bg-[var(--color-bg)] border-b border-[var(--color-border)] shrink-0">
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onToggleSidebar} title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
         <PanelLeft className="h-4 w-4" />
       </Button>
-      {pages.length > 0 ? (
+      {!currentFile ? (
+        <span className="text-xs text-muted-foreground px-2">Site settings</span>
+      ) : pages.length > 0 ? (
         <Select value={currentFile} onValueChange={switchPage}>
           <SelectTrigger className="h-7 w-auto max-w-[200px] border-none bg-transparent text-xs text-muted-foreground px-2 gap-1">
             <SelectValue />
@@ -101,24 +104,34 @@ function LocalEditorHeader({
         </Button>
       )}
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setRightPanel(p => p === 'theme' ? null : 'theme')} title="Themes">
-        <Settings2 className="h-4 w-4" />
+        <Palette className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost" size="icon"
+        className={`h-9 w-9${!currentFile ? ' bg-accent text-accent-foreground' : ''}`}
+        onClick={onOpenSiteSettings}
+        title="Site settings"
+        aria-pressed={!currentFile}
+      >
+        <Settings className="h-4 w-4" />
       </Button>
     </div>
   )
 }
 
+const SiteSettingsPage = lazy(() => import('./site-settings-page').then(m => ({ default: m.SiteSettingsPage })))
+
 export function LocalEditor() {
   const [pages, setPages] = useState<{ title: string; filePath: string }[]>([])
   const [navTree, setNavTree] = useState<NavNode | null>(null)
-  const [currentFile, setCurrentFile] = useState<string>(getCurrentPagePath() ?? '')
+  // '' = site settings (/__); the bare editor URL (/_) edits the home page
+  const [currentFile, setCurrentFile] = useState<string>(() => isSettingsUrl() ? '' : getCurrentPagePath() ?? 'index.md')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  const currentBodyRef = useRef('')
-  const originalContentRef = useRef('')
-  const [isDirty, setIsDirty] = useState(false)
-
-  const [pageTitle, setPageTitle] = useState('')
-  const [pageIcon, setPageIcon] = useState('')
+  const draft = usePageDraft()
+  const d = draft.api
+  // The file the current draft was loaded from — saves always go here, never to a newer currentFile
+  const draftFileRef = useRef<string>('')
 
   const [initialBlocks, setInitialBlocks] = useState<Block[] | null>(null)
   const [saving, setSaving] = useState(false)
@@ -134,26 +147,30 @@ export function LocalEditor() {
       const r = await fetch('/_opendoc/nav.json')
       const nav: NavNode = await r.json()
       setNavTree(nav)
-      const allPages = flattenNav(nav).filter(p => p.filePath !== 'index.md')
+      // Root page shows as "Home" unless the root has no index.md of its own
+      const allPages = flattenNav(nav)
+        .filter(p => p.filePath !== 'index.md' || !nav.virtual)
+        .map(p => p.filePath === 'index.md' ? { ...p, title: 'Home' } : p)
       setPages(allPages)
-      // Don't auto-navigate — if no page is selected, stay at /_ (site settings)
+      // Don't auto-navigate — if no page is selected, stay at the editor root (site settings)
     } catch {}
   }, [])
 
   useEffect(() => { refreshNav() }, [refreshNav])
 
   useEffect(() => {
-    if (!currentFile) return
+    if (!currentFile) { draftFileRef.current = ''; return }
     setInitialBlocks(null)
+    draftFileRef.current = ''
     const cancelled = { current: false }
 
     localLoadFile(currentFile)
       .catch(() => {
         // Check if this page exists in the nav tree — if not, redirect to site settings
-        const knownPages = flattenNav(navTree)
+        const knownPages = flattenNav(navTree).filter(p => p.filePath !== 'index.md' || !navTree?.virtual)
         if (!knownPages.some(p => p.filePath === currentFile)) {
           if (!cancelled.current) {
-            window.history.replaceState({}, '', '/_')
+            window.history.replaceState({}, '', getSettingsUrl())
             setCurrentFile('')
           }
           throw new Error('skip')
@@ -162,62 +179,104 @@ export function LocalEditor() {
       })
       .then(async text => {
         if (cancelled.current) return
-        const { title, icon, body } = extractPageMeta(text)
+        const body = d.load(text)
         const blocks = await markdownToBlocks(body)
         if (cancelled.current) return
-        setPageTitle(title)
-        setPageIcon(icon)
-        currentBodyRef.current = body
-        originalContentRef.current = text
-        setIsDirty(false)
+        draftFileRef.current = currentFile
         setInitialBlocks(blocks)
       })
       .catch(e => {
         if (e?.message === 'skip') return
         console.error('Failed to load page:', e)
-        if (!cancelled.current) setInitialBlocks([{ type: 'paragraph', content: [] } as any])
+        showToast(`Failed to load ${currentFile}`, 'error')
       })
 
     return () => { cancelled.current = true }
   }, [currentFile])
 
-  const onContentChange = useCallback((md: string) => {
-    currentBodyRef.current = md
-    setIsDirty(buildMarkdown(pageTitle, pageIcon, md) !== originalContentRef.current)
-  }, [pageTitle, pageIcon])
+  // ── Saving ────────────────────────────────────────────────────────────────
+  // A single in-flight save at a time; edits made during a save trigger a follow-up save.
+  const inFlightRef = useRef<Promise<boolean> | null>(null)
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const getCurrentMarkdown = useCallback(() => {
-    return buildMarkdown(pageTitle, pageIcon, currentBodyRef.current)
-  }, [pageTitle, pageIcon])
+  const clearAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = null
+  }, [])
 
-  const handleSave = useCallback(async () => {
-    if (saving) return
-    setSaving(true)
-    try {
-      const content = getCurrentMarkdown()
-      await localSaveFile(currentFile, content)
-      originalContentRef.current = content
-      setIsDirty(false)
-      refreshGit()
-    } catch (e) {
-      showToast((e as Error).message, 'error')
-    } finally {
-      setSaving(false)
-    }
-  }, [currentFile, refreshGit, getCurrentMarkdown, saving])
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    clearAutosave()
+    while (inFlightRef.current) await inFlightRef.current
+    const file = draftFileRef.current
+    if (!file || !d.dirtyRef.current) return true
+
+    const run = (async () => {
+      setSaving(true)
+      try {
+        const snap = d.snapshot()
+        const content = d.getMarkdown()
+        await localSaveFile(file, content)
+        if (draftFileRef.current === file) d.markSaved(content, snap)
+        refreshGit()
+        return true
+      } catch (e) {
+        showToast((e as Error).message, 'error')
+        return false
+      } finally {
+        setSaving(false)
+      }
+    })()
+    inFlightRef.current = run
+    try { return await run } finally { inFlightRef.current = null }
+  }, [clearAutosave, d, refreshGit])
 
   // Autosave: debounced 1s after last change
-  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (!isDirty) return
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
-    autosaveTimerRef.current = setTimeout(() => { handleSave() }, 1000)
-    return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current) }
-  }, [isDirty, handleSave])
+    if (!draft.isDirty) return
+    clearAutosave()
+    autosaveTimerRef.current = setTimeout(() => { saveNow() }, 1000)
+    return clearAutosave
+  }, [draft.isDirty, draft.title, draft.icon, saveNow, clearAutosave])
 
-  useKeyboardSave(handleSave)
+  const onContentChange = useCallback((md: string) => {
+    d.setBody(md)
+    // Re-arm the debounce on every keystroke while dirty
+    if (d.dirtyRef.current) {
+      clearAutosave()
+      autosaveTimerRef.current = setTimeout(() => { saveNow() }, 1000)
+    }
+  }, [d, clearAutosave, saveNow])
+
+  useKeyboardSave(() => { saveNow() })
+
+  // Warn before closing the tab with unsaved or in-flight changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (d.dirtyRef.current || inFlightRef.current) {
+        saveNow()
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [d, saveNow])
+
+  /** Flush pending edits before leaving the page. Returns false if the user chose to stay. */
+  const flushBeforeLeave = useCallback(async (): Promise<boolean> => {
+    const ok = await saveNow()
+    if (ok) return true
+    return window.confirm('Your latest changes could not be saved. Leave this page anyway?')
+  }, [saveNow])
+
+  /** Drop the current draft without saving (its file was deleted/renamed/moved). */
+  const discardDraft = useCallback(() => {
+    clearAutosave()
+    draftFileRef.current = ''
+  }, [clearAutosave])
 
   async function handleCommit() {
+    if (!(await saveNow())) return
     setCommitting(true)
     const token = localStorage.getItem('github_token') || undefined
     try {
@@ -246,18 +305,24 @@ export function LocalEditor() {
     }
   }
 
-  function switchPage(filePath: string) {
-    const urlPath = filePath.replace(/\/?index\.md$/, '')
-    window.history.pushState({}, '', urlPath ? `/_/${urlPath}` : '/_')
+  const switchPage = useCallback(async (filePath: string, opts: { discard?: boolean } = {}) => {
+    if (opts.discard) discardDraft()
+    else if (!(await flushBeforeLeave())) return
+    window.history.pushState({}, '', editorUrlFor(filePath))
     setCurrentFile(filePath)
-    if (filePath) setRightPanel(p => p === 'site-settings' ? null : p)
-  }
+  }, [discardDraft, flushBeforeLeave])
 
   const handleCreatePage = useCallback(async (parentPath: string, name: string) => {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    // Non-Latin names produce an empty slug — never fall through to the parent's (or root) index.md
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `page-${Date.now().toString(36)}`
     const filePath = parentPath ? `${parentPath}/${slug}/index.md` : `${slug}/index.md`
     const content = `# ${name}\n`
     try {
+      const existing = await fetch(`/_opendoc/file/${encodePath(filePath)}`, { method: 'GET' })
+      if (existing.ok) {
+        showToast(`A page named “${slug}” already exists here`, 'error')
+        return
+      }
       await localSaveFile(filePath, content)
       // Append to order.json for this directory
       const orderDir = parentPath || '.'
@@ -269,22 +334,24 @@ export function LocalEditor() {
       await refreshNav()
       switchPage(filePath)
     } catch (e) {
-      showToast((e as Error).message, 'error')
+      showToast(`Couldn't create page: ${(e as Error).message}`, 'error')
+      await refreshNav()
     }
-  }, [refreshNav])
+  }, [refreshNav, switchPage])
 
   const handleTitleChange = useCallback((t: string) => {
-    setPageTitle(t)
-    setIsDirty(buildMarkdown(t, pageIcon, currentBodyRef.current) !== originalContentRef.current)
+    d.changeTitle(t)
     // Update sidebar nav title immediately
     setNavTree(prev => prev ? updateNavNodeTitle(prev, currentFile, t) : prev)
     setPages(prev => prev.map(p => p.filePath === currentFile ? { ...p, title: t } : p))
-  }, [pageIcon, currentFile])
+  }, [d, currentFile])
 
-  const handleIconChange = useCallback((i: string) => {
-    setPageIcon(i)
-    setIsDirty(buildMarkdown(pageTitle, i, currentBodyRef.current) !== originalContentRef.current)
-  }, [pageTitle])
+  const openSiteSettings = useCallback(async () => {
+    if (!(await flushBeforeLeave())) return
+    window.history.pushState({}, '', getSettingsUrl())
+    setCurrentFile('')
+    setRightPanel(null)
+  }, [flushBeforeLeave])
 
   const gitDirty = gitStatus?.isRepo && gitStatus.changes > 0
 
@@ -294,13 +361,14 @@ export function LocalEditor() {
         <LocalEditorHeader
           pages={pages} currentFile={currentFile} switchPage={switchPage}
           gitStatus={gitStatus} gitDirty={gitDirty}
-          saving={saving} isDirty={isDirty}
+          saving={saving} isDirty={draft.isDirty}
           commitMsg={commitMsg} setCommitMsg={setCommitMsg}
           committing={committing} handleCommit={handleCommit}
           setRightPanel={setRightPanel} rightPanel={rightPanel}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={() => setSidebarCollapsed(c => !c)}
           darkMode={darkMode}
+          onOpenSiteSettings={openSiteSettings}
         />
       }
       nav={navTree ? (
@@ -308,35 +376,35 @@ export function LocalEditor() {
           nav={navTree}
           currentFile={currentFile}
           onNavigate={switchPage}
+          onBeforeMutate={flushBeforeLeave}
           onCreatePage={handleCreatePage}
           onRefreshNav={refreshNav}
           collapsed={sidebarCollapsed}
-          onOpenSiteSettings={() => {
-            window.history.pushState({}, '', '/_')
-            setCurrentFile('')
-            setRightPanel(null)
-          }}
         />
       ) : undefined}
       rightPanel={rightPanel}
       onRightClose={() => setRightPanel(null)}
       pagePath={currentFile}
     >
+      <Suspense fallback={<LazyFallback label="Loading editor…" />}>
       {!currentFile ? (
-        <SiteSettingsPage />
+        <Suspense fallback={<LazyFallback label="Loading site settings…" />}>
+          <SiteSettingsPage />
+        </Suspense>
       ) : initialBlocks ? (
         <BlockEditor
           key={currentFile}
           initialBlocks={initialBlocks}
           pagePath={currentFile}
           onContentChange={onContentChange}
+          onBaseline={d.setBaseline}
           theme={darkMode.theme}
           pageHeader={
             <PageHeader
-              title={pageTitle}
-              icon={pageIcon}
+              title={draft.title}
+              icon={draft.icon}
               onTitleChange={handleTitleChange}
-              onIconChange={handleIconChange}
+              onIconChange={d.changeIcon}
               darkMode={darkMode.theme}
             />
           }
@@ -344,6 +412,7 @@ export function LocalEditor() {
       ) : (
         <div className="flex items-center justify-center flex-1 text-[var(--color-muted)] text-sm">Loading...</div>
       )}
+      </Suspense>
     </EditorShell>
   )
 }

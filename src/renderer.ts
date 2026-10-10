@@ -7,6 +7,8 @@ import remarkRehype from 'remark-rehype';
 import rehypeShiki from '@shikijs/rehype';
 import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema, type Options as SanitizeSchema } from 'rehype-sanitize';
 import { wikilinkPlugin, type WikilinkOptions } from './wikilinks';
 import { calloutPlugin } from './plugins/callouts';
 import { tocPlugin, extractToc, type TocEntry } from './plugins/toc';
@@ -31,6 +33,44 @@ export interface RenderOptions {
   currentPath?: string;
 }
 
+/**
+ * Allowlist for author content. Raw HTML in markdown is parsed (rehype-raw) and then sanitized,
+ * so scripts, event handlers, and javascript: URLs never reach the page — docs content is shared
+ * with the editor's origin, which holds a GitHub token. Runs before Shiki/KaTeX/TOC so their
+ * generated markup is not affected.
+ */
+// defaultSchema pins className to specific values on some tags (a, li, h2, …); classes are harmless, so lift that
+const defaultAttributes = Object.fromEntries(
+  Object.entries(defaultSchema.attributes ?? {}).map(([tag, attrs]) => [
+    tag,
+    attrs.filter(attr => (Array.isArray(attr) ? attr[0] : attr) !== 'className'),
+  ]),
+);
+
+const sanitizeSchema: SanitizeSchema = {
+  ...defaultSchema,
+  // Keep heading ids as written so TOC and #anchor links work
+  clobberPrefix: '',
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    'figure', 'figcaption', 'mark', 'u', 'abbr', 'iframe', 'video', 'audio', 'source',
+  ],
+  attributes: {
+    ...defaultAttributes,
+    '*': [...(defaultAttributes['*'] ?? []), 'className', 'style'],
+    iframe: ['src', 'width', 'height', 'title', 'allow', 'allowFullScreen', 'frameBorder', 'loading', 'referrerPolicy'],
+    video: ['src', 'width', 'height', 'poster', 'controls', 'autoPlay', 'loop', 'muted', 'playsInline', 'preload'],
+    audio: ['src', 'controls', 'autoPlay', 'loop', 'muted', 'preload'],
+    source: ['src', 'type'],
+    img: [...(defaultAttributes.img ?? []), 'width', 'height', 'loading'],
+  },
+  protocols: {
+    ...defaultSchema.protocols,
+    src: ['http', 'https'],
+    poster: ['http', 'https'],
+  },
+};
+
 function createProcessor(wikilinkOpts: WikilinkOptions = {}) {
   return unified()
     .use(remarkParse)
@@ -40,6 +80,8 @@ function createProcessor(wikilinkOpts: WikilinkOptions = {}) {
     .use(calloutPlugin)
     .use(wikilinkPlugin, wikilinkOpts)
     .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeRaw)
+    .use(rehypeSanitize, sanitizeSchema)
     .use(rehypeShiki, {
       themes: { light: 'github-light', dark: 'github-dark' },
       defaultColor: 'light',

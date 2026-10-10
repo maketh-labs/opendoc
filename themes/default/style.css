@@ -316,7 +316,7 @@ body {
 .od-nav ul { list-style: none; margin: 0; padding: 0; }
 .od-nav li { margin: var(--od-nav-item-gap) 0; }
 
-.od-nav a {
+.od-nav a, .od-nav-group {
   display: block;
   padding: var(--od-nav-item-padding);
   font-family: var(--od-font-nav);
@@ -642,5 +642,10 @@ body {
     transform: translateX(-100%);
   }
   .od-layout:not(.left-closed) .od-sidebar-left { transform: translateX(0); }
-  .od-content { padding: var(--od-content-padding-mobile); }
+  .od-content { grid-column: 2; padding: var(--od-content-padding-mobile); }
 }
+
+/* Keep section targets below the fixed header and wide audit content locally scrollable. */
+.od-article h2, .od-article h3 { scroll-margin-top: calc(var(--od-header-height) + 1rem); }
+.od-article table { display: block; max-width: 100%; overflow-x: auto; }
+.od-article .katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 0.25rem 0; }

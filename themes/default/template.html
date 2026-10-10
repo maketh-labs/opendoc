@@ -17,6 +17,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body>
+  <!-- Pre-rendered for no-JS readers and crawlers; the viewer SPA replaces it on load -->
+  <div id="od-viewer-root">
   <!-- Header bar -->
   <header class="od-header">
     <div class="od-header-left">
@@ -61,6 +63,7 @@
     </main>
   </div>
 
-  <script type="module" src="/_opendoc/app.js"></script>
+  </div>
+  <script type="module" src="/_opendoc/viewer.js"></script>
 </body>
 </html>

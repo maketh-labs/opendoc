@@ -4,6 +4,8 @@ export interface NavNode {
   url: string
   icon?: string
   children: NavNode[]
+  /** Set on folders without an index.md (grouping only — no page to open) */
+  virtual?: true
 }
 
 export interface BacklinksIndex {
@@ -35,6 +37,10 @@ export interface OpenDocConfig {
     branch?: string            // default "main"
     clientId?: string          // GitHub OAuth App client ID (safe to expose)
     clientSecret?: string      // GitHub OAuth App client secret (server-side only)
+    /** Base URL of an OAuth proxy (another `opendoc serve` or deploy/oauth-proxy) for statically hosted editors */
+    oauthProxy?: string
+    /** Origins allowed to receive tokens via ?return_to= when this server acts as the OAuth proxy */
+    allowedOrigins?: string[]
   }
   mcp?: { port?: number }
   nav?: { order?: string[] }

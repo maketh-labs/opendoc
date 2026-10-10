@@ -1,87 +1,91 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-import { createServer } from 'http';
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import type { Server } from 'bun';
 import { readFile, writeFile, mkdir, access } from 'fs/promises';
-import { join, resolve, relative } from 'path';
+import { join, relative } from 'path';
 import { z } from 'zod';
-import { walkDir, getAllPages } from './walker';
-import { buildBacklinks } from './backlinks';
+import { simpleGit } from 'simple-git';
 import { compress, compressMini } from './compressor';
-import simpleGit from 'simple-git';
-import type { ContextTier, SearchResult } from './types';
+import { resolveInRoot, isLoopbackHostname } from './security';
+import { DEFAULT_HOST, serveWithFallback, displayUrl } from './listen';
+import { DocsIndex } from './docs-index';
+import type { ContextTier } from './types';
 
-export async function startMcpServer(rootDir: string, port: number = 3001) {
-  const server = new McpServer({
-    name: 'opendoc',
-    version: '0.1.0',
-  });
+/**
+ * Validate a page path from an MCP client and resolve it inside rootDir.
+ * Returns `{ dir, rel }` or `{ error }`. Writes additionally reject `_`-prefixed segments (reserved).
+ */
+export async function validatePagePath(
+  rootDir: string,
+  pagePath: string,
+  { write = false } = {},
+): Promise<{ dir: string; rel: string } | { error: string }> {
+  const segments = pagePath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  if (segments.includes('..')) return { error: 'Path must not contain ".."' };
+  for (const seg of segments) {
+    if (seg.startsWith('.') || (write && seg.startsWith('_'))) return { error: `Reserved path segment: "${seg}"` };
+  }
+  const dir = await resolveInRoot(rootDir, segments.join('/') || '.');
+  if (!dir) return { error: 'Path escapes root directory' };
+  return { dir, rel: relative(rootDir, dir).split(/[\\/]/).join('/') };
+}
 
+export function generateCommitMsg(pagePath: string, before: string | undefined, after: string): string {
+  const section = pagePath.replace(/\/index\.md$/, '').split('/').filter(p => p && p !== 'index.md').join('/') || 'home';
+  let description = 'update';
+  if (before == null) {
+    description = 'create page';
+  } else {
+    const beforeLines = before.split('\n').length;
+    const afterLines = after.split('\n').length;
+    if (afterLines > beforeLines + 5) description = 'expand content';
+    else if (beforeLines > afterLines + 5) description = 'trim content';
+    else if (before !== after) description = 'revise content';
+  }
+  return `docs(${section}): ${description}`;
+}
+
+/** Render a page at the requested tier. Context tiers are derived on the fly — nothing is written to the docs tree. */
+export function renderTier(markdown: string, tier: ContextTier): string {
+  if (tier === 'context') return compress(markdown);
+  if (tier === 'context-mini') return compressMini(markdown);
+  return markdown;
+}
+
+const text = (t: string) => ({ content: [{ type: 'text' as const, text: t }] });
+const errorResult = (message: string) => ({ ...text(JSON.stringify({ error: message })), isError: true });
+
+/** Build an MCP server with all OpenDoc tools. One instance per client session. */
+export function createMcpServer(rootDir: string, index: DocsIndex = new DocsIndex(rootDir)): McpServer {
+  const server = new McpServer({ name: 'opendoc', version: '0.1.0' });
   const git = simpleGit(rootDir, { config: ['--no-optional-locks'] });
 
-  function validatePath(pagePath: string): string | null {
-    if (pagePath.includes('..')) return 'Path must not contain ".."';
-    const resolved = resolve(rootDir, pagePath);
-    if (!resolved.startsWith(resolve(rootDir))) return 'Path escapes root directory';
-    const segments = pagePath.replace(/^\//, '').split('/');
-    for (const seg of segments) {
-      if (seg.startsWith('_') || seg.startsWith('.')) return `Reserved path segment: "${seg}"`;
-    }
-    return null;
-  }
-
   async function isGitRepo(): Promise<boolean> {
-    try {
-      return await git.checkIsRepo();
-    } catch {
-      return false;
-    }
+    try { return await git.checkIsRepo(); } catch { return false; }
   }
 
-  async function rebuildContext(pagePath: string): Promise<void> {
-    const indexPath = join(rootDir, pagePath, 'index.md');
-    try {
-      const markdown = await readFile(indexPath, 'utf-8');
-      await writeFile(join(rootDir, pagePath, 'context.md'), compress(markdown));
-      await writeFile(join(rootDir, pagePath, 'context-mini.md'), compressMini(markdown));
-    } catch { /* skip if file missing */ }
+  async function commitPage(rel: string, message: string): Promise<boolean> {
+    if (!(await isGitRepo())) return false;
+    await git.add([join(rel || '.', 'index.md')]);
+    await git.commit(`${message}\n\nCo-Authored-By: opendoc-mcp <mcp@opendoc.sh>`);
+    return true;
   }
-
-  function generateCommitMsg(pagePath: string, before: string | undefined, after: string): string {
-    const parts = pagePath.replace(/^\//, '').split('/');
-    const section = parts.filter(p => p).join('/') || 'home';
-    let description = 'update';
-    if (before != null) {
-      const beforeLines = before.split('\n').length;
-      const afterLines = after.split('\n').length;
-      if (afterLines > beforeLines + 5) description = 'expand content';
-      else if (beforeLines > afterLines + 5) description = 'trim content';
-      else if (before !== after) description = 'revise content';
-    } else {
-      description = 'create page';
-    }
-    return `docs(${section}): ${description}`;
-  }
-
-  const fileMap: Record<ContextTier, string> = {
-    full: 'index.md',
-    context: 'context.md',
-    'context-mini': 'context-mini.md',
-  };
 
   server.tool(
     'read_page',
     'Read a documentation page at the specified tier',
     {
-      path: z.string().describe('Page path relative to root (e.g. "getting-started")'),
+      path: z.string().describe('Page path relative to root (e.g. "getting-started"); "" for the home page'),
       tier: z.enum(['full', 'context', 'context-mini']).default('full').describe('Content tier'),
     },
     async ({ path: pagePath, tier }) => {
-      const filePath = join(rootDir, pagePath, fileMap[tier]);
+      const v = await validatePagePath(rootDir, pagePath);
+      if ('error' in v) return errorResult(v.error);
       try {
-        const content = await readFile(filePath, 'utf-8');
-        return { content: [{ type: 'text' as const, text: content }] };
+        const markdown = await readFile(join(v.dir, 'index.md'), 'utf-8');
+        return text(renderTier(markdown, tier));
       } catch {
-        return { content: [{ type: 'text' as const, text: `Page not found: ${pagePath} (tier: ${tier})` }], isError: true };
+        return errorResult(`Page not found: ${pagePath}`);
       }
     }
   );
@@ -91,51 +95,27 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
     'Search documentation pages',
     {
       query: z.string().describe('Search query'),
-      limit: z.number().default(10).describe('Max results'),
+      limit: z.number().int().min(1).max(100).default(10).describe('Max results'),
     },
     async ({ query, limit }) => {
-      const pages = await getAllPages(rootDir);
-      const results: SearchResult[] = [];
-      const queryLower = query.toLowerCase();
-
-      for (const page of pages) {
-        const filePath = join(rootDir, page, 'index.md');
-        try {
-          const content = await readFile(filePath, 'utf-8');
-          if (content.toLowerCase().includes(queryLower)) {
-            const lines = content.split('\n');
-            const matchLine = lines.find(l => l.toLowerCase().includes(queryLower)) ?? lines[0] ?? '';
-            results.push({ path: page, snippet: matchLine.trim() });
-            if (results.length >= limit) break;
-          }
-        } catch { /* skip */ }
-      }
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }] };
+      await index.refresh();
+      return text(JSON.stringify(index.search(query, limit), null, 2));
     }
   );
 
-  server.tool(
-    'list_structure',
-    'Get the full navigation tree as JSON',
-    {},
-    async () => {
-      const tree = await walkDir(rootDir);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(tree, null, 2) }] };
-    }
-  );
+  server.tool('list_structure', 'Get the full navigation tree as JSON', {}, async () => {
+    await index.refresh();
+    return text(JSON.stringify(index.getNavTree(), null, 2));
+  });
 
   server.tool(
     'get_backlinks',
     'Get pages that link to the specified page',
-    {
-      path: z.string().describe('Page path'),
-    },
+    { path: z.string().describe('Page path') },
     async ({ path: pagePath }) => {
-      const index = await buildBacklinks(rootDir);
+      await index.refresh();
       const normalized = pagePath.replace(/^\//, '').replace(/\/$/, '');
-      const links = index[normalized] || [];
-      return { content: [{ type: 'text' as const, text: JSON.stringify(links, null, 2) }] };
+      return text(JSON.stringify(index.getBacklinks()[normalized] || [], null, 2));
     }
   );
 
@@ -144,15 +124,16 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
     'Get git log for a specific page',
     {
       path: z.string().describe('Page path'),
-      limit: z.number().default(10).describe('Max entries'),
+      limit: z.number().int().min(1).max(100).default(10).describe('Max entries'),
     },
     async ({ path: pagePath, limit }) => {
+      const v = await validatePagePath(rootDir, pagePath);
+      if ('error' in v) return errorResult(v.error);
       try {
-        const filePath = join(pagePath, 'index.md');
-        const log = await git.log({ file: filePath, maxCount: limit });
-        return { content: [{ type: 'text' as const, text: JSON.stringify(log.all, null, 2) }] };
+        const log = await git.log({ file: join(v.rel || '.', 'index.md'), maxCount: limit });
+        return text(JSON.stringify(log.all, null, 2));
       } catch {
-        return { content: [{ type: 'text' as const, text: '[]' }] };
+        return text('[]');
       }
     }
   );
@@ -166,25 +147,11 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
       after: z.string().optional().describe('Content after edit'),
     },
     async ({ path: filePath, before, after }) => {
-      // Extract section name from path
-      const parts = filePath.replace(/\/index\.md$/, '').replace(/^\//, '').split('/');
-      const section = parts.filter(p => p && p !== 'index.md').join('/') || 'home';
-
-      let description = 'update';
-      if (before != null && after != null) {
-        const beforeLines = before.split('\n').length;
-        const afterLines = after.split('\n').length;
-        if (afterLines > beforeLines + 5) {
-          description = 'expand content';
-        } else if (beforeLines > afterLines + 5) {
-          description = 'trim content';
-        } else if (before !== after) {
-          description = 'revise content';
-        }
-      }
-
-      const message = `docs(${section}): ${description}`;
-      return { content: [{ type: 'text' as const, text: JSON.stringify({ message }) }] };
+      // Without both versions the size of the change is unknown — call it an update
+      const message = before != null && after != null
+        ? generateCommitMsg(filePath, before, after)
+        : generateCommitMsg(filePath, '', '');
+      return text(JSON.stringify({ message }));
     }
   );
 
@@ -196,37 +163,20 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
       content: z.string().describe('Markdown content for the page'),
     },
     async ({ path: pagePath, content }) => {
-      const err = validatePath(pagePath);
-      if (err) return { content: [{ type: 'text' as const, text: JSON.stringify({ error: err }) }], isError: true };
-
-      const dirPath = join(rootDir, pagePath);
-      const filePath = join(dirPath, 'index.md');
+      const v = await validatePagePath(rootDir, pagePath, { write: true });
+      if ('error' in v) return errorResult(v.error);
+      const filePath = join(v.dir, 'index.md');
 
       let before: string | undefined;
-      try {
-        before = await readFile(filePath, 'utf-8');
-      } catch { /* new file */ }
+      try { before = await readFile(filePath, 'utf-8'); } catch { /* new file */ }
 
-      await mkdir(dirPath, { recursive: true });
+      await mkdir(v.dir, { recursive: true });
       await writeFile(filePath, content);
 
-      await rebuildContext(pagePath);
-
-      let committed = false;
-      let message = '';
-      if (await isGitRepo()) {
-        message = generateCommitMsg(pagePath, before, content);
-        const commitMsg = `${message}\n\nCo-Authored-By: opendoc-mcp <mcp@opendoc.sh>`;
-        await git.add([
-          join(pagePath, 'index.md'),
-          join(pagePath, 'context.md'),
-          join(pagePath, 'context-mini.md'),
-        ]);
-        await git.commit(commitMsg);
-        committed = true;
-      }
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify({ path: pagePath, committed, message }) }] };
+      await index.refresh();
+      const message = generateCommitMsg(v.rel, before, content);
+      const committed = await commitPage(v.rel, message);
+      return text(JSON.stringify({ path: v.rel, committed, message: committed ? message : '' }));
     }
   );
 
@@ -238,90 +188,80 @@ export async function startMcpServer(rootDir: string, port: number = 3001) {
       title: z.string().optional().describe('Page title (defaults to folder name)'),
     },
     async ({ path: pagePath, title }) => {
-      const err = validatePath(pagePath);
-      if (err) return { content: [{ type: 'text' as const, text: JSON.stringify({ error: err }) }], isError: true };
-
-      const dirPath = join(rootDir, pagePath);
-      const filePath = join(dirPath, 'index.md');
+      const v = await validatePagePath(rootDir, pagePath, { write: true });
+      if ('error' in v) return errorResult(v.error);
+      const filePath = join(v.dir, 'index.md');
 
       try {
         await access(filePath);
-        return { content: [{ type: 'text' as const, text: JSON.stringify({ error: `Page already exists: ${pagePath}` }) }], isError: true };
+        return errorResult(`Page already exists: ${pagePath}`);
       } catch { /* good — file doesn't exist */ }
 
-      const pageName = title || pagePath.split('/').filter(Boolean).pop() || 'Untitled';
-      const content = `# ${pageName}\n`;
+      const pageName = title || v.rel.split('/').filter(Boolean).pop() || 'Untitled';
+      await mkdir(v.dir, { recursive: true });
+      await writeFile(filePath, `# ${pageName}\n`);
+      await index.refresh();
 
-      await mkdir(dirPath, { recursive: true });
-      await writeFile(filePath, content);
-
-      await rebuildContext(pagePath);
-
-      let committed = false;
-      if (await isGitRepo()) {
-        const message = `docs(${pagePath.replace(/^\//, '') || 'home'}): create page\n\nCo-Authored-By: opendoc-mcp <mcp@opendoc.sh>`;
-        await git.add([
-          join(pagePath, 'index.md'),
-          join(pagePath, 'context.md'),
-          join(pagePath, 'context-mini.md'),
-        ]);
-        await git.commit(message);
-        committed = true;
-      }
-
-      return { content: [{ type: 'text' as const, text: JSON.stringify({ path: pagePath, created: true, committed }) }] };
+      const committed = await commitPage(v.rel, `docs(${v.rel || 'home'}): create page`);
+      return text(JSON.stringify({ path: v.rel, created: true, committed }));
     }
   );
 
-  // Set up HTTP server with SSE transport
-  const httpServer = createServer();
-  const transports = new Map<string, SSEServerTransport>();
+  return server;
+}
 
-  httpServer.on('request', async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+/**
+ * MCP endpoints write to the docs and run git, so only local clients may connect:
+ * Host must be a loopback name (blocks DNS rebinding) and a browser's Origin must be local too.
+ */
+function isAllowedMcpRequest(req: Request, host: string): boolean {
+  const bindIsLoopback = host === DEFAULT_HOST || host === 'localhost' || host === '::1';
+  try {
+    const hostHeader = req.headers.get('host');
+    if (!hostHeader) return false;
+    if (bindIsLoopback && !isLoopbackHostname(new URL(`http://${hostHeader}`).hostname)) return false;
+    const origin = req.headers.get('origin');
+    if (origin && !isLoopbackHostname(new URL(origin).hostname)) return false;
+  } catch {
+    return false;
+  }
+  return true;
+}
 
-    if (req.method === 'OPTIONS') {
-      res.writeHead(200);
-      res.end();
-      return;
-    }
+export interface McpServeOptions {
+  port?: number;
+  host?: string;
+  /** Shared docs index (the docs server passes its own so both stay in sync) */
+  index?: DocsIndex;
+  quiet?: boolean;
+}
 
-    if (req.url === '/sse' && req.method === 'GET') {
-      const transport = new SSEServerTransport('/messages', res);
-      transports.set(transport.sessionId, transport);
-      await server.connect(transport);
-    } else if (req.url?.startsWith('/messages') && req.method === 'POST') {
-      const url = new URL(req.url, `http://localhost:${port}`);
-      const sessionId = url.searchParams.get('sessionId');
-      const transport = sessionId ? transports.get(sessionId) : undefined;
-      if (transport) {
-        let body = '';
-        req.on('data', (chunk: Buffer) => { body += chunk; });
-        req.on('end', async () => {
-          try {
-            await transport.handlePostMessage(req, res, body);
-          } catch {
-            res.writeHead(500);
-            res.end('Error processing message');
-          }
-        });
-      } else {
-        res.writeHead(404);
-        res.end('Session not found');
+/** Serve MCP over Streamable HTTP at /mcp (stateless: a fresh server + transport per request). */
+export async function startMcpServer(rootDir: string, opts: McpServeOptions = {}): Promise<Server<undefined>> {
+  const host = opts.host ?? DEFAULT_HOST;
+  const index = opts.index ?? new DocsIndex(rootDir);
+  if (!opts.index) await index.refresh();
+
+  const server = serveWithFallback({
+    async fetch(req) {
+      if (!isAllowedMcpRequest(req, host)) return new Response('Forbidden', { status: 403 });
+      const url = new URL(req.url);
+      if (url.pathname !== '/mcp' && url.pathname !== '/') return new Response('Not found', { status: 404 });
+      if (url.pathname === '/' && req.method === 'GET') {
+        return new Response('OpenDoc MCP server — connect your client to /mcp', { headers: { 'Content-Type': 'text/plain' } });
       }
-    } else {
-      res.writeHead(404);
-      res.end('Not found');
-    }
-  });
+      try {
+        const mcp = createMcpServer(rootDir, index);
+        const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+        await mcp.connect(transport);
+        return await transport.handleRequest(req);
+      } catch (err) {
+        console.error('MCP request failed:', err);
+        return new Response('Error processing message', { status: 500 });
+      }
+    },
+  }, opts.port ?? 3001, host);
 
-  const { findAvailablePort } = await import('./server');
-  const actualPort = await findAvailablePort(port);
-  httpServer.listen(actualPort, () => {
-    console.log(`MCP server running on http://localhost:${actualPort}`);
-  });
-
-  return httpServer;
+  if (!opts.quiet) console.log(`  MCP server running at ${displayUrl(host, server.port!, '/mcp')}\n`);
+  return server;
 }

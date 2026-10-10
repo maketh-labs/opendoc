@@ -1,15 +1,17 @@
 import React, { useState } from 'react'
-import { showToast } from './editor-utils'
 import { Button } from './ui/button'
 
-export function LoginScreen({ clientId }: { clientId?: string }) {
+export function LoginScreen({ oauthProxy }: { oauthProxy?: string }) {
   function login() {
-    if (!clientId) {
-      showToast('GitHub OAuth client ID not configured', 'error')
-      return
+    // A server owns the OAuth flow (state cookie, code exchange) and redirects back with the token:
+    // this origin's `opendoc serve`, or a configured proxy for statically hosted editors
+    if (oauthProxy) {
+      const start = new URL('/_opendoc/auth/github', oauthProxy)
+      start.searchParams.set('return_to', window.location.origin + window.location.pathname)
+      window.location.href = start.href
+    } else {
+      window.location.href = '/_opendoc/auth/github'
     }
-    const redirectUri = encodeURIComponent(window.location.origin + '/editor')
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo`
   }
   return (
     <div className="flex flex-col h-screen">

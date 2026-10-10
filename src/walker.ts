@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, access, unlink } from 'fs/promises';
+import { readdir, readFile, access } from 'fs/promises';
 import { join, relative, basename, dirname } from 'path';
 import type { NavNode } from './types';
 import { parseFrontmatter } from './utils.js';
@@ -67,24 +67,14 @@ async function readOrder(dir: string): Promise<string[] | null> {
   }
 }
 
-async function sortByOrder(dir: string, children: NavNode[], order: string[] | null): Promise<NavNode[]> {
+function sortByOrder(children: NavNode[], order: string[] | null): NavNode[] {
   if (!order) {
     children.sort((a, b) => a.title.localeCompare(b.title));
     return children;
   }
+  // Stale entries (renamed/deleted folders) are ignored; reading the nav never writes to disk
   const existingSlugs = new Set(children.map(c => basename(c.path)));
   const cleanOrder = order.filter(name => existingSlugs.has(name));
-
-  // Self-heal: rewrite order.json if stale entries were removed
-  if (cleanOrder.length !== order.length) {
-    try {
-      if (cleanOrder.length === 0) {
-        await unlink(join(dir, 'order.json'));
-      } else {
-        await writeFile(join(dir, 'order.json'), JSON.stringify(cleanOrder, null, 2) + '\n');
-      }
-    } catch {}
-  }
 
   const orderMap = new Map(cleanOrder.map((name, i) => [name, i]));
   const ordered: NavNode[] = [];
@@ -115,12 +105,12 @@ function decodeUnicodeEscapes(raw: string): string {
   }
 }
 
-interface PageMeta {
+export interface PageMeta {
   title: string | null;
   icon: string | null;
 }
 
-async function extractMeta(filePath: string): Promise<PageMeta> {
+export async function extractMeta(filePath: string): Promise<PageMeta> {
   try {
     const content = await readFile(filePath, 'utf-8');
     const fm = parseFrontmatter(content);
@@ -134,7 +124,12 @@ async function extractMeta(filePath: string): Promise<PageMeta> {
   }
 }
 
-export async function walkDir(rootDir: string, currentDir: string = rootDir): Promise<NavNode | null> {
+export interface WalkOptions {
+  /** Title/icon lookup for a page's index.md — lets callers serve it from a cache instead of re-reading files */
+  getMeta?: (indexPath: string) => Promise<PageMeta>;
+}
+
+export async function walkDir(rootDir: string, currentDir: string = rootDir, opts: WalkOptions = {}): Promise<NavNode | null> {
   const entries = await readdir(currentDir, { withFileTypes: true });
   const hasIndex = entries.some(e => e.isFile() && e.name === 'index.md');
   const rel = relative(rootDir, currentDir);
@@ -144,22 +139,23 @@ export async function walkDir(rootDir: string, currentDir: string = rootDir): Pr
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name === 'dist' || entry.name === 'assets' || entry.name === 'node_modules' || entry.name.startsWith('.') || entry.name.startsWith('_')) continue;
-    const child = await walkDir(rootDir, join(currentDir, entry.name));
+    const child = await walkDir(rootDir, join(currentDir, entry.name), opts);
     if (child) children.push(child);
   }
 
   const order = await readOrder(currentDir);
-  const sortedChildren = await sortByOrder(currentDir, children, order);
+  const sortedChildren = sortByOrder(children, order);
 
   if (!hasIndex && sortedChildren.length === 0) return null;
   if (!hasIndex) {
     if (sortedChildren.length === 1) return sortedChildren[0]!;
-    if (sortedChildren.length > 1) return { title: titleFromFolder(basename(currentDir) || 'Home'), path: rel || '.', url, children: sortedChildren };
+    // Folder without its own index.md: a grouping node, not a navigable page
+    if (sortedChildren.length > 1) return { title: titleFromFolder(basename(currentDir) || 'Home'), path: rel || '.', url, children: sortedChildren, virtual: true };
     return null;
   }
 
   const indexPath = join(currentDir, 'index.md');
-  const meta = await extractMeta(indexPath);
+  const meta = await (opts.getMeta ?? extractMeta)(indexPath);
   const title = meta.title || titleFromFolder(basename(currentDir) || 'Home');
 
   const node: NavNode = { title, path: rel || '.', url, children: sortedChildren };

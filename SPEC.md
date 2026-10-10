@@ -40,10 +40,10 @@ my-docs/
 │       └── index.md                ← /guides/advanced
 ├── api/
 │   └── index.md                    ← /api
-└── .opendoc/
-    ├── config.json                 ← optional config
-    ├── theme.css                   ← optional theme override
-    └── dist/                       ← build output (gitignored)
+├── opendoc.json                    ← optional config
+├── theme.css                       ← optional theme override
+├── dist/                           ← build output (gitignored)
+└── .opendoc/trash/                 ← deleted pages, restorable for 7 days (gitignored)
 ```
 
 ### Page folder contents
@@ -53,13 +53,11 @@ Each page folder can contain:
 ```
 guides/
 ├── index.md            ← the page (served to humans)
-├── context.md          ← compressed version (MCP only, never served)
-├── context-mini.md     ← ultra-compressed version (MCP only, never served)
 └── assets/
     └── diagram.png     ← assets (never a page)
 ```
 
-**Only `index.md` is ever rendered as a page.** Everything else in a folder is internal. No ignore lists, no config — the convention itself is the protection. `context.md` and `context-mini.md` are invisible to the static site build.
+**Only `index.md` is ever rendered as a page.** Everything else in a folder is internal. No ignore lists, no config — the convention itself is the protection.
 
 ---
 
@@ -68,10 +66,9 @@ guides/
 | File | Visibility | Purpose |
 |---|---|---|
 | `index.md` | Public — rendered as a page | Human-readable content |
-| `context.md` | Internal — MCP only | Compressed for agent reasoning |
-| `context-mini.md` | Internal — MCP only | Ultra-compressed, minimal tokens |
 | `assets/*` | Internal — referenced only | Images, diagrams, attachments |
-| `.opendoc/` | Internal | Config and build output |
+
+`context.md` and `context-mini.md` (compressed tiers for agents) are derived on the fly by the MCP server and written next to each page in `dist/` by `opendoc build` — never into the source folders.
 
 ---
 
@@ -184,7 +181,7 @@ The right sidebar has three sections:
 - Grid of theme cards — name, author, tag chips, mode badge (`light` / `dark` / `both`)
 - Click a card → applies theme live to the page instantly (no reload)
 - "Cancel" button → reverts to previous theme
-- "Save" button → writes theme to `.opendoc/config.json`, locks it in
+- "Save" button → writes theme to `opendoc.json`, locks it in
 - Unauthenticated: shows bundled themes only
 - Authenticated (GitHub): fetches community forks from GitHub API
 
@@ -282,7 +279,7 @@ interface Theme {
 Plugin API deferred to v2. Patterns will be extracted from real v1 usage before the API is designed.
 
 ```json
-// .opendoc/config.json — v2
+// opendoc.json — v2
 {
   "plugins": [
     "opendoc-plugin-mermaid",
@@ -329,14 +326,14 @@ Internally, the remark/rehype pipeline is built to be pluggable from day one —
 
 ```bash
 npx opendoc serve          # Start dev server + MCP server
-npx opendoc build          # Build static site to .opendoc/dist
+npx opendoc build          # Build static site to dist
 npx opendoc login          # GitHub device flow auth
 npx opendoc themes         # Browse and apply themes
 ```
 
 ---
 
-## Config (.opendoc/config.json) — all optional
+## Config (opendoc.json) — all optional
 
 ```json
 {
@@ -394,7 +391,7 @@ Tells the editor which repo and branch to target.
 
 ## Deployment Targets
 
-- **GitHub Pages** — push `.opendoc/dist`, done
+- **GitHub Pages** — push `dist`, done
 - **Netlify / Vercel / Cloudflare Pages** — connect repo, build command: `npx opendoc build`
 - **Self-hosted** — any static file server
 - **Local only** — `npx opendoc serve`, never build
@@ -403,10 +400,10 @@ Tells the editor which repo and branch to target.
 
 ## Build Output (dist)
 
-`opendoc build` writes everything needed to `.opendoc/dist/`. The dist folder is fully self-contained — no source files needed at runtime.
+`opendoc build` writes everything needed to `dist/`. The dist folder is fully self-contained — no source files needed at runtime.
 
 ```
-.opendoc/dist/
+dist/
 ├── getting-started/
 │   ├── index.html          ← rendered page (served to browser)
 │   ├── index.md            ← raw source (served to editor + MCP)

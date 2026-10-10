@@ -1,177 +1,91 @@
 import { readFile, writeFile, unlink } from 'fs/promises'
-import { join, resolve } from 'path'
-import { readBodyRaw, isWithinRoot, MIME_TYPES, type RouteHandler } from './types'
+import { join, extname } from 'path'
+import { themeFiles, editorImages } from '../assets'
+import { getSettingsPath } from '../config'
+import { readJson, resolveInRoot, json, fail, MIME_TYPES, type RouteHandler } from './types'
 
-export const handleStatic: RouteHandler = async (req, res, url, ctx) => {
+/** A user-content file response. SVG/HTML get a sandbox CSP so opening them directly can't run script on this origin. */
+async function userFile(filePath: string, cacheControl?: string): Promise<Response | null> {
+  const file = Bun.file(filePath)
+  if (!(await file.exists())) return null
+  const ext = extname(filePath).slice(1).toLowerCase()
+  const headers: Record<string, string> = {
+    'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
+  }
+  if (cacheControl) headers['Cache-Control'] = cacheControl
+  return new Response(file, { headers })
+}
+
+const SITE_FILE_RE = /\/(favicon(-dark|-96x96)?\.(ico|svg|png)|apple-touch-icon\.png|web-app-manifest-(192x192|512x512)\.png|site\.webmanifest|og-image\.(png|jpg|webp))$/
+
+export const handleStatic: RouteHandler = async (req, url, ctx) => {
   const pathname = url.pathname
 
-    // Serve theme CSS (base styles + user overrides)
+  // Theme CSS: base styles + the user's theme.css overrides
   if (pathname === '/_opendoc/theme.css') {
-    let css = ctx.getStyles()
-    try {
-      const userTheme = await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8')
-      if (userTheme) css += '\n' + userTheme
-    } catch {}
-    res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
-    res.end(css)
-    return true
+    let css = ctx.styles
+    try { css += '\n' + await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8') } catch {}
+    return new Response(css, { headers: { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-cache' } })
   }
 
-  // Save user theme overrides
-  if (pathname === '/_opendoc/theme' && req.method === 'PUT') {
-    const body = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
-    await writeFile(join(ctx.rootDir, 'theme.css'), body.css || '', 'utf-8')
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true }))
-    return true
-  }
-
-  // Get user theme overrides
-  if (pathname === '/_opendoc/theme' && req.method === 'GET') {
-    try {
-      const css = await readFile(join(ctx.rootDir, 'theme.css'), 'utf-8')
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ css }))
-    } catch {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ css: '' }))
+  if (pathname === '/_opendoc/theme') {
+    const themePath = join(ctx.rootDir, 'theme.css')
+    if (req.method === 'GET') {
+      const css = await readFile(themePath, 'utf-8').catch(() => '')
+      return json({ css })
     }
-    return true
-  }
-
-  // Delete user theme overrides
-  if (pathname === '/_opendoc/theme' && req.method === 'DELETE') {
-    try {
-      await unlink(join(ctx.rootDir, 'theme.css'))
-    } catch {}
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true }))
-    return true
-  }
-
-  // Serve viewer bundle JS — built at startup
-  if (pathname === '/client/viewer.tsx' || pathname === '/client/viewer.ts') {
-    const js = ctx.getViewerBundleJs()
-    if (!js) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Viewer bundle not ready'); return true }
-    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
-    res.end(js)
-    return true
-  }
-
-  // Editor route (HTML page)
-  if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname.startsWith(ctx.editorPath + '/'))) {
-    const editorFilePath = join(ctx.projectRoot, 'themes', 'default', 'editor.html')
-    try {
-      const editorHtml = await readFile(editorFilePath, 'utf-8')
-      res.writeHead(200, { 'Content-Type': 'text/html' })
-      res.end(editorHtml)
-    } catch {
-      res.writeHead(404, { 'Content-Type': 'text/html' })
-      res.end('<h1>Editor not found</h1>')
+    if (req.method === 'PUT') {
+      const body = await readJson<{ css?: unknown }>(req)
+      await writeFile(themePath, typeof body.css === 'string' ? body.css : '', 'utf-8')
+      return json({ ok: true })
     }
-    return true
-  }
-
-  // Serve editor bundle JS — built at startup, always ready
-  if (pathname === '/client/editor.tsx' || pathname === '/client/editor.ts') {
-    const js = ctx.getEditorBundleJs()
-    if (!js) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Editor bundle not ready'); return true }
-    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' })
-    res.end(js)
-    return true
-  }
-
-  // Serve editor CSS — built at startup, always ready
-  if (pathname === '/client/editor.css') {
-    const css = ctx.getEditorBundleCss()
-    if (!css) { res.writeHead(503, { 'Content-Type': 'text/plain' }); res.end('Editor CSS not ready'); return true }
-    res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'no-cache' })
-    res.end(css)
-    return true
-  }
-
-  // Serve favicon and og-image files from page directories
-  if (/\/(favicon(-dark|-96x96)?\.(ico|svg|png)|apple-touch-icon\.png|web-app-manifest-(192x192|512x512)\.png|site\.webmanifest|og-image\.(png|jpg|webp))$/.test(pathname)) {
-    const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
-    if (!isWithinRoot(ctx.rootDir, filePath)) {
-      res.writeHead(403); res.end('Forbidden')
-      return true
+    if (req.method === 'DELETE') {
+      await unlink(themePath).catch(() => {})
+      return json({ ok: true })
     }
-    try {
-      const data = await Bun.file(filePath).arrayBuffer()
-      const ext = pathname.split('.').pop()?.toLowerCase()
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream', 'Cache-Control': 'no-cache' })
-      res.end(Buffer.from(data))
-    } catch {
-      // Fall through — not found, let other handlers try
-      return false
-    }
-    return true
+    return null
   }
 
-  // Serve client assets (preview images, etc.) — must come before generic /assets/ handler
+  // Client bundle files (built at startup or embedded): /_opendoc/viewer.js, editor.js, editor.css, chunks
+  if (pathname.startsWith('/_opendoc/') && /^[\w.-]+\.(js|css)$/.test(pathname.slice('/_opendoc/'.length))) {
+    const name = pathname.slice('/_opendoc/'.length)
+    const body = ctx.bundles.files[name]
+    if (body === undefined) return null
+    const type = name.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8'
+    return new Response(body, { headers: { 'Content-Type': type, 'Cache-Control': 'no-cache' } })
+  }
+
+  // Editor app shell
+  if (ctx.editorPath !== null && (pathname === ctx.editorPath || pathname.startsWith(ctx.editorPath + '/') ||
+      pathname === getSettingsPath(ctx.editorPath))) {
+    return new Response(themeFiles.editorHtml, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  }
+
+  // Favicons, manifest and OG images from page directories (not found → fall through to the SPA shell)
+  if (SITE_FILE_RE.test(pathname)) {
+    const filePath = await resolveInRoot(ctx.rootDir, decodeURIComponent(pathname))
+    if (!filePath) return fail(403, 'Forbidden')
+    return userFile(filePath, 'no-cache')
+  }
+
+  // Editor UI images (embedded in the package/binary)
   if (pathname.startsWith('/_opendoc/assets/')) {
-    const assetName = pathname.slice('/_opendoc/assets/'.length)
-    if (assetName.includes('..') || assetName.includes('/')) {
-      res.writeHead(403); res.end('Forbidden')
-      return true
-    }
-    const assetPath = join(ctx.projectRoot, 'client', 'assets', assetName)
-    try {
-      const data = await Bun.file(assetPath).arrayBuffer()
-      const ext = assetName.split('.').pop()?.toLowerCase()
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' })
-      res.end(Buffer.from(data))
-    } catch {
-      res.writeHead(404); res.end('Not found')
-    }
-    return true
+    const assetPath = editorImages[pathname.slice('/_opendoc/assets/'.length)]
+    if (!assetPath) return fail(404, 'Not found')
+    return new Response(Bun.file(assetPath), { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'public, max-age=86400' } })
   }
 
-  // Serve assets from page directories
+  // Page assets
   if (pathname.includes('/assets/')) {
-    const filePath = resolve(ctx.rootDir, pathname.replace(/^\//, ''))
-    if (!isWithinRoot(ctx.rootDir, filePath)) {
-      res.writeHead(403); res.end('Forbidden')
-      return true
-    }
-    try {
-      const data = await Bun.file(filePath).arrayBuffer()
-      const ext = pathname.split('.').pop()?.toLowerCase()
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext || ''] || 'application/octet-stream' })
-      res.end(Buffer.from(data))
-    } catch {
-      res.writeHead(404); res.end('Not found')
-    }
-    return true
+    const filePath = await resolveInRoot(ctx.rootDir, decodeURIComponent(pathname))
+    if (!filePath) return fail(403, 'Forbidden')
+    return (await userFile(filePath)) ?? fail(404, 'Not found')
   }
 
-  // Serve dist files
-  if (pathname.startsWith('/dist/')) {
-    const distPath = join(ctx.rootDir, pathname.slice(1))
-    try {
-      const content = await readFile(distPath, 'utf-8')
-      const ext = pathname.split('.').pop()
-      const contentType = ext === 'json' ? 'application/json' : 'text/plain'
-      res.writeHead(200, { 'Content-Type': contentType })
-      res.end(content)
-    } catch {
-      res.writeHead(404); res.end('Not found')
-    }
-    return true
-  }
+  // Live reload (dev server)
+  if (pathname === '/__reload') return ctx.reload.connect()
 
-  // SSE endpoint for hot reload
-  if (pathname === '/__reload') {
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    })
-    ctx.reloadClients.add(res)
-    req.on('close', () => ctx.reloadClients.delete(res))
-    return true
-  }
-
-  return false
+  return null
 }

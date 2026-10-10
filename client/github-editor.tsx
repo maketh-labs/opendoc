@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { LazyFallback } from './lazy-fallback'
 import type { Block } from '@blocknote/core'
 import { useDarkMode, useKeyboardSave } from './hooks'
 import { EditorShell, ThemeIcon, type RightPanel } from './editor-shell'
 import { PageHeader } from './page-header'
-import { BlockEditor } from './block-editor'
+import { LazyBlockEditor as BlockEditor, markdownToBlocks } from './lazy-editor'
 import {
-  showToast, extractPageMeta, buildMarkdown,
-  getCurrentPagePath, getCommitMessage, type SiteConfig,
+  showToast, getCurrentPagePath, getCommitMessage, type SiteConfig,
 } from './editor-utils'
-import { markdownToBlocks } from './markdown'
+import { usePageDraft } from './page-draft'
 import { Button } from './ui/button'
 import {
   checkRepoAccess, fetchFileFromGitHub,
-  commitFile, openPullRequest,
-  type RepoAccess, type CommitResult,
+  commitFile, saveToPullRequest, loadPrSession,
+  type RepoAccess,
 } from './github-api'
 
 export interface GitHubEditorProps {
@@ -23,21 +23,25 @@ export interface GitHubEditorProps {
 }
 
 export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
-  const pagePath = getCurrentPagePath()
+  // The editor root (no page segment) edits the site's home page
+  const pagePath = getCurrentPagePath(config.editorPath) ?? 'index.md'
   const baseBranch = config.github?.branch || 'main'
 
-  const currentBodyRef = useRef('')
-  const originalContentRef = useRef('')
-  const [isDirty, setIsDirty] = useState(false)
-
-  const [pageTitle, setPageTitle] = useState('')
-  const [pageIcon, setPageIcon] = useState('')
+  const draft = usePageDraft()
+  const d = draft.api
+  const shaRef = useRef<string | undefined>(undefined)
+  const savingRef = useRef(false)
 
   const [initialBlocks, setInitialBlocks] = useState<Block[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [repoAccess, setRepoAccess] = useState<RepoAccess>('none')
   const [saving, setSaving] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
+  const [openPr, setOpenPr] = useState<{ number: number; url: string } | null>(() => {
+    const s = loadPrSession(repo, baseBranch)
+    return s ? { number: s.number, url: s.url } : null
+  })
 
   const { theme: editorTheme } = useDarkMode()
 
@@ -45,70 +49,65 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
     checkRepoAccess(repo, token).then(setRepoAccess)
 
     fetchFileFromGitHub(repo, pagePath, token, baseBranch)
-      .then(async text => {
-        const md = text || '# New Page\n\nStart writing here...'
-        const { title, icon, body } = extractPageMeta(md)
-        const blocks = await markdownToBlocks(body)
-        setPageTitle(title)
-        setPageIcon(icon)
-        currentBodyRef.current = body
-        originalContentRef.current = md
-        setInitialBlocks(blocks)
+      .then(async file => {
+        shaRef.current = file.sha
+        const body = d.load(file.content || '# New Page\n\nStart writing here...')
+        setInitialBlocks(await markdownToBlocks(body))
       })
       .catch(e => {
-        showToast(`Failed to load file: ${e.message}`, 'error')
-        setInitialBlocks([{ type: 'paragraph', content: [] } as any])
+        // Don't fall back to an empty editor — saving it would overwrite the real file
+        setLoadError(`Failed to load ${pagePath}: ${e.message}`)
       })
   }, [])
 
-  const onContentChange = useCallback((md: string) => {
-    currentBodyRef.current = md
-    setIsDirty(buildMarkdown(pageTitle, pageIcon, md) !== originalContentRef.current)
-  }, [pageTitle, pageIcon])
-
-  const getCurrentMarkdown = useCallback(() => {
-    return buildMarkdown(pageTitle, pageIcon, currentBodyRef.current)
-  }, [pageTitle, pageIcon])
+  // Warn before closing the tab with unsaved changes (GitHub mode has no autosave)
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (d.dirtyRef.current || savingRef.current) { e.preventDefault(); e.returnValue = '' }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [d])
 
   const handleSave = useCallback(async (forcePR = false) => {
-    setSaving(true)
     setShowDropdown(false)
+    if (savingRef.current) return
+    if (!d.dirtyRef.current) { showToast('No changes to save', 'warning'); return }
+    savingRef.current = true
+    setSaving(true)
     try {
-      const content = getCurrentMarkdown()
-      const before = originalContentRef.current
-      const message = await getCommitMessage(pagePath, before, content)
+      const snap = d.snapshot()
+      const content = d.getMarkdown()
+      const message = getCommitMessage(pagePath, shaRef.current ? d.originalText() : undefined, content)
 
-      let result: CommitResult
       if (repoAccess === 'write' && !forcePR) {
-        result = await commitFile(repo, pagePath, content, message, token, baseBranch)
+        const result = await commitFile(repo, pagePath, content, message, token, baseBranch, shaRef.current)
+        shaRef.current = result.sha
+        d.markSaved(content, snap)
         showToast('Saved', 'success', result.url)
       } else {
-        result = await openPullRequest(repo, pagePath, content, message, token, baseBranch)
-        showToast('Pull request opened', 'success', result.url)
+        // Every suggested edit in this session lands on one PR branch
+        const result = await saveToPullRequest({
+          repo, path: pagePath, content, message, token, baseBranch,
+          loadedSha: shaRef.current, loadedText: d.originalText(),
+        })
+        // The edit now lives on the PR branch; the draft is clean relative to it
+        d.markSaved(content, snap)
+        setOpenPr({ number: result.number, url: result.url })
+        showToast(result.updated ? `Updated PR #${result.number}` : `Opened PR #${result.number}`, 'success', { linkUrl: result.url, linkText: 'View PR →' })
       }
-
-      originalContentRef.current = content
-      setIsDirty(false)
     } catch (e) {
       showToast((e as Error).message, 'error')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
-  }, [repo, pagePath, token, baseBranch, repoAccess, getCurrentMarkdown])
+  }, [repo, pagePath, token, baseBranch, repoAccess, d])
 
   useKeyboardSave(() => handleSave(false))
 
-  const handleTitleChange = useCallback((t: string) => {
-    setPageTitle(t)
-    setIsDirty(buildMarkdown(t, pageIcon, currentBodyRef.current) !== originalContentRef.current)
-  }, [pageIcon])
-
-  const handleIconChange = useCallback((i: string) => {
-    setPageIcon(i)
-    setIsDirty(buildMarkdown(pageTitle, i, currentBodyRef.current) !== originalContentRef.current)
-  }, [pageTitle])
-
   const isWrite = repoAccess === 'write'
+  const suggestLabel = openPr ? `Add to PR #${openPr.number}` : 'Suggest Edit'
 
   const header = (
     <div className="flex items-center gap-2 h-10 px-4 bg-[var(--color-bg)] border-b border-[var(--color-border)] shrink-0">
@@ -118,13 +117,18 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
         <span>{pagePath}</span>
       </span>
       <span className="flex-1" />
+      {openPr && (
+        <a className="text-xs text-[var(--color-muted)] hover:underline" href={openPr.url} target="_blank" rel="noopener noreferrer" title="Suggested edits in this session go to this pull request">
+          PR #{openPr.number}
+        </a>
+      )}
       <div className="relative inline-flex">
-        <Button variant="default" size="sm" className="h-7 text-xs rounded-r-none" onClick={() => handleSave(false)} disabled={saving}>
+        <Button variant="default" size="sm" className="h-7 text-xs rounded-r-none" onClick={() => handleSave(false)} disabled={saving || !draft.isDirty}>
           {saving
             ? <><span className="od-spinner" />Saving…</>
-            : isDirty
-              ? `${isWrite ? 'Save' : 'Suggest Edit'}`
-              : isWrite ? 'Saved' : 'Suggest Edit'
+            : draft.isDirty
+              ? (isWrite ? 'Save' : suggestLabel)
+              : isWrite ? 'Saved' : suggestLabel
           }
         </Button>
         {isWrite && (
@@ -134,7 +138,7 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
             </Button>
             {showDropdown && (
               <div className="absolute top-full right-0 mt-1 bg-popover border rounded-md shadow-md z-50 min-w-[160px]">
-                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md" onClick={() => handleSave(true)}>Open Pull Request</button>
+                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent rounded-md" onClick={() => handleSave(true)} disabled={!draft.isDirty}>{openPr ? `Add to PR #${openPr.number}` : 'Open Pull Request'}</button>
               </div>
             )}
           </>
@@ -150,25 +154,28 @@ export function GitHubEditor({ token, repo, config }: GitHubEditorProps) {
 
   return (
     <EditorShell header={header} rightPanel={rightPanel} onRightClose={() => setRightPanel(null)}>
+      <Suspense fallback={<LazyFallback label="Loading editor…" />}>
       {initialBlocks ? (
         <BlockEditor
           key={pagePath}
           initialBlocks={initialBlocks}
           pagePath={pagePath}
-          onContentChange={onContentChange}
+          onContentChange={d.setBody}
+          onBaseline={d.setBaseline}
           theme={editorTheme}
           pageHeader={
             <PageHeader
-              title={pageTitle}
-              icon={pageIcon}
-              onTitleChange={handleTitleChange}
-              onIconChange={handleIconChange}
+              title={draft.title}
+              icon={draft.icon}
+              onTitleChange={d.changeTitle}
+              onIconChange={d.changeIcon}
             />
           }
         />
       ) : (
-        <div className="flex items-center justify-center flex-1 text-[var(--color-muted)] text-sm">Loading…</div>
+        <div className="flex items-center justify-center flex-1 text-[var(--color-muted)] text-sm">{loadError ?? 'Loading…'}</div>
       )}
+      </Suspense>
     </EditorShell>
   )
 }

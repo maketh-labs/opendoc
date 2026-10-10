@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { ChevronRight, ChevronDown, Plus, MoreHorizontal } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, MoreHorizontal, Home } from 'lucide-react'
 import { cn } from './ui/cn'
 import { Button } from './ui/button'
 import { ScrollArea } from './ui/scroll-area'
@@ -7,16 +7,18 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import type { NavNode } from './editor-utils'
-import { saveOrder, movePageApi, fetchOrder, deletePageApi, renamePageApi, duplicatePageApi, flattenNav, showToast } from './editor-utils'
+import { saveOrder, movePageApi, fetchOrder, deletePageApi, restorePageApi, renamePageApi, duplicatePageApi, flattenNav, showToast } from './editor-utils'
 
 export interface NavSidebarProps {
   nav: NavNode
   currentFile: string
-  onNavigate: (filePath: string) => void
+  /** `discard: true` drops the editor's draft instead of saving it (its file moved or was deleted). */
+  onNavigate: (filePath: string, opts?: { discard?: boolean }) => void
+  /** Flush pending editor saves before a rename/move/delete. Resolve false to abort. */
+  onBeforeMutate?: () => Promise<boolean>
   onCreatePage: (parentPath: string, name: string) => Promise<void>
   onRefreshNav: () => Promise<void>
   collapsed: boolean
-  onOpenSiteSettings?: () => void
 }
 
 type DropZone = { type: 'between'; parentPath: string; index: number } | { type: 'onto'; targetPath: string } | null
@@ -42,7 +44,14 @@ function parentDir(nodePath: string): string {
   return parts.slice(0, -1).join('/')
 }
 
-export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefreshNav, collapsed, onOpenSiteSettings }: NavSidebarProps) {
+// Is the open file inside (or equal to) the page folder `nodePath`?
+function isUnder(currentFile: string, nodePath: string): boolean {
+  return !!nodePath && (currentFile === `${nodePath}/index.md` || currentFile.startsWith(nodePath + '/'))
+}
+
+export function NavSidebar({ nav, currentFile, onNavigate, onBeforeMutate, onCreatePage, onRefreshNav, collapsed }: NavSidebarProps) {
+  const beforeMutate = useCallback(async () => (onBeforeMutate ? onBeforeMutate() : true), [onBeforeMutate])
+
   const [creatingAt, setCreatingAt] = useState<string | null>(null)
   const [draggedPath, setDraggedPath] = useState<string | null>(null)
   const [dropZone, setDropZone] = useState<DropZone>(null)
@@ -64,6 +73,32 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
 
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
+  /** Run a page operation: on failure show the server's message and resync the sidebar with disk. */
+  const runOp = useCallback(async (label: string, op: () => Promise<void>) => {
+    try {
+      await op()
+    } catch (e) {
+      showToast(`${label} failed: ${(e as Error).message || 'unknown error'}`, 'error')
+    }
+    try { await onRefreshNav() } catch {}
+  }, [onRefreshNav])
+
+  /** Move/rename a page folder back, restoring both parents' order.json as they were before. */
+  const undoMove = useCallback((from: string, to: string, orders: { dir: string; order: string[] }[], verb: string) => {
+    showToast(`${verb} “${folderName(from)}”`, 'success', {
+      action: {
+        label: 'Undo',
+        onClick: () => runOp('Undo', async () => {
+          if (!(await beforeMutate())) return
+          await movePageApi(to, from)
+          // Only folders that had an order.json get theirs back (the server cleans up the rest)
+          await Promise.all(orders.filter(o => o.order.length > 0).map(o => saveOrder(o.dir, o.order)))
+          onNavigate(`${from}/index.md`, { discard: true })
+        }),
+      },
+    })
+  }, [runOp, beforeMutate, onNavigate])
+
   const handleContextMenuAction = useCallback(async (action: string) => {
     if (!contextMenu) return
     const nodePath = contextMenu.nodePath
@@ -78,47 +113,53 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
       setContextMenu(prev => prev ? { ...prev, confirmingDelete: true } : null)
     } else if (action === 'delete') {
       setContextMenu(null)
-      try {
-        await deletePageApi(nodePath)
-        await onRefreshNav()
-        // If deleted page is currently open, navigate away
-        const filePath = nodePath ? `${nodePath}/index.md` : 'index.md'
-        if (nodePath && (currentFile === filePath || currentFile.startsWith(nodePath + '/'))) {
-          const pages = flattenNav(nav).filter(p =>
-            !p.filePath.startsWith(nodePath + '/') && p.filePath !== filePath
+      await runOp('Delete', async () => {
+        const affectsOpen = isUnder(currentFile, nodePath)
+        if (!(await beforeMutate())) return
+        const parent = parentDir(nodePath)
+        const orderBefore = await fetchOrder(parent)
+        const trashId = await deletePageApi(nodePath)
+        // If the deleted page is open, leave it without saving (saving would recreate it)
+        if (affectsOpen) {
+          const remaining = flattenNav(nav).filter(p =>
+            p.filePath !== 'index.md' && !isUnder(p.filePath, nodePath),
           )
-          if (pages.length) onNavigate(pages[0].filePath)
+          onNavigate(remaining[0]?.filePath ?? '', { discard: true })
         }
-      } catch (e) {
-        showToast((e as Error).message || 'Delete failed', 'error')
-      }
+        if (!trashId) return
+        showToast(`Deleted “${contextMenu.nodeTitle}”`, 'success', {
+          action: {
+            label: 'Undo',
+            onClick: () => runOp('Restore', async () => {
+              if (!(await beforeMutate())) return
+              const restored = await restorePageApi(trashId)
+              if (orderBefore.length) await saveOrder(parent, orderBefore)
+              onNavigate(`${restored}/index.md`, { discard: true })
+            }),
+          },
+        })
+      })
     } else if (action === 'duplicate') {
       setContextMenu(null)
-      try {
-        await duplicatePageApi(nodePath)
-        await onRefreshNav()
-      } catch (e) {
-        showToast((e as Error).message || 'Duplicate failed', 'error')
-      }
+      await runOp('Duplicate', async () => { await duplicatePageApi(nodePath) })
     }
-  }, [contextMenu, currentFile, nav, onNavigate, onRefreshNav, handleStartCreate])
+  }, [contextMenu, currentFile, nav, onNavigate, handleStartCreate, beforeMutate, runOp])
 
   const handleRenameConfirm = useCallback(async (oldPath: string, newSlug: string) => {
     setRenamingPath(null)
     const parent = parentDir(oldPath)
     const newPath = parent === '.' ? newSlug : `${parent}/${newSlug}`
     if (newPath === oldPath) return
-    try {
+    await runOp('Rename', async () => {
+      if (!(await beforeMutate())) return
+      const orderBefore = await fetchOrder(parent)
       await renamePageApi(oldPath, newPath)
-      await onRefreshNav()
-      const oldFile = `${oldPath}/index.md`
-      if (currentFile === oldFile) {
-        onNavigate(`${newPath}/index.md`)
+      if (isUnder(currentFile, oldPath)) {
+        onNavigate(newPath + currentFile.slice(oldPath.length), { discard: true })
       }
-    } catch (e) {
-      showToast((e as Error).message || 'Rename failed', 'error')
-    }
-  }, [currentFile, onNavigate, onRefreshNav])
+      undoMove(oldPath, newPath, orderBefore.length ? [{ dir: parent, order: orderBefore }] : [], 'Renamed')
+    })
+  }, [currentFile, onNavigate, beforeMutate, runOp, undoMove])
 
   const handleRenameCancel = useCallback(() => setRenamingPath(null), [])
 
@@ -131,6 +172,11 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
     setDropZone(null)
   }, [])
 
+  // Keep the editor on the open page after its folder moved
+  const followMove = useCallback((from: string, to: string) => {
+    if (isUnder(currentFile, from)) onNavigate(to + currentFile.slice(from.length), { discard: true })
+  }, [currentFile, onNavigate])
+
   const handleDrop = useCallback(async (zone: DropZone) => {
     if (!draggedPath || !zone) return
     setDraggedPath(null)
@@ -139,7 +185,7 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
     const draggedFolder = folderName(draggedPath)
     const sourceParent = parentDir(draggedPath)
 
-    try {
+    await runOp('Move', async () => {
       if (zone.type === 'between') {
         const targetParent = zone.parentPath
 
@@ -169,42 +215,40 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
         } else {
           // Cross-level move
           const newPath = targetParent === '.' ? draggedFolder : `${targetParent}/${draggedFolder}`
+          if (!(await beforeMutate())) return
+          const [srcBefore, destBefore] = await Promise.all([fetchOrder(sourceParent), fetchOrder(targetParent)])
           await movePageApi(draggedPath, newPath)
+          followMove(draggedPath, newPath)
 
-          // Update both orders in parallel
-          const [srcOrder, destOrder] = await Promise.all([
-            fetchOrder(sourceParent),
-            fetchOrder(targetParent),
-          ])
+          // Place it at the drop position (the server appended it)
+          const destOrder = (await fetchOrder(targetParent)).filter(n => n !== draggedFolder)
           destOrder.splice(zone.index, 0, draggedFolder)
           await Promise.all([
-            saveOrder(sourceParent, srcOrder.filter(n => n !== draggedFolder)),
+            saveOrder(sourceParent, srcBefore.filter(n => n !== draggedFolder)),
             saveOrder(targetParent, destOrder),
           ])
+          undoMove(draggedPath, newPath, [{ dir: sourceParent, order: srcBefore }, { dir: targetParent, order: destBefore }], 'Moved')
         }
       } else if (zone.type === 'onto') {
         if (draggedPath === zone.targetPath) return
         if (zone.targetPath.startsWith(draggedPath + '/')) return
 
         const newPath = `${zone.targetPath}/${draggedFolder}`
+        if (!(await beforeMutate())) return
+        const [srcBefore, destBefore] = await Promise.all([fetchOrder(sourceParent), fetchOrder(zone.targetPath)])
         await movePageApi(draggedPath, newPath)
+        followMove(draggedPath, newPath)
 
-        const [srcOrder, destOrder] = await Promise.all([
-          fetchOrder(sourceParent),
-          fetchOrder(zone.targetPath),
-        ])
+        const destOrder = (await fetchOrder(zone.targetPath)).filter(n => n !== draggedFolder)
         destOrder.push(draggedFolder)
         await Promise.all([
-          saveOrder(sourceParent, srcOrder.filter(n => n !== draggedFolder)),
+          saveOrder(sourceParent, srcBefore.filter(n => n !== draggedFolder)),
           saveOrder(zone.targetPath, destOrder),
         ])
+        undoMove(draggedPath, newPath, [{ dir: sourceParent, order: srcBefore }, { dir: zone.targetPath, order: destBefore }], 'Moved')
       }
-      await onRefreshNav()
-    } catch (e) {
-      showToast((e as Error).message || 'Move failed', 'error')
-      await onRefreshNav()
-    }
-  }, [draggedPath, nav, onRefreshNav])
+    })
+  }, [draggedPath, nav, beforeMutate, followMove, runOp, undoMove])
 
   return (
     <aside className={`od-sidebar-left w-[260px] min-w-[260px] bg-[var(--od-color-surface)] border-r border-[var(--od-color-border)] overflow-y-auto shrink-0 transition-all duration-200 flex flex-col${collapsed ? ' od-sidebar-collapsed !w-0 !min-w-0 !overflow-hidden !border-r-transparent' : ''}`}>
@@ -213,8 +257,8 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
           <div className="flex items-center justify-between px-3 py-2 border-b text-sm font-semibold">
             <button
               className="truncate text-left hover:text-accent transition-colors cursor-pointer bg-transparent border-none p-0 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
-              onClick={onOpenSiteSettings}
-              title="Site settings"
+              onClick={() => { if (!nav.virtual) onNavigate('index.md') }}
+              title="Home page"
             >
               {nav.title || 'Pages'}
             </button>
@@ -231,6 +275,32 @@ export function NavSidebar({ nav, currentFile, onNavigate, onCreatePage, onRefre
           <ScrollArea className="flex-1">
             <nav className="p-2">
               <ul className="list-none p-0 m-0">
+                {!nav.virtual && (
+                  <li>
+                    <div
+                      data-page-path="."
+                      className={cn(
+                        'flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer',
+                        currentFile === 'index.md' && 'bg-accent text-accent-foreground font-medium',
+                      )}
+                    >
+                      <span className="flex items-center justify-center h-5 w-5 shrink-0 text-muted-foreground">
+                        <Home className="h-3 w-3" />
+                      </span>
+                      <a
+                        href="/"
+                        className={cn(
+                          'flex-1 truncate no-underline text-muted-foreground hover:text-foreground',
+                          currentFile === 'index.md' && 'text-accent-foreground',
+                        )}
+                        onClick={(e) => { e.preventDefault(); onNavigate('index.md') }}
+                      >
+                        {nav.icon && <span className="mr-1">{nav.icon}</span>}
+                        Home
+                      </a>
+                    </div>
+                  </li>
+                )}
                 {creatingAt === '' && (
                   <InlineNewPageInput
                     onConfirm={(name) => handleConfirmCreate('', name)}
@@ -553,6 +623,7 @@ function NavItem({
         onDrop={handleDropEvent}
         onDragLeave={handleDragLeave}
         onContextMenu={handleRightClick}
+        data-page-path={node.path}
         className={cn(
           'group relative flex items-center gap-1 px-2 py-1 rounded-md text-sm cursor-pointer',
           isActive && 'bg-accent text-accent-foreground font-medium',

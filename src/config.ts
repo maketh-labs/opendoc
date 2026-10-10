@@ -35,6 +35,11 @@ export function getEditorPath(config: OpenDocConfig): string | null {
   return path === '/_editor' ? '/_' : path;
 }
 
+/** Site settings live next to the editor: "/_" → "/__" (keep in sync with client/editor-utils.ts) */
+export function getSettingsPath(editorPath: string): string {
+  return editorPath.replace(/\/+$/, '') + '_';
+}
+
 /** Build a public-safe config object (strips clientSecret) */
 export function buildPublicConfig(config: OpenDocConfig, editorPath: string | null) {
   const { clientSecret: _, ...publicGithub } = config.github ?? {};

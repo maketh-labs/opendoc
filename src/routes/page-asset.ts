@@ -1,6 +1,7 @@
-import { join, resolve } from 'path'
+import { join } from 'path'
 import { unlink, mkdir } from 'fs/promises'
-import { readBodyRaw, isWithinRoot, type RouteHandler } from './types'
+import { readJson, resolveInRoot, json, fail, type RouteHandler } from './types'
+import { readPageUpload } from './upload'
 
 const ASSET_DEFS: Record<string, { recognized: string[]; canonical: string }> = {
   'favicon-96x96':        { recognized: ['favicon-96x96.png'],                              canonical: 'favicon-96x96.png' },
@@ -25,93 +26,41 @@ function getCanonicalName(type: string, fallbackExt: string): string {
   return ASSET_DEFS[type]?.canonical ?? `${type}.${fallbackExt}`
 }
 
-export const handlePageAsset: RouteHandler = async (req, res, url, ctx) => {
-  if (url.pathname !== '/_opendoc/page-asset') return false
+export const handlePageAsset: RouteHandler = async (req, url, ctx) => {
+  if (url.pathname !== '/_opendoc/page-asset') return null
 
   if (req.method === 'POST') {
-    try {
-      const rawBody = await readBodyRaw(req)
-      const bunReq = new Request('http://localhost/_opendoc/page-asset', {
-        method: 'POST',
-        headers: Object.fromEntries(
-          Object.entries(req.headers).filter(([, v]) => v !== undefined) as [string, string][]
-        ),
-        body: rawBody.buffer as ArrayBuffer,
-      })
-      const form = await bunReq.formData()
-      const file = form.get('file') as File | null
-      const pagePath = (form.get('pagePath') as string | null) ?? '.'
-      const type = (form.get('type') as string | null) ?? ''
-
-      if (!file || !VALID_TYPES.includes(type)) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: `Missing file or invalid type (${VALID_TYPES.join(' | ')})` }))
-        return true
-      }
-
-      const pageDir = pagePath === '.' ? ctx.rootDir : join(ctx.rootDir, pagePath)
-      const resolvedDir = resolve(pageDir)
-      if (!isWithinRoot(ctx.rootDir, resolvedDir)) {
-        res.writeHead(403, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Forbidden' }))
-        return true
-      }
-
-      await mkdir(resolvedDir, { recursive: true })
-
-      // Remove any existing files of this type
-      const recognized = getRecognizedNames(type)
-      for (const name of recognized) {
-        try { await unlink(join(resolvedDir, name)) } catch {}
-      }
-
-      // Determine extension from uploaded file
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
-      const filename = getCanonicalName(type, ext)
-      const filePath = join(resolvedDir, filename)
-      await Bun.write(filePath, await file.arrayBuffer())
-
-      const urlPath = pagePath === '.' ? `/${filename}` : `/${pagePath}/${filename}`
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ url: urlPath }))
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: String(e) }))
+    const { form, file, pageDir, pageUrl } = await readPageUpload(req, ctx.rootDir)
+    const type = form.get('type')
+    if (typeof type !== 'string' || !VALID_TYPES.includes(type)) {
+      return fail(400, `Invalid type (${VALID_TYPES.join(' | ')})`)
     }
-    return true
+
+    await mkdir(pageDir, { recursive: true })
+    // Replace any existing file of this type
+    for (const name of getRecognizedNames(type)) {
+      try { await unlink(join(pageDir, name)) } catch {}
+    }
+
+    const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'png'
+    const filename = getCanonicalName(type, ext)
+    await Bun.write(join(pageDir, filename), file)
+    return json({ url: `${pageUrl}/${filename}` })
   }
 
   if (req.method === 'DELETE') {
-    try {
-      const { pagePath = '.', type } = JSON.parse((await readBodyRaw(req)).toString('utf-8'))
-
-      if (!VALID_TYPES.includes(type)) {
-        res.writeHead(400, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: `Invalid type (${VALID_TYPES.join(' | ')})` }))
-        return true
-      }
-
-      const pageDir = pagePath === '.' ? ctx.rootDir : join(ctx.rootDir, pagePath)
-      const resolvedDir = resolve(pageDir)
-      if (!isWithinRoot(ctx.rootDir, resolvedDir)) {
-        res.writeHead(403, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Forbidden' }))
-        return true
-      }
-
-      const recognized = getRecognizedNames(type)
-      for (const name of recognized) {
-        try { await unlink(join(resolvedDir, name)) } catch {}
-      }
-
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true }))
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: String(e) }))
+    const { pagePath = '.', type } = await readJson<{ pagePath?: unknown; type?: unknown }>(req)
+    if (typeof type !== 'string' || !VALID_TYPES.includes(type)) {
+      return fail(400, `Invalid type (${VALID_TYPES.join(' | ')})`)
     }
-    return true
+    const pageDir = await resolveInRoot(ctx.rootDir, typeof pagePath === 'string' ? pagePath : '.')
+    if (!pageDir) return fail(403, 'Forbidden')
+
+    for (const name of getRecognizedNames(type)) {
+      try { await unlink(join(pageDir, name)) } catch {}
+    }
+    return json({ ok: true })
   }
 
-  return false
+  return null
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Button } from './ui/button'
 import { Upload, Trash2, Image, Globe } from 'lucide-react'
+import { uploadPageAsset, deletePageAsset, showToast } from './editor-utils'
 
 interface PageAssetSectionProps {
   label: string
@@ -80,7 +81,7 @@ export function PageSettingsPanel({ pagePath, onClose }: PageSettingsPanelProps)
   const [uploading, setUploading] = useState(false)
 
   // Derive the page directory from the file path (e.g. "guides/index.md" -> "guides")
-  const pageDir = pagePath.replace(/\/index\.md$/, '') || '.'
+  const pageDir = pagePath.replace(/(^|\/)index\.md$/, '') || '.'
 
   const fetchAssets = useCallback(async () => {
     try {
@@ -100,14 +101,10 @@ export function PageSettingsPanel({ pagePath, onClose }: PageSettingsPanelProps)
   async function uploadAsset(file: File, type: 'favicon' | 'og-image') {
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('pagePath', pageDir)
-      form.append('type', type)
-      const r = await fetch('/_opendoc/page-asset', { method: 'POST', body: form })
-      if (r.ok) {
-        await fetchAssets()
-      }
+      await uploadPageAsset(type, file, pageDir)
+      await fetchAssets()
+    } catch (e) {
+      showToast(`Upload failed: ${(e as Error).message}`, 'error')
     } finally {
       setUploading(false)
     }
@@ -115,13 +112,11 @@ export function PageSettingsPanel({ pagePath, onClose }: PageSettingsPanelProps)
 
   async function deleteAsset(type: 'favicon' | 'og-image') {
     try {
-      await fetch('/_opendoc/page-asset', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pagePath: pageDir, type }),
-      })
+      await deletePageAsset(type, pageDir)
       await fetchAssets()
-    } catch {}
+    } catch (e) {
+      showToast(`Couldn't remove ${type}: ${(e as Error).message}`, 'error')
+    }
   }
 
   return (

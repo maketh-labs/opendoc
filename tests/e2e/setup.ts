@@ -1,73 +1,57 @@
 /**
- * E2E Test Setup for OpenDoc
+ * E2E helpers: a real OpenDoc server (client bundles built from source) plus a Playwright browser.
  *
- * This file provides helpers for Playwright-based end-to-end tests.
- * These tests start a real OpenDoc server and interact with it via a browser.
+ *   bunx playwright install chromium   # once
+ *   bun test tests/e2e
  *
- * To run E2E tests:
- *   1. Install playwright: bunx playwright install chromium
- *   2. Run: bun test tests/e2e/
- *
- * Note: E2E tests are slower and require more setup than unit/integration tests.
- * They are meant to be run less frequently, typically before releases.
+ * Set PLAYWRIGHT_CHANNEL=chrome to use an installed Chrome instead of Playwright's Chromium.
  */
-import { spawn, type Subprocess } from 'bun';
 import { mkdtemp, cp, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import type { Browser } from 'playwright';
+import { startServer, type RunningServer } from '../../src/server';
 
-const FIXTURES_DIR = join(import.meta.dir, '..', 'fixtures');
-const SAMPLE_DOCS = join(FIXTURES_DIR, 'sample-docs');
+const SAMPLE_DOCS = join(import.meta.dir, '..', 'fixtures', 'sample-docs');
 
-export interface ServerInstance {
-  process: Subprocess;
-  port: number;
+export interface TestServer {
+  app: RunningServer;
   url: string;
-  tmpDir: string;
+  docsDir: string;
 }
 
-/**
- * Start an OpenDoc dev server on a random port.
- * Returns the server instance info for test use.
- */
-export async function startTestServer(): Promise<ServerInstance> {
-  const tmpDir = await mkdtemp(join(tmpdir(), 'opendoc-e2e-'));
-  await cp(SAMPLE_DOCS, tmpDir, { recursive: true });
+export async function startTestServer(): Promise<TestServer> {
+  const docsDir = await mkdtemp(join(tmpdir(), 'opendoc-e2e-'));
+  await cp(SAMPLE_DOCS, docsDir, { recursive: true });
+  const app = await startServer(docsDir, { port: 0, mcpPort: 0, open: false, quiet: true });
+  return { app, url: `http://localhost:${app.server.port}`, docsDir };
+}
 
-  // Use a random high port to avoid conflicts
-  const port = 10000 + Math.floor(Math.random() * 50000);
+export async function stopTestServer(server: TestServer): Promise<void> {
+  await server.app.stop();
+  await rm(server.docsDir, { recursive: true, force: true });
+}
 
-  const proc = spawn({
-    cmd: ['bun', 'run', join(import.meta.dir, '..', '..', 'src', 'cli.ts'), 'serve', tmpDir, '--port', String(port)],
-    stdout: 'pipe',
-    stderr: 'pipe',
+export async function launchBrowser(): Promise<Browser> {
+  const { chromium } = await import('playwright');
+  return chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || undefined });
+}
+
+/** Serve a directory as a plain static site (no OpenDoc server), like GitHub Pages would. */
+export function serveStatic(root: string): { url: string; stop: () => void } {
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    async fetch(req) {
+      const path = decodeURIComponent(new URL(req.url).pathname);
+      for (const candidate of [path, join(path, 'index.html')]) {
+        if (candidate.endsWith('/')) continue;
+        const file = Bun.file(join(root, candidate));
+        if (await file.exists()) return new Response(file);
+      }
+      const notFound = Bun.file(join(root, '404.html'));
+      return new Response(await notFound.exists() ? notFound : 'Not found', { status: 404, headers: { 'Content-Type': 'text/html' } });
+    },
   });
-
-  // Wait for server to be ready (poll for connection)
-  const maxWait = 15000;
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    try {
-      const res = await fetch(`http://localhost:${port}/_opendoc/nav.json`);
-      if (res.ok) break;
-    } catch {
-      // Server not ready yet
-    }
-    await new Promise(r => setTimeout(r, 200));
-  }
-
-  return {
-    process: proc,
-    port,
-    url: `http://localhost:${port}`,
-    tmpDir,
-  };
-}
-
-/**
- * Stop the test server and clean up temp files.
- */
-export async function stopTestServer(server: ServerInstance): Promise<void> {
-  server.process.kill();
-  await rm(server.tmpDir, { recursive: true, force: true });
+  return { url: `http://127.0.0.1:${server.port}`, stop: () => server.stop(true) };
 }

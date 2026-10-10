@@ -3,18 +3,21 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type { TemplateVars } from './types';
 import { escapeHtml } from './utils.js';
+import { themeFiles } from './assets';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
 const themesDir = join(__dirname, '..', 'themes');
 
+// The default theme is embedded (works inside compiled binaries); other themes are read from disk.
 export async function loadTemplate(themeName: string = 'default'): Promise<string> {
-  const templatePath = join(themesDir, themeName, 'template.html');
-  return readFile(templatePath, 'utf-8');
+  if (themeName === 'default') return themeFiles.templateHtml;
+  return readFile(join(themesDir, themeName, 'template.html'), 'utf-8');
 }
 
 export async function loadStyles(themeName: string = 'default'): Promise<string> {
-  const stylePath = join(themesDir, themeName, 'style.css');
-  return readFile(stylePath, 'utf-8');
+  if (themeName === 'default') return themeFiles.styleCss;
+  return readFile(join(themesDir, themeName, 'style.css'), 'utf-8');
 }
 
 export function renderTemplate(template: string, vars: TemplateVars): string {
@@ -47,7 +50,7 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
     .replace(/\{\{nav\}\}/g, vars.nav)
     .replace(/\{\{backlinks\}\}/g, vars.backlinks)
     .replace(/\{\{toc\}\}/g, vars.toc)
-    .replace(/\{\{icon\}\}/g, vars.icon)
+    .replace(/\{\{icon\}\}/g, escapeHtml(vars.icon))
     .replace(/\{\{pageTitle\}\}/g, escapeHtml(vars.pageTitle))
     .replace(/\{\{pageFavicon\}\}/g, escapeHtml(vars.pageFavicon))
     .replace(/\{\{ogImage\}\}/g, escapeHtml(vars.ogImage));

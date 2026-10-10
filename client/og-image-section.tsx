@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Upload } from 'lucide-react'
 import { Button } from './ui/button'
+import { uploadPageAsset, deletePageAsset, showToast } from './editor-utils'
 
 function TwitterCardPreview({ imageUrl, siteTitle }: { imageUrl: string | null; siteTitle: string }) {
   return (
@@ -74,22 +75,20 @@ export function OGImageSection({ siteTitle }: { siteTitle: string }) {
   async function upload(file: File) {
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('pagePath', '.')
-      form.append('type', 'og-image')
-      await fetch('/_opendoc/page-asset', { method: 'POST', body: form })
+      await uploadPageAsset('og-image', file, '.')
       await load()
+    } catch (e) {
+      showToast(`Upload failed: ${(e as Error).message}`, 'error')
     } finally { setUploading(false) }
   }
 
   async function remove() {
-    await fetch('/_opendoc/page-asset', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pagePath: '.', type: 'og-image' }),
-    })
-    setCurrentUrl(null)
+    try {
+      await deletePageAsset('og-image', '.')
+      setCurrentUrl(null)
+    } catch (e) {
+      showToast(`Couldn't remove image: ${(e as Error).message}`, 'error')
+    }
   }
 
   return (

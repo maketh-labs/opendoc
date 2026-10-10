@@ -1,6 +1,9 @@
-import React from 'react'
-import { ThemePanel } from './theme-panel'
-import { PageSettingsPanel } from './page-settings-panel'
+import React, { lazy, Suspense } from 'react'
+import { LazyFallback } from './lazy-fallback'
+
+// Side panels are opened occasionally — load them on demand
+const ThemePanel = lazy(() => import('./theme-panel').then(m => ({ default: m.ThemePanel })))
+const PageSettingsPanel = lazy(() => import('./page-settings-panel').then(m => ({ default: m.PageSettingsPanel })))
 
 export type RightPanel = 'theme' | 'page-settings' | null
 
@@ -30,10 +33,12 @@ export function EditorShell({ header, nav, children, rightPanel, onRightClose, p
           className={`od-editor-right shrink-0 border-l transition-all duration-200 ${rightPanel ? 'open w-[var(--od-theme-panel-width)] border-l-[var(--color-border)] overflow-y-auto' : 'w-0 overflow-hidden border-transparent'}`}
           id="editor-right-panel"
         >
-          {rightPanel === 'theme' && <ThemePanel onClose={onRightClose} />}
-          {rightPanel === 'page-settings' && pagePath && (
-            <PageSettingsPanel pagePath={pagePath} onClose={onRightClose} />
-          )}
+          <Suspense fallback={<LazyFallback />}>
+            {rightPanel === 'theme' && <ThemePanel onClose={onRightClose} />}
+            {rightPanel === 'page-settings' && pagePath && (
+              <PageSettingsPanel pagePath={pagePath} onClose={onRightClose} />
+            )}
+          </Suspense>
         </aside>
       </div>
     </div>

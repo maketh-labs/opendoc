@@ -1,7 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react'
-import data from '@emoji-mart/data'
-import Picker from '@emoji-mart/react'
+import React, { useRef, useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { Button } from './ui/button'
+import { LazyFallback } from './lazy-fallback'
+
+const EmojiPicker = lazy(() => import('./emoji-picker'))
 
 export interface PageHeaderProps {
   title: string
@@ -57,13 +58,9 @@ export function PageHeader({ title, icon, onTitleChange, onIconChange, darkMode 
           </Button>
           {pickerOpen && (
             <div ref={pickerRef} className="absolute top-full left-0 z-[100] mt-1">
-              <Picker
-                data={data}
-                onEmojiSelect={handleEmojiSelect}
-                theme={darkMode === 'dark' ? 'dark' : 'light'}
-                previewPosition="none"
-                skinTonePosition="search"
-              />
+              <Suspense fallback={<div className="bg-popover border rounded-md shadow-md"><LazyFallback /></div>}>
+                <EmojiPicker onSelect={handleEmojiSelect} theme={darkMode === 'dark' ? 'dark' : 'light'} />
+              </Suspense>
             </div>
           )}
         </div>

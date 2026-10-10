@@ -54,7 +54,7 @@ export function tocToHtml(entries: TocEntry[]): string {
 
   const items = entries.map(e => {
     const indent = e.level === 3 ? ' class="od-toc-h3"' : '';
-    return `<li${indent}><a href="#${e.id}">${escapeHtml(e.text)}</a></li>`;
+    return `<li${indent}><a href="#${escapeHtml(e.id)}">${escapeHtml(e.text)}</a></li>`;
   }).join('\n    ');
 
   return `<div class="od-toc" id="od-toc">

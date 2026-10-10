@@ -39,3 +39,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Platform binaries (built by CI)
 npm/*/bin/opendoc
 npm/*/bin/opendoc.exe
+
+# Generated client bundles (scripts/bundle-client.ts) and Tailwind output
+src/generated/
+client/globals.gen.css
+*.swp
+/opendoc
